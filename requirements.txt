@@ -1,0 +1,6 @@
+# Runtime dependencies (mirror of install_requires in setup.cfg).
+numpy>=1.20
+astropy>=5.2
+astroplan>=0.9
+matplotlib>=3.3
+pyyaml>=5.1
