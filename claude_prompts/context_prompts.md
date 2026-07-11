@@ -29,6 +29,23 @@ Update the file `context/claudes_context.md` with what you learn and `context/cl
 
 Add this to your context file and log your work.
 
+### Instrument manuals
+
+1. Examine the instrument manuals for the following telescopes and add them to your context file:
+
+   - Lick
+     - https://mthamilton.ucolick.org/techdocs/instruments/kast/
+   - Keck
+     - https://www2.keck.hawaii.edu/inst/hires/
+     - https://www2.keck.hawaii.edu/inst/lris/lrishome.html
+     - https://www2.keck.hawaii.edu/inst/mosfire/home.html
+     - https://www2.keck.hawaii.edu/inst/deimos/
+     - https://www2.keck.hawaii.edu/inst/esi/
+     - https://www2.keck.hawaii.edu/inst/kcwi/
+   - Palomar
+     - https://caltechopticalobservatories.github.io/NGPS/
+   - Gemini
+     - https://www.gemini.edu/instrumentation/gmos
 
 ## Night plans
 

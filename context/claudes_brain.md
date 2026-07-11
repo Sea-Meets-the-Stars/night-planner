@@ -60,6 +60,16 @@ bottom tracks every update.
 
 - _(To be filled in as I learn the telescope, instruments, targets, and the
   astronomers' night-planning workflow.)_
+- **UCO/Lick observing calendars** (`ucolick.org/calendar/`, readme at
+  `readme.html`; details in [`claudes_context.md`](claudes_context.md)):
+  pre-computed nightly almanacs for **Lick (Mt. Hamilton, PST)** and **Keck
+  (Maunakea, HST)**, one row per evening-date-plus-following-morning, in
+  12° (nautical) and 18° (astronomical) twilight variants — sunset/sunrise,
+  twilight/dawn times, moon rise/set, sidereal times (twilight/midnight/dawn),
+  night & dark length, moon RA/Dec/distance at midnight. Authoritative
+  site-specific reference for cross-checking our astroplan/thorsky-computed
+  night events for any Lick/Keck night, 2011–2030 (adjacent decades also
+  posted).
 
 ### Skills & tools for telescope night planning (researched 2026-07-11)
 
@@ -158,3 +168,6 @@ Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
 - **v0.5 — 2026-07-11:** Executed context_prompts.md Code prompt 1 on the Fable 5
   model. Examined FFFF_PZ and JSkyCalc repos + astropy docs; wrote
   context/claudes_context.md and recorded new night-planning concepts here.
+- **v0.6 — 2026-07-11:** Executed context_prompts.md Websites/Ephemeris prompt 1
+  on the Fable 5 model. Documented the UCO/Lick & Keck calendar ephemeris sites
+  in context/claudes_context.md.

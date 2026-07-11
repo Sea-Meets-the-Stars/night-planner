@@ -298,3 +298,56 @@ for definitions and output content.
    selection; JSkyCalc is a calculator, not a scheduler) — ordering targets by
    transit/airmass windows within the twilight-bounded night is night-planner's
    core job (astroplan's Scheduler is the starting point).
+
+---
+
+## Ephemeris websites (UCO/Lick & Keck calendars)
+
+(Added 2026-07-11, executing `claude_prompts/context_prompts.md`, Websites >
+Ephemeris, prompt 1. All pages below were fetched and verified.)
+
+The University of California Observatories hosts pre-computed observing
+calendars (compiled by Dr. Arnold Klemola; contact `webeditor@ucolick.org`) —
+an authoritative, site-specific nightly almanac for the two facilities we care
+most about.
+
+**Read this first — the explanatory readme:**
+
+- <https://ucolick.org/calendar/readme.html> — describes what the calendars
+  tabulate: sunrise/sunset, moonrise/moonset, sidereal times (at twilight,
+  midnight, and dawn), and length of night (whole night, dark hours, % dark).
+  Each calendar comes in **two twilight variants**: nautical (sun −12°) and
+  astronomical (sun −18°).
+
+**Lick Observatory (Mt. Hamilton, altitude 1283.0 m; times in PST):**
+
+- <https://ucolick.org/calendar/lickcal2011-20/index.html> — years 2011–2020.
+- <https://ucolick.org/calendar/lickcal2021-30/index.html> — years 2021–2030.
+
+**Keck Observatory (Maunakea; computed for altitude 4160.0 m; times in HST):**
+
+- <https://ucolick.org/calendar/keckcal2011-20/index.html> — years 2011–2020.
+- <https://ucolick.org/calendar/keckcal2021-30/index.html> — years 2021–2030.
+
+**Structure (verified by fetching the pages):** the four index URLs are pure
+navigation pages — for each year they link 12 monthly calendar files per
+twilight variant (e.g. `keck2021.18jan` = Keck, January 2021, 18° twilight;
+`lick2021.12jan` = Lick, January 2021, 12° twilight). Adjacent-decade indexes
+(1998–2010, 2031–2040, 2041–2050) are linked from the same pages.
+
+**Per-month table contents (verified on `lick2021.18jan` and
+`keck2021.18jan`):** one row per night — "ONE LINE REFERS TO EVENING DATE AND
+FOLLOWING MORNING" — with columns for DATE (local zone), SUN SET, TWILIGHT
+ENDS (12° and 18°), MOON RISE / MOON SET, DAWN BEGINS (18° and 12°), SUN RISE,
+SIDEREAL TIMES (at twilight end, midnight, and dawn), NIGHT LENGTH / DARK
+LENGTH, and the Moon at midnight (RA, Dec, distance). All dates/times are in
+the site's local standard zone (PST for Lick, HST for Keck) *except* the
+sidereal times; footers also list the month's moon-phase dates (new/quarters/
+full).
+
+**Use for night-planner:** these tables are an independent, observatory-
+blessed reference for exactly the night-skeleton quantities we compute with
+astroplan/thorsky (sunset/sunrise, 12°/18° twilights, moon rise/set, LST,
+night/dark length) — ideal for **cross-checking our computed values** for any
+Lick or Keck night in 2011–2030, and as a quick human-readable lookup when no
+code is at hand.
