@@ -99,6 +99,43 @@ output structure mirrors ESO p2 / Gemini OT (ordered OBs + constraints + finding
 charts + README). Awaiting the astronomers' specific telescope/site/instrument
 before authoring. See references in Logs/2026/07/2026-07-11.md, Entry 4.
 
+### Lessons from FFFF_PZ, JSkyCalc/thorsky & astropy docs (2026-07-11)
+
+Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
+
+- **Definitions to adopt (JSkyCalc/thorsky):** rise/set at sun/moon altitude
+  **−0.833°** (zd 90°50′); astronomical twilight at sun alt **−18°**; hour angle
+  = LST − RA wrapped to ±12 h; near the horizon use a *true airmass* (Snell &
+  Heiser 1968 polynomial) rather than plain sec z; moonlight via the
+  **Krisciunas & Schaefer (1991)** V mag/arcsec² sky-brightness model, not just
+  a separation cut; report parallactic angle (slit orientation) and barycentric
+  time/velocity corrections.
+- **Two-layer design (thorsky `Observation` class):** separate *instantaneous
+  circumstances* (LST/HA/alt/az/airmass/parallactic/moon/sun) from *per-night
+  events* (sunset, −18° twilights, night center, moon rise/set). The single best
+  ranking scalar is `hrs_up` — hours tonight above the critical altitude,
+  clipped to the twilights.
+- **Run/plan data model (FFFF_PZ `FRBFollowUpResource`):** an observing run =
+  instrument + UT validity window + N targets per mode (imaging/longslit/mask)
+  + selection criteria (survey, status, tags, P_Ox, mag limits) + **max_AM**.
+  The plan is a flat pandas table (`TNS, Resource, mode`); the observing log
+  returns as a table (`..., Conditions, texp, date, success`) and is ingested
+  back to advance per-target statuses (NeedImage → NeedSpectrum → done).
+- **Feasibility-filter idiom (FFFF_PZ `frb_targeting.calc_airmasses`):** build
+  `Observer` from `EarthLocation.from_geodetic(lon, lat, elev)`; loop nights
+  bounded by `twilight_evening/morning_astronomical` (use `which='previous'` to
+  step nights safely); sample every 30 min; one vectorized `SkyCoord` array for
+  all targets; keep targets whose *minimum airmass over the run* ≤ max_AM.
+- **Core astropy recipe:** `target.transform_to(AltAz(obstime=times,
+  location=loc))` → `.alt`/`.az`/`.secz`; `get_sun(t)` / `get_body('moon', t,
+  loc)` for dark time and moon separation; `Time.sidereal_time('apparent',
+  lon)`; `Time.light_travel_time(coord, kind='barycentric')` for BJD. Caveats:
+  `.secz` is plane-parallel; AltAz refracts only if `pressure` is supplied.
+- **The gap night-planner fills:** FFFF_PZ stops at *which* targets are
+  observable in a run; JSkyCalc is a calculator, not a scheduler. Sequencing
+  targets *within* the twilight-bounded night is our job (start from
+  astroplan's Scheduler).
+
 ## Version History
 
 - **v0.1 — 2026-07-11:** Created during start-up prompt 1. Seeded project purpose,
@@ -118,3 +155,6 @@ before authoring. See references in Logs/2026/07/2026-07-11.md, Entry 4.
   in the "Skills & tools" subsection above (astroplan core; Astropy & SIMBAD agent
   skills; ESO p2 / Gemini OT as structural models). No skills installed yet —
   presented recommendations to the author for a decision.
+- **v0.5 — 2026-07-11:** Executed context_prompts.md Code prompt 1 on the Fable 5
+  model. Examined FFFF_PZ and JSkyCalc repos + astropy docs; wrote
+  context/claudes_context.md and recorded new night-planning concepts here.
