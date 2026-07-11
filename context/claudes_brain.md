@@ -33,7 +33,8 @@ bottom tracks every update.
 - `claude_prompts/start_up.md` — ordered start-up prompts driving initial setup.
 - `context/` — durable context; `claudes_brain.md` (this file).
 - `Logs/` — daily narrative logs, `log_summary.csv`, `logging.md`.
-- `.claude/` — `settings.json` (Stop hook wiring), `hooks/log_usage.py`.
+- `.claude/` — `settings.json` (Stop hook wiring), `hooks/log_usage.py`,
+  `skills/` (`grill-me`, `critical-partner`; copied from ClimateIntelligence).
 - `setup.py` / `setup.cfg` / `pyproject.toml` — packaging. Author's convention
   (from `python/linetools` and `Projects/XAI`): metadata + deps in **setup.cfg**,
   `pyproject.toml` limited to `[build-system]`, `setup.py` a minimal `setup()` shim.
@@ -71,3 +72,6 @@ bottom tracks every update.
   convention. Recorded those conventions and the settings.json recommendation
   (copy XAI's — already in place). Chose astronomy deps: numpy, astropy,
   **astroplan** (observability/scheduling), matplotlib, pyyaml.
+- **v0.3 — 2026-07-11:** Start-up prompt 3 (1st task under "Skills"). Copied the
+  `grill-me` and `critical-partner` skills verbatim from ClimateIntelligence into
+  `.claude/skills/` (both single-file SKILL.md, project-agnostic, no edits needed).
