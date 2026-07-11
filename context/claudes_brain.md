@@ -70,6 +70,30 @@ bottom tracks every update.
   site-specific reference for cross-checking our astroplan/thorsky-computed
   night events for any Lick/Keck night, 2011–2030 (adjacent decades also
   posted).
+- **Instrument taxonomy & the facility instrument set** (full per-instrument
+  summaries with URLs in [`claudes_context.md`](claudes_context.md), section
+  "Instrument manuals"): the types that matter for planning are **imager /
+  longslit / multi-object (MOS, slitmask) / echelle-echellette / IFU** — type
+  drives the constraints (blue-UV coverage → dark time; NIR → moon-tolerant;
+  MOS → masks fixed before the night; single slit → parallactic-angle/ADC
+  choices; Nasmyth mounts → rotator/PA handling).
+
+  | Instrument | Telescope (focus) | Type | Coverage | Planning hook |
+  |---|---|---|---|---|
+  | Kast | Shane 3m (Cass) | dual-arm longslit | blue+red via dichroic (4600/5700 Å splits) | slit PA; simultaneous arms |
+  | HIRES | Keck I (Nasmyth) | echelle | 0.3–1.0 µm, R 25k–85k | HIRESb vs HIRESr fixed for the night; image rotator for PA/parallactic |
+  | LRIS | Keck I (Cass) | imager+longslit+**MOS** | 3200–10,000 Å, R 300–5000 | masks milled on-site → pre-run lead time |
+  | MOSFIRE | Keck I (Cass) | NIR **MOS**+imager | 0.97–2.41 µm (Y/J/H/K, one band), R≈3500 | CSU reconfigures in <5 min — no milled masks |
+  | DEIMOS | Keck II (Nasmyth) | imager+longslit+**MOS** | optical, ≤5000 Å/exposure, R≤6000 | milled masks → pre-run lead time; 16.6′ slit length |
+  | ESI | Keck II (Cass) | echellette+imager | 0.39–1.1 µm in one shot, R≤13k | fixed format, minimal setup choices |
+  | KCWI | Keck II (Nasmyth) | **IFU** | blue 3500–5600 Å + red 5400–10,800 Å, R≈900–4500+ | slicer (8.4/16.5/33″×20.4″) sets R & FOV; dark time for blue |
+  | NGPS | P200 (Cass) | 4-channel slit spectrograph | 3050–10,400 Å simultaneous, R>4000 | ships an ETC + Observation Timeline Modeler (prior art) |
+  | GMOS | Gemini N & S | imager+longslit+**MOS**+IFU | 0.36–1.03 µm, R≤10k | queue/OB-based; masks + 3 mounted gratings decided in advance |
+
+  Mask-lead-time (MOS) instruments: **LRIS, DEIMOS, GMOS** (physical milled
+  masks) and **MOSFIRE** (software mask designs, but reconfigurable at night);
+  single-slit/echelle: **Kast, HIRES, ESI, NGPS**; IFU: **KCWI** (and GMOS-IFU,
+  NGPS slicer).
 
 ### Skills & tools for telescope night planning (researched 2026-07-11)
 
@@ -170,4 +194,7 @@ Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
   context/claudes_context.md and recorded new night-planning concepts here.
 - **v0.6 — 2026-07-11:** Executed context_prompts.md Websites/Ephemeris prompt 1
   on the Fable 5 model. Documented the UCO/Lick & Keck calendar ephemeris sites
+  in context/claudes_context.md.
+- **v0.7 — 2026-07-11:** Executed context_prompts.md Websites/Instrument-manuals
+  prompt 1 on the Fable 5 model. Summarized Lick/Keck/Palomar/Gemini instruments
   in context/claudes_context.md.

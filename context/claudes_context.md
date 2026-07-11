@@ -351,3 +351,138 @@ astroplan/thorsky (sunset/sunrise, 12°/18° twilights, moon rise/set, LST,
 night/dark length) — ideal for **cross-checking our computed values** for any
 Lick or Keck night in 2011–2030, and as a quick human-readable lookup when no
 code is at hand.
+
+---
+
+## Instrument manuals (Lick, Keck, Palomar, Gemini)
+
+(Added 2026-07-11, executing `claude_prompts/context_prompts.md`, Websites >
+Instrument manuals, prompt 1. Summaries below come from fetching each manual/
+homepage; where a page was a hub or blocked I say so and note which facts came
+from linked/secondary Keck-Gemini documentation. Unverified numbers are
+omitted or flagged approximate.)
+
+These are the instruments night-planner must eventually be able to plan for.
+**Instrument choice drives the plan's constraints:** wavelength coverage sets
+moon/twilight tolerance (blue/UV wants dark time; NIR tolerates moon); MOS
+instruments need slitmasks designed (and, except MOSFIRE, physically milled)
+*days-to-weeks before* the night; single-slit instruments raise
+parallactic-angle/ADC and slit-PA decisions at plan time; mount (Cassegrain vs
+Nasmyth) affects rotator/PA behavior.
+
+### Lick Observatory — Shane 3 m
+
+- **Kast** — dual-channel (blue + red) **longslit spectrograph** with direct
+  imaging; **Shane 3 m, Cassegrain focus**.
+  <https://mthamilton.ucolick.org/techdocs/instruments/kast/>
+  The two arms observe **simultaneously via a dichroic beamsplitter**
+  (post-2016 dichroics split at **4600 Å and 5700 Å**); separate gratings
+  (red) / grisms (blue) per side give a range of dispersions (details on
+  sub-pages; the top page is a hub linking Blue Side / Red Side / Position
+  Angle / Arc & Flat lamps / Exposure Time Calculator pages). A
+  spectropolarimeter module exists. Night-planning notes: Cassegrain mount →
+  slit **position angle** is set by the rotator (dedicated PA sub-page);
+  calibration (arc/flat) lamp sets are part of the standard setup; **new users
+  must be checked out by a resident astronomer** on their first night.
+
+### Keck Observatory — Keck I & II (10 m)
+
+- **HIRES** — grating cross-dispersed **echelle spectrograph** (high
+  resolution); **Keck I, right Nasmyth (f/15)**, permanently mounted.
+  <https://www2.keck.hawaii.edu/inst/hires/>
+  Coverage **0.3–1.0 µm** (complete in one setting shortward of ~6200 Å;
+  redward needs two echelle settings); **R ≈ 25,000–85,000** set by slit
+  (decker) plates; fixed slit plates only — **no multi-object mode** (order
+  separation 6–43″ limits slit length). Two cross-disperser configs,
+  **HIRESb** (blue) vs **HIRESr** (red), **cannot be swapped during the
+  night** — a hard planning constraint. Nasmyth mount → field rotation during
+  exposure; an **image rotator** holds either a fixed slit PA or the
+  **parallactic angle**. Extras: exposure meter, iodine cell (precision RVs).
+- **LRIS** — **imager + longslit + multi-object (slitmask) spectrograph**;
+  **Keck I, Cassegrain**.
+  <https://www2.keck.hawaii.edu/inst/lris/lrishome.html>
+  Blue and red cameras observe **simultaneously via dichroics**, total
+  coverage **3200–10,000 Å**; blue arm uses grisms, red arm gratings, both
+  **R ≈ 300–5000**; FOV **6′ × 7.8′** (imaging and spectroscopy), pixel scale
+  0.135″/pix; UBVGRI + narrowband filters; optional spectropolarimeter; peak
+  system efficiency ~50%. **Slitmasks are milled on-site at Keck** — MOS masks
+  must be designed and submitted well before the run (days–weeks lead time),
+  so MOS targets must be locked in at proposal/pre-run stage, not on the night.
+- **MOSFIRE** — near-IR **multi-object spectrograph + imager**; **Keck I,
+  Cassegrain** (since 2012).
+  <https://www2.keck.hawaii.edu/inst/mosfire/home.html>
+  Top page is a hub (Pre-/Observing/Post-Observing links); band/resolution
+  numbers below are from the MOSFIRE instrument paper & UCLA IR Lab pages:
+  coverage **0.97–2.41 µm, one band (Y, J, H, or K) at a time**, **R ≈ 3500**
+  for a 0.7″ slit; FOV **6.1′ × 6.1′**; H2RG 2K×2K detector. Its
+  **cryogenic Configurable Slit Unit (CSU)** — 46 slit pairs — is
+  **reconfigured electronically in < 5 minutes**: no physical mask milling, so
+  mask designs (made in software) can be changed between targets during the
+  night, unlike LRIS/DEIMOS/GMOS. NIR instrument → far more moon-tolerant;
+  plan around OH-sky variability and AB nod patterns instead.
+- **DEIMOS** — visible-wavelength **multi-slit imaging spectrograph** (MOS +
+  longslit + imaging); **Keck II, Nasmyth** (since 2002).
+  <https://www2.keck.hawaii.edu/inst/deimos/>
+  Up to **~5000 Å of coverage per exposure**, resolution up to **R ≈ 6000**;
+  **16.6′ slit length** on sky (~2× LRIS); typically **100+ slits per mask**
+  (1000+ point sources with narrowband filters); 8K×8K CCD mosaic;
+  closed-loop **flexure compensation** (±0.25 px over 360° rotation). Like
+  LRIS, masks are physically milled — **design/submission lead time before
+  the run is mandatory** for MOS work.
+- **ESI** — **echellette spectrograph and imager**; **Keck II, Cassegrain**.
+  <https://www2.keck.hawaii.edu/inst/esi/>
+  Cross-dispersed echellette mode: **complete 0.39–1.1 µm coverage in a
+  single exposure** at up to **R ≈ 13,000** with a **20″ slit**; low-dispersion
+  prism mode **R ≈ 1000–6000** with an **8′ long slit**; direct imaging over
+  **2′ × 8′**. Open-loop flexure compensation (±0.25 px over full rotation).
+  Fixed-format echellette → minimal nightly configuration choices (good
+  "one-setup" workhorse for faint-object full-optical spectra).
+- **KCWI** — bench-mounted **integral field (IFU) spectrograph**; **Keck II,
+  right Nasmyth**.
+  <https://www2.keck.hawaii.edu/inst/kcwi/>
+  Two channels split by a **dichroic at 5600 Å**: blue **3500–5600 Å**
+  (gratings BL R≈900, BM R≈2000, BH1–3 R≈4500) and red **5400–10,800 Å**
+  (RL R>500, RM1–2 R>1400, RH1–4 R>3250). Three selectable image slicers
+  share a 20.4″ axis: **Small 8.4″ × 20.4″ (0.35″ sampling), Medium
+  16.5″ × 20.4″ (0.69″), Large 33″ × 20.4″ (1.35″)**; resolution scales with
+  slicer (Small ≈ 4× the Large-slicer R). **Nod-and-shuffle** offered on the
+  blue channel (not red, as of 2023B); the Large slicer is best for extended
+  emission / sky-subtraction-limited work. Blue/UV IFU science strongly
+  prefers **dark time** — moon phase is a first-order scheduling constraint.
+
+### Palomar — Hale 200-inch (P200)
+
+- **NGPS** — Next Generation Palomar Spectrograph, the **4-channel UV–NIR
+  medium-resolution slit spectrograph** replacing the 1970s Double
+  Spectrograph (DBSP); **P200, Cassegrain (f/13.6)**.
+  <https://caltechopticalobservatories.github.io/NGPS/> (hub; specs at
+  `technical-specifications.html`, plus a Users Manual and Science pages)
+  Four channels observed **simultaneously**: **U 3050–4430 Å, G 4250–5960 Å,
+  R 5620–7950 Å, I 7530–10,400 Å** (total 3050–10,400 Å in one shot);
+  **R > 4000 at the narrowest slit** (~4100–4500 at 0.4″); a **3-slice
+  adjustable-width slicer/IFU** (slices 50″ long, each 0.36–10″ wide)
+  recovers slit losses. Acquisition/guiding: offset guider FOV
+  **4.44′ × 4.15′** plus two slice-viewing cameras (21″ × 50″). Planning
+  tools shipped with the instrument: **exposure-time calculator and an
+  "Observation Timeline Modeler"** (target-list/timeline planning) — worth
+  studying as prior art for night-planner.
+
+### Gemini — 8 m (North & South)
+
+- **GMOS** — Gemini Multi-Object Spectrograph: **imager + longslit + MOS
+  (slitmask) + IFU**, one copy on **each** of Gemini North and South.
+  <https://www.gemini.edu/instrumentation/gmos>
+  (The gemini.edu page returned HTTP 403 to our fetcher — facts below are from
+  Gemini's own documentation/summary text retrieved via search and the
+  GMOS performance paper, Hook et al. 2004, PASP 116, 425.)
+  Coverage **0.36–1.03 µm**; imaging/spectroscopy over a **~5.5′ × 5.5′
+  field**; four modes: imaging, longslit, MOS, IFU. MOS masks typically hold
+  **30–60 slits** (several hundred with narrowband filters) and are cut from
+  mask designs prepared in advance (usually from GMOS pre-imaging) — another
+  **daytime mask lead-time** instrument. IFU covers **~35 arcsec² at 0.2″
+  sampling**. Resolving power up to **R ≈ 10,000** with 0.25″ slits; a suite
+  of gratings (e.g. B1200, R600) of which **only three are mounted at a
+  time** — configuration must be declared before the night. Gemini runs
+  queue-based observing (Phase II via the Observing Tool; see the OT notes in
+  `claudes_brain.md`), so "planning" here means OB construction rather than
+  a classical night sequence.
