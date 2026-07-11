@@ -61,6 +61,44 @@ bottom tracks every update.
 - _(To be filled in as I learn the telescope, instruments, targets, and the
   astronomers' night-planning workflow.)_
 
+### Skills & tools for telescope night planning (researched 2026-07-11)
+
+**Installable agent/Claude skills**
+- **Astropy Claude Code Skill** (mcpmarket) — coordinate transforms (ICRS/Galactic/
+  **AltAz**), time-scale conversions (UTC/TAI/TDB), units, FITS I/O. The primitives
+  for computing where/when a target is observable.
+- **K-Dense-AI `claude-scientific-skills`** — 140+ agent skills (open Agent Skills
+  standard, works in Claude Code). Includes an **Astropy** skill and a **SIMBAD**
+  astronomical-database skill; astronomy DBs: NASA, SDSS, SIMBAD, Exoplanet Archive.
+
+**Python packages (the computational core — wrap these, don't reinvent)**
+- **astroplan** (Astropy-affiliated) — THE observation-planning package: `Observer`,
+  `FixedTarget`, observability under constraints (`AirmassConstraint`,
+  `AtNightConstraint`, `MoonSeparationConstraint`, `MoonIlluminationConstraint`),
+  airmass/parallactic-angle plots, sky charts, and a **Scheduler** (priority /
+  sequential). Already a project dependency (prompt 2). This is our engine.
+- **Visplot** — web tool: hardware-aware visibility + heuristic scheduling
+  (altitude & hour-angle limits, twilight, moon distance); good for ToO triggers.
+- **AstroSA** — framework to benchmark/assess schedulers.
+
+**Professional Phase-2 systems (the structure a "night plan" should emulate)**
+- **ESO p2** — Observation Blocks (OBs), containers, README, finding charts, ObsPrep.
+- **Gemini Observing Tool (OT)** — Phase-II observation definition; same sequences
+  run at the telescope. Takeaway: a professional plan = ordered OBs + per-target
+  constraints + finding charts + a run README, not just a target list.
+
+**Best-practice knowledge to encode**
+- Order targets by meridian transit / optimal airmass; plan around twilight windows,
+  Moon phase & separation; check seeing/transparency forecasts (Clear Outside,
+  Astrospheric). (Amateur equipment/thermal/night-vision tips are mostly N/A for a
+  professional facility.)
+
+**Recommendation:** build a project `night-plan` skill whose engine is **astroplan**,
+optionally vendoring the **Astropy** skill for coord/time primitives, and whose
+output structure mirrors ESO p2 / Gemini OT (ordered OBs + constraints + finding
+charts + README). Awaiting the astronomers' specific telescope/site/instrument
+before authoring. See references in Logs/2026/07/2026-07-11.md, Entry 4.
+
 ## Version History
 
 - **v0.1 — 2026-07-11:** Created during start-up prompt 1. Seeded project purpose,
@@ -75,3 +113,8 @@ bottom tracks every update.
 - **v0.3 — 2026-07-11:** Start-up prompt 3 (1st task under "Skills"). Copied the
   `grill-me` and `critical-partner` skills verbatim from ClimateIntelligence into
   `.claude/skills/` (both single-file SKILL.md, project-agnostic, no edits needed).
+- **v0.4 — 2026-07-11:** Start-up prompt 4 (2nd task under "Skills"). Web-searched
+  for skills/tools to help Claude learn telescope night planning; recorded findings
+  in the "Skills & tools" subsection above (astroplan core; Astropy & SIMBAD agent
+  skills; ESO p2 / Gemini OT as structural models). No skills installed yet —
+  presented recommendations to the author for a decision.
