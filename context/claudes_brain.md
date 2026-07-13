@@ -190,6 +190,10 @@ archive". The durable, reusable facts:
   time (HST) | Comments.
 - **Facilities breadth** (`Observations/`): AAO, ALMA, Gemini-N/S, HST, JWST,
   Keck, Lick_Kast, Magellan, MeerTRAP_HighDM, MMT, NOT, Pepsi, SOAR, VLT.
+- **Starlist equinox is not always 2000.0**: the blackbody-standard grid
+  `DEIMOS/2022July/starlist_blackbody_0hr.txt` uses **equinox 2016.0**
+  (Gaia epoch) coordinates with `pmra=/pmdec=` on every line — a starlist
+  writer must carry (epoch, pm) per target, not hard-code J2000.
 
 ### Lessons from FFFF_PZ, JSkyCalc/thorsky & astropy docs (2026-07-11)
 
@@ -260,3 +264,8 @@ Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
   Fable 5 model. Summarized the /mnt/scratch/xavier/Observing archive (run-folder
   convention, Keck starlist format, night-plan doc anatomy) into
   context/claudes_context.md.
+- **v0.9 — 2026-07-13:** Executed context_prompts.md Night-plans prompt 2 on the
+  Fable 5 model — synthesized targets & observing strategies into the Responses
+  subsection of claude_prompts/context_prompts.md, with pointers into the context
+  and brain files. Added the Gaia-epoch (equinox 2016.0 + proper motions)
+  starlist fact noted while re-verifying archive files.
