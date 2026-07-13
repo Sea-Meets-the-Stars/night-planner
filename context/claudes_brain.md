@@ -133,6 +133,64 @@ output structure mirrors ESO p2 / Gemini OT (ordered OBs + constraints + finding
 charts + README). Awaiting the astronomers' specific telescope/site/instrument
 before authoring. See references in Logs/2026/07/2026-07-11.md, Entry 4.
 
+### The astronomers' real night-planning practice (/mnt/scratch/xavier/Observing, read 2026-07-12)
+
+Full detail in [`claudes_context.md`](claudes_context.md), section "Observing
+archive". The durable, reusable facts:
+
+- **Run-folder template** (`Observing/<Instrument>/<Run>/`, Run = `2022Oct`,
+  `2023A`, `2025A/Feb26`; per-night subfolders for multi-night runs): night-plan
+  `.docx` + Keck starlist `.txt` + `inst_config.txt` (SIAS submission) +
+  `Targets.docx`/target `.xlsx` + finder-chart docs + (MOS) mask files
+  (`.lst`/`.obj`/`.reg`) + `Obs_logs*.xlsx` + backup-target docs + README/
+  strategy notes. Instruments in the archive: DEIMOS, HIRES, KCWI, LRIS,
+  MOSFIRE, NIRC2, ToO — Keck-centric.
+- **Keck starlist format** (spec, verified across DEIMOS/HIRES/LRIS/KCWI
+  starlists):
+  `name  HH MM SS.ss  ±DD MM SS.s  equinox  [keyword=value …]  [# comment]`
+  e.g. `J073802.33+274948.81  07 38 02.33 +27 49 48.81 2000.00 rotdest=128.30
+  rotmode=PA vmag=22.0`. Observed keywords only: `rotdest=` (PA deg),
+  `rotmode=PA|pa`, `raoffset=`/`decoffset=` (arcsec, star→target),
+  `vmag=`, `pmra=`/`pmdec=`, `lgs=`, `pa=`. Conventions: offset stars as
+  companion entries `<name>_OFF` / `_o` / `_S1..S3` sharing the target's
+  `rotdest`; slitmasks listed by mask ID with mask PA in `rotdest`; imaging
+  mosaic pointings `_p1..p4`; `#` comment lines as section headers
+  (# Longslit / # FRBs / # Standards) and per-line notes (z, mag, "Beginning
+  of night standard").
+- **Night-plan doc skeleton** (recurring across DEIMOS 2022Oct, LRIS 2023A,
+  HIRES 2026A, KCWI 2018Oct): (1) title + Useful-links (instrument page,
+  ucolick ephemeris, weather, starlist, finders); (2) ranked science
+  priorities; (3) per-program setup tables (grating/filter/λc, dichroic,
+  slicer, decker/XDANGLE, binning, focus); (4) twilight block — open at
+  sunset, focus, standard star, align first mask, and a second standard at
+  morning twilight; (5) **LST-keyed timeline** bounded by the 18°-twilight
+  LST range ("Night 1 (Oct 26: LST = 21:06-7:09 [18deg])"), blocks of
+  target/mask + setup + exposures×repeats + contingency notes, mid-night
+  MIRA (focus) for DEIMOS; (6) afternoon calibration checklist (biases,
+  ThAr arcs, flats, 11× counts); (7) Backup Plans; (8) SA questions (+ phone
+  number); (9) appended troubleshooting/lessons (living document); (10)
+  pre-run TODO list. HIRES formats the timeline as a table
+  (UTStart-End | Target | RA | Dec | Setup | Exp | # | z | mag | Comments).
+- **Offset-star acquisition procedure** (DEIMOS 2022Oct README): center the
+  `_OFF` star, TO applies the starlist raoffset/decoffset holding the PA →
+  faint target in slit with star on-slit as reference; 600–900 s exposures
+  with on-the-fly reduction deciding continue/abort/coadd.
+- **inst_config.txt** = Keck SIAS form: PI, run_date, n_nights, mode
+  checkboxes, and numbered slots for slitmasks/gratings/filters (LRIS also
+  grisms/dichroics/blue+red filters, per night) + `slitmask_deadline` —
+  hardware is locked weeks ahead; the plan must fit the declared slots.
+- **ToO plan** (MOSFIRE FRB 190614D, 2020-12-07): single compact doc —
+  trigger/date/instrument, paper, ephemeris, Goals, Setup, Targets(+offset
+  star), acquisition rules (offset star J_AB 16–18.5 within 1′, relaxable to
+  2′/J=19.5; avoid bright stars — persistence; rotate slit to catch both
+  candidates). No LST timeline.
+- **Pre-run target tracking table** (DEIMOS 2023Dec `target_info.xlsx`):
+  Target | mag | Filter | Survey Image | Exp time per mask | Grating combo |
+  Redshift | mask status (Submitted for milling / Milled) | tentative obs
+  time (HST) | Comments.
+- **Facilities breadth** (`Observations/`): AAO, ALMA, Gemini-N/S, HST, JWST,
+  Keck, Lick_Kast, Magellan, MeerTRAP_HighDM, MMT, NOT, Pepsi, SOAR, VLT.
+
 ### Lessons from FFFF_PZ, JSkyCalc/thorsky & astropy docs (2026-07-11)
 
 Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
@@ -198,3 +256,7 @@ Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
 - **v0.7 — 2026-07-11:** Executed context_prompts.md Websites/Instrument-manuals
   prompt 1 on the Fable 5 model. Summarized Lick/Keck/Palomar/Gemini instruments
   in context/claudes_context.md.
+- **v0.8 — 2026-07-12:** Executed context_prompts.md Night-plans prompt 1 on the
+  Fable 5 model. Summarized the /mnt/scratch/xavier/Observing archive (run-folder
+  convention, Keck starlist format, night-plan doc anatomy) into
+  context/claudes_context.md.

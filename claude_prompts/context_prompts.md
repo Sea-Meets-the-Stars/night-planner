@@ -49,5 +49,5 @@ Add this to your context file and log your work.
 
 ## Night plans
 
-1.  Read all of the files in the `context/Night_plans` folder.  Summarize what you learn in the file `context/claudes_context.md` file. Log your work.
+1.  Read all of the files in the `/mnt/scratch/xavier/Observing` folder.  Summarize what you learn in the file `context/claudes_context.md` file. Log your work.
 

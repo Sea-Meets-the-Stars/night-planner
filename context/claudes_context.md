@@ -486,3 +486,226 @@ Nasmyth) affects rotator/PA behavior.
   queue-based observing (Phase II via the Observing Tool; see the OT notes in
   `claudes_brain.md`), so "planning" here means OB construction rather than
   a classical night sequence.
+
+---
+
+## Observing archive: how the astronomers plan a night (/mnt/scratch/xavier/Observing)
+
+(Added 2026-07-12, executing `claude_prompts/context_prompts.md`, Night plans,
+prompt 1. This is the author's REAL archive of past observing runs — read
+directly from disk. Everything below cites actual files; the archive holds
+~4400 files, so I sampled the human-readable planning material rather than
+reading everything. Where I infer, I say so.)
+
+The archive has two trees: **`Observing/`** — the planning material (the gold),
+and **`Observations/`** — reduced data/results by facility.
+
+### 1. Directory convention — the run-folder template
+
+`Observing/<Instrument>/<Run>/…` with Instrument ∈ {DEIMOS, HIRES, KCWI, LRIS,
+MOSFIRE, NIRC2, ToO} and Run a semester/month tag (`2022Oct`, `2023A`,
+`KCWI_2021A`, `2025A/Feb26`; multi-night runs get per-night subfolders like
+`2021May/May10`, `May11`). A mature run folder (e.g. `DEIMOS/2022Oct/`,
+`LRIS/2023A/`, `DEIMOS/2023Dec/`) contains:
+
+- **Night plan doc** — `DEIMOS_ 2022 Oct Night plan.docx`, `LRIS_2023_Apr.docx`,
+  `Keck_HIRES May 2026.docx`, `KCWI/2018Oct/Nightly Plans.docx` (one doc can
+  cover several nights, or one doc per night: `Nov4_plan.docx`, `Nov5_plan.docx`).
+- **Keck starlist** — `deimos_starlist.txt`, `starlist.txt`,
+  `starlist_2020oct12.txt`, `masterStarlist.txt`,
+  `Keck_DEIMOS_2023-12-14_stlist_kyle.txt`.
+- **Instrument configuration** — `inst_config.txt` (Keck SIAS form dump) and/or
+  a `Config.docx`.
+- **Target descriptions** — `Targets.docx`, per-program docs (KCWI runs carry
+  one docx per science program: `FRB180924.docx`, `UDGs.docx`, `Type-II
+  QSOs_.docx`, …), and target spreadsheets (`target_info.xlsx`,
+  `targets.xlsx`).
+- **Finder charts** — `Finder charts.docx`, `Finders/` folders (one docx per
+  target incl. `Standard stars.docx` in `LRIS/2023A/Finders/`).
+- **Slitmask designs** (MOS runs) — `mask_design_folders/` or `Masks/` with per-
+  mask `*.lst` (mask center + PA + selected objects), `*.obj` (object catalog:
+  name, RA, Dec, equinox, mag, band, priority), and DS9 `*.reg` files
+  (slit boxes on sky, e.g. `frb230718.reg`: `box(128.163497d, -40.453903d,
+  42.2", 1.0", 59d)`).
+- **Observing logs** — `Obs_logs*.xlsx` (also per-night: `Obs_logs_Nov4.xlsx`),
+  sometimes Keck-generated HTML logs (`18-10-07_KCWI_U074.html`).
+- **README / strategy docs** — `README_observing_strategy.docx` (DEIMOS
+  2022Oct), `README.docx` (LRIS 2020Jan), plus instrument-tips docs
+  (`KCWI/Mar2018/Observing_Tips.docx`, `NIRC2/2023Aug/Extra Keck Notes
+  (Michele).docx`).
+- **Backups** — `LRIS/2023A/Backups/` holds backup-program docs
+  (`sGRB_Backup_LRIS_Apr.docx`, `Tang Backup Targets.docx`).
+- Sometimes post-run **PypeIt reduction trees** (`DEIMOS/2023Dec/2023dec/redux/
+  keck_deimos_*/*.pypeit`, `*.par`, `Science/spec1d_*.txt`, `QA/*.html`) and
+  even logistics (`Flights.docx`, `Food.docx`).
+
+This folder layout is itself the template a night-planner deliverable should
+emulate: plan + starlist + config + targets + finders + masks + log skeleton.
+
+### 2. The Keck starlist format (verified across DEIMOS/HIRES/LRIS/KCWI)
+
+Fixed leading columns, then free-form `keyword=value` options and `#` comments:
+
+```
+name(<~16 char)  HH MM SS.ss  ±DD MM SS.s  equinox  [keyword=value ...]  [# comment]
+```
+
+Real examples read from the archive:
+
+- `DEIMOS/2022Oct/deimos_starlist.txt` — science target + offset star pairing:
+  ```
+  J073802.33+274948.81      07 38 02.33 +27 49 48.81 2000.00 rotdest=128.30 rotmode=PA vmag=22.0
+  J073802.33+274948.81_OFF  07 38 02.03 +27 49 51.89 2000.00 rotdest=128.30 rotmode=PA vmag=17.5 raoffset=3.89 decoffset=-3.08
+  ```
+- `LRIS/2020Oct12/starlist_2020oct12.txt` — sections separated by comments
+  (`# Longslit`, `# FRBs`, `# DLA`, `# Standards`, `#Slitmask name …`), e.g.
+  `FRB180301_o  06 12 53.70 +04 40 13.3 2000.0 raoffset=12.7 decoffset=-2.2 rotmode=pa rotdest=356.2`
+- `HIRES/2026A/starlist.txt` adds `lgs=0 pa=0.00`; the HIRES plan doc embeds a
+  standard-star line with proper motion: `bd29d2091  10 47 23.163 +28 23 55.92
+  2000.0 vmag=10.1 pmra=0.0118 pmdec=-0.8247 # 10994 F5 D`.
+- `KCWI/2018Oct/masterStarlist.txt` — grouped by program with blank lines,
+  `#` comments carrying redshift/mag/reference, and explicit beginning/end-of-
+  night standards (`G93-48 … # Beginning of night standard`).
+
+Keywords actually observed (do not invent others): **`rotdest=`** (rotator
+destination angle in deg = slit/mask PA), **`rotmode=PA`** (also lowercase
+`pa`), **`raoffset=` / `decoffset=`** (arcsec offsets from an offset star to
+the target), **`vmag=`**, **`pmra=` / `pmdec=`**, **`lgs=`**, **`pa=`**.
+Conventions: an offset/alignment star gets its own entry named
+`<target>_OFF`, `<target>_o`, `<target>_S1..S3`, or `offset_S`, carrying the
+*same* `rotdest` as the target plus the ra/dec offsets to slew from star to
+target; slitmask entries are named by mask ID (`200906_1`,
+`F190608_`) with the mask PA in `rotdest`; imaging mosaic pointings appear as
+`<target>_p1..p4` (`LRIS/2023A/starlist_hhmmss.txt`). Coordinates are almost
+always space-separated sexagesimal + `2000.0`, though colon-separated also
+appears (KCWI master list) — presumably both accepted by Keck.
+
+The offset-star procedure is spelled out in
+`DEIMOS/2022Oct/README_observing_strategy.docx`: slew/center on the `_OFF`
+star, have the telescope operator apply the starlist ra/dec offsets while
+holding the PA, so the (faint, r~22) target lands in the slit with the star
+also on the slit as a position reference; then expose 600–900 s with on-the-fly
+reduction deciding whether to continue, abort, or coadd.
+
+### 3. Anatomy of a Night plan document
+
+Recurring structure across `DEIMOS_ 2022 Oct Night plan.docx`,
+`LRIS_2023A/LRIS_2023_Apr.docx`, `HIRES/2026A/Keck_HIRES May 2026.docx`,
+`KCWI/2018Oct/Nightly Plans.docx`:
+
+1. **Header & links** — run title ("Keck/HIRES May 2026", "LRIS 2023 April"),
+   then a "Useful links" list: instrument website/config form, **ephemeris**
+   (the ucolick.org Keck calendar), weather, starlist, finder-chart docs/Drive
+   folders, exposure/echelle simulators.
+2. **Science priorities** — ranked list of programs/targets with the why
+   ("20220717: Highest priority mask… need host redshift; up to 5 masks for
+   220610, ~45 min per mask").
+3. **Setup / configurations** — instrument settings per program: DEIMOS
+   grating+filter+λc ("600ZD GG455-7000", "830G+OG550-8500"); LRIS
+   dichroic/grism/grating/filters/binning and even focus values; KCWI a
+   config table (Name | Slicer | Grating | Central Wave | Calibrated? |
+   Comments); HIRES decker/ECH/XDANGLE/binning with cross-checks ("confirm
+   bluest order is 108 or 109").
+4. **Twilight block** — open at sunset (time given in HST), focus, standard
+   star, align first mask; a *second* standard at morning twilight (KCWI:
+   "Twilight (12 deg): G93-48 (standard)" … end of night "G191B2B").
+5. **The timeline — the core**: a time-ordered sequence keyed to **LST** (or
+   UT/HST), with the night's LST range and 18°-twilight bounds stated up
+   front — e.g. "Night 1 (Oct 26: LST = 21:06-7:09 [18deg]): 21:06-22:06:
+   2207_1 (600ZD GG455-7000); … 23:45-00:00: MIRA; 00:00-02:30:
+   Tier2022-Mask1 …". Each block: target/mask ID, setup, exposure×repeats,
+   inline contingency notes ("This is close to vignetting", "may need to
+   start ~10 min earlier", "Remaining?"). HIRES 2026 formats this as a table
+   (UTStart-End | Target | RA | Dec | Setup | Exp | # | z | r_mag | Comments)
+   and marks the 12°/18° twilight times as rows.
+6. **Calibrations** — afternoon checklist: biases, arcs (ThAr with specified
+   lamps/filters/exptimes), dome/trace flats, counts (11 exposures), MIRA
+   (telescope focus) scheduled mid-night for DEIMOS.
+7. **Backup plans** — explicit "Backup Plans" section (LRIS 2023A) plus
+   backup-target docs in the run folder; also alternate-half-night plans
+   ("2nd Half Night… Revised Plan").
+8. **Questions for / answers from the Support Astronomer** — "SA questions
+   (Percy: +1 808 …)", handover time, shutter vignetting; KCWI plans contain
+   an inline Q&A dialogue between the two astronomers (X and collaborators)
+   resolving strategy (offsets between exposures, sky-PA tricks, binning).
+9. **Troubleshooting/lessons appended in place** — DEIMOS FCS-failure
+   procedure and the "Jul 25: Ran into FCS issues again…" diary; HIRES plan
+   ends with a frame-by-frame log of calibration attempts. Plans are living
+   documents that accrete the night's reality.
+10. **To-do list pre-run** — "Things TODO: offset finder charts, submit night
+    2 configuration…, generate a starlist in WMKO format" (LRIS 2023A).
+
+Per-target detail level (LRIS 2023A example): time window in LST, target +
+coords, mode (mask/longslit/imaging), full setup incl. focus values, exposure
+sequence per camera ("4x1100s blue, 8x500s red"), dithers/PAs for imaging
+mosaics, and decision rules ("Do 10 min exposures. Check for emission
+features… If you got them, move to the next mask.").
+
+### 4. Supporting artifacts
+
+- **`inst_config.txt`** (read for DEIMOS/2023Dec, LRIS/2023A,
+  LRIS/2024A-B/LRIS_June): the Keck SIAS instrument-configuration submission —
+  `pi_name`/`pi_email` (Prochaska, xavier@ucolick.org), `run_date`,
+  `n_nights`, mode checkboxes (`cb_Longslit`, `cb_Multislit`, `cb_Imaging`),
+  then numbered hardware slots: DEIMOS SLITMASK1..11 (mask names like
+  `2211_1`, `Long1.0B`, `GOH_X`) + GRATING (600ZD, 830G, Mirror) + FILTER
+  (OG550, GG455, R); LRIS additionally GRISM/DICHROIC/RED_FILT/BLUEFILT per
+  night; plus `slitmask_deadline`. I.e. the whole instrument state is locked
+  in weeks ahead — the plan must work within these declared slots.
+- **Mask-design files**: `.lst` = mask center line (`8:32:28.81 -40:25:18.0
+  2000.0 PA=-31.00`), guider center, then selected objects; `.obj` = full
+  object list (name RA Dec equinox mag band priority); `.reg` = DS9 slit
+  boxes generated "from frb230718.fits by dsim2regions.py".
+- **Target spreadsheets**: `DEIMOS/2023Dec/target_info.xlsx` columns —
+  Target | mag | Filter | Survey Image | Exp time (s) per mask | Gratting
+  combo | Redshift | mask status ("Submitted for milling"/"Milled") | obs
+  time (tentative) HST | Comments — i.e. a pre-run tracking table from which
+  the night plan is assembled.
+- **MOSFIRE offset files**: `20190520B_target_offset_+1.5.txt` /
+  `_-1.5.txt` (nod positions).
+- **Observing tips** (KCWI, `Observing_Tips.docx`): 4×15 min exposures with
+  interleaved pairs of objects at offset redshifts (each serves as the
+  other's sky), dither but don't rotate, check targets for bright stars/
+  Galactic extinction, bias between slews.
+
+### 5. ToO runs
+
+`ToO/2020/2020-12-07 MOSFIRE (FRB 190614D).docx` is the only ToO file — a
+single compact doc, not a run folder. Structure: title (date, instrument,
+trigger source), reference paper, ephemeris link, **Goals** ("Redshifts
+baby"), Setup (longslit tailored to seeing, grating, dither pattern),
+Targets (2 host candidates + offset star with coords and mags), and
+**Acquisition guidelines** — offset star J_AB 16–18.5 within 1′ (relaxable to
+2′ / J=19.5), avoid bright stars (detector persistence), rotate to catch both
+candidates in one slit, finding charts optional. A ToO plan is thus a
+stripped-down single-target(+offset-star) recipe: trigger → goal → setup →
+acquisition, with no LST timeline.
+
+### 6. Observations/ — facilities breadth
+
+`Observations/` (results, skimmed only) is organized by facility: **AAO,
+ALMA, Gemini-N, Gemini-S, HST, JWST, Keck (DEIMOS/KCWI/LRIS/MOSFIRE/…),
+Lick_Kast, Magellan, MeerTRAP_HighDM, MMT, NOT, Pepsi, SOAR, VLT**, plus
+cross-facility planning spreadsheets at top level (`Observing.xlsx`,
+`2021_observing.xlsx`, `FRB_Field_observations.xlsx`, `GMOS-MOS programs
+summary.xlsx`, `MUSE programs summary.xlsx`) and PypeIt workflow docs. The
+astronomers observe on essentially every major O/IR facility plus ALMA, but
+the *night-planning* archive is Keck-centric.
+
+### 7. What night-planner should reproduce
+
+1. **The deliverable set, not just a plan**: per-run folder = night-plan doc +
+   WMKO-format starlist + instrument config + target table + finders + (MOS)
+   mask files + an observing-log skeleton + backup targets.
+2. **A starlist writer** emitting the exact Keck format above, including
+   `_OFF`/`_S1` offset-star companion entries with `raoffset/decoffset` and
+   shared `rotdest`, section comment headers, and standards.
+3. **An LST-keyed timeline** bounded by the 18°-twilight LST range, with
+   per-block target/setup/exposures, a twilight standard at each end,
+   mid-night MIRA/focus where relevant, and inline contingencies.
+4. **Setup tables per program** (grating/filter/λc/dichroic/slicer/decker…)
+   constrained to what the submitted `inst_config` declares.
+5. **Priorities + backups + SA-questions sections** — the human scaffolding
+   the astronomers demonstrably rely on.
+6. **ToO mode**: the compact trigger→goal→setup→acquisition single-target
+   recipe with offset-star selection rules (J 16–18.5 within 1′).
