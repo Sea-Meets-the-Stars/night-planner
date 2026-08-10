@@ -232,6 +232,39 @@ Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
   targets *within* the twilight-bounded night is our job (start from
   astroplan's Scheduler).
 
+### FFFF-PZ Resource creation for CHIME FRB runs (HOWTO + chime-ffff-pz, 2026-08-13 prep)
+
+Sources: `context/HOWTOs/FFFF-PZ-HOWTO.pdf` (pp. 6–8) and
+`/home/xavier/Projects/FRBs/chime-ffff-pz` (docs/, scripts/, data/Observing/).
+
+- **Naming:** `<Site>-<Semester>-<run#>` (e.g. `Lick-2025B-3`); one Resource
+  per observing *run* (1–3 nights), run # unpadded by convention and
+  incrementing within the semester. The name keys everything downstream
+  (targets/obsplan/logobs/finder commands, git branch, CANFAR folder).
+- **Workflow:** (1) hand-write JSON at
+  `chime_ffff_pz/data/Observing/<name>/<name>.json`; (2)
+  `chime_ffff_pz_add_furesource <json>` (PUT `add_frb_resource/`, HTTP 200;
+  often prints a benign "error"); (3) confirm on the web dashboard; (4)
+  `chime_ffff_pz_targets <name>` (PUT `targets_from_frb_followup_resource/`,
+  HTTP 201) → `<name>_targets.csv` in the same folder (columns: TNS, FRB
+  RA/Dec/DM/survey/tags, Pri_*/Sec_* host name/RA/Dec/POx/mag/filter, mode,
+  Resource). Selection is stochastic — rerun if too few. Later:
+  `<name>_pending.csv` + `chime_ffff_pz_obsplan`, finders, starlist
+  (`chime_ffff_pz_starlist <observatory>`), `chime_ffff_pz_logobs`.
+- **JSON fields** (Lick/Kast practice, from Lick-2025B-*/2026A-2):
+  `instrument="KAST"`, UT `valid_start/valid_stop` (loose window OK — server
+  clips to astronomical twilight and applies the min-airmass filter),
+  `num_targ_img/mask = 0`, `num_targ_longslit` = 20–30 requested (only ~4–6
+  observed per Kast night), `max_AM = 2.0`, `frb_surveys = "all"`,
+  `frb_tags/frb_statuses = null` (server default → NeedSpectrum for
+  longslit), `max_mag` 19.5–20.5 (PATH primary host r); **omit `min_POx`** —
+  setting it overrides the status logic (HOWTO warning).
+- **Auth:** `FFFF_PZ_USER/PASS/URL` (`https://frb.chimenet.ca/f4pz/`) from
+  `chime-ffff-pz/automation/config/secrets.env`; run in the `astro` conda
+  env. Git: branch named after the resource, JSON PR'd to main (author runs
+  git). CANFAR registration (`fu_resources.csv` + `canfar_upload -f`) only
+  matters for post-run data upload.
+
 ## Version History
 
 - **v0.1 — 2026-07-11:** Created during start-up prompt 1. Seeded project purpose,
@@ -269,3 +302,8 @@ Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
   subsection of claude_prompts/context_prompts.md, with pointers into the context
   and brain files. Added the Gaia-epoch (equinox 2016.0 + proper motions)
   starlist fact noted while re-verifying archive files.
+- **v0.10 — 2026-08-13:** Lick 2026-08-13 plan prep (Fable 5). Read the
+  FFFF-PZ HOWTO PDF and the chime-ffff-pz repo; added the "FFFF-PZ Resource
+  creation" subsection (naming convention, JSON fields, add_furesource →
+  targets workflow, auth, per-night Kast capacity). Posed Q&A in
+  claude_prompts/night_plans/lick_2026aug13.md; no Resource generated yet.
