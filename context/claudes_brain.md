@@ -264,6 +264,14 @@ Sources: `context/HOWTOs/FFFF-PZ-HOWTO.pdf` (pp. 6–8) and
   env. Git: branch named after the resource, JSON PR'd to main (author runs
   git). CANFAR registration (`fu_resources.csv` + `canfar_upload -f`) only
   matters for post-run data upload.
+- **Observing spreadsheet ("possible targs"):** each Lick/Kast run folder in
+  obs_docs carries a `possible_targs.xlsx` (sheet `possible_targs`; columns
+  TNS, RA_HMS, DEC_DMS, Epoch, Pri_mag, Sec_mag) — primary-host coords in
+  sexagesimal, Epoch 2000.0, sorted by RA. Build it from the targets CSV with
+  `night_planner/make_lick_possible_targs.py`, which also applies the
+  **Shane pointing limit: no targets at Dec > +82°** (author, Q7.1 of the
+  2026-08-13 plan). Note the server may return fewer targets than
+  `num_targ_longslit` requests (e.g. 14 of 15 for Lick-2026B-01).
 
 ## Version History
 
@@ -307,3 +315,9 @@ Sources: `context/HOWTOs/FFFF-PZ-HOWTO.pdf` (pp. 6–8) and
   creation" subsection (naming convention, JSON fields, add_furesource →
   targets workflow, auth, per-night Kast capacity). Posed Q&A in
   claude_prompts/night_plans/lick_2026aug13.md; no Resource generated yet.
+- **v0.11 — 2026-08-10:** Generated the Lick-2026B-01 Resource (Fable 5):
+  wrote/uploaded the JSON (clean success), pulled 14 targets, and built the
+  observing spreadsheet via the new `night_planner/make_lick_possible_targs.py`
+  (Dec ≤ +82° Shane cut dropped 2 targets → 12 in
+  Night_plans/Lick-2026B-01/). Added the possible-targs spreadsheet
+  convention and the Dec +82° pointing limit above.

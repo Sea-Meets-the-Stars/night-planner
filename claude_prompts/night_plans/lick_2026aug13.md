@@ -54,6 +54,18 @@ Add this to your context file and log your work.
 
 1. Using the `chime-ffff-pz` package, we will generate a Resource file for 2026 August 13 called `Lick-2026B-01`.  Before doing so, review your context files and pose questions in the Q&A section below.  Use Fable if you can.  Log your work
 
+2. We have answered the Q&A section below.  Now, proceed with generating a night plan for the first night of the run.  You should:
+
+   - Generate the Resource file and upload to FFFF-PZ
+   - Create a target list from FFFF-PZ
+   - Create a spreadsheet that mimics the ones in the `/mnt/scratch/xavier/Observing/Observations/Lick_Kast/obs_docs/2026` folder.
+
+If you have any new questions, pose them in the Q&A section below.  Use Fable if you can.  Log your work.
+
+3. Thanks!  Now generate a Night plan doc, modeled after the ones in the `/mnt/scratch/xavier/Observing/Observations/Lick_Kast/obs_docs/2026` folder, e.g. `Lick_2026A-4_Night_plan.xlsx`. Name it `Lick_2026B-01_Night_plan.xlsx`. Name the sheets as the targets in the target list.  Log your work.  Use Fable if you can. Explain your reasonsing for the targets chosen in the Reports section below.  It should include the tags for each FRB.  
+
+## Reports
+
 ## Q&A
 
 ### Claude's questions (2026-08-13 plan prep, via Fable 5)
@@ -83,10 +95,12 @@ recommended default so you can just confirm or correct.
   `_obsplan`, `_logobs`, `_finder`, the `Resource` column, the git branch,
   and the CANFAR folder — so consistency matters); but the DB accepts any
   string, so I will use `Lick-2026B-01` verbatim if you prefer.
+>A. Yes, please pad
 - **Q1.2 — First 2026B run:** no `Lick-2026B-*` folder exists yet in
   `data/Observing/`, so run #1 is correct (UC semester 2026B = 2026 Aug 1 –
   2027 Jan 31, so Aug 13 is early 2026B). Confirm?
   *Recommendation:* yes, run #1.
+>A. I confirm
 
 #### 2. Site / instrument / time window
 
@@ -106,9 +120,11 @@ recommended default so you can just confirm or correct.
   18:30 UT, local daytime) because the server clips to astronomical
   twilight anyway — so a generous window is safe; the *date* being right is
   what matters.
+>A. It is a 2 night run, but we are only going to generate a plan for the first night.
 - **Q2.2 — max_AM:** every past Lick resource uses `max_AM = 2.0`. Keep?
   *Recommendation:* yes, 2.0 (alt ≥ 30°, sensible for Shane pointing and
   Kast throughput).
+>A. I confirm
 - **Feasibility note (reasoned from LST, not computed):** mid-August the sun
   is at RA ≈ 9.4 h, so LST ≈ 21.4 h at local midnight; the astronomical
   night runs roughly LST 19 h → 2.5 h. With max_AM 2.0 the server will keep
@@ -123,22 +139,26 @@ recommended default so you can just confirm or correct.
   FFFF-PZ instance is CHIME-only (`frb_survey = CHIME/FRB`), so "all" ≡
   CHIME. Keep "all"?
   *Recommendation:* yes, `"all"`.
+>A. I confirm
 - **Q3.2 — Statuses:** `frb_statuses = null` in all recent resources →
   server default (longslit mode selects `NeedSpectrum`; per the HOWTO p. 7,
   `NeedSecondary` targets come only via `--include_secondary` on
   `chime_ffff_pz_targets`). Keep null, and *exclude* NeedSecondary?
   *Recommendation:* null; no `--include_secondary` (they don't show as
   valid in the resource until marked pending — HOWTO caveat).
+>A. Keep null
 - **Q3.3 — Tags:** `frb_tags = null` (no restriction) in all recent Lick
   resources; alternatives are samples like `CHIME-Bright`, `CHIME-KKO`
   (see `data/Criteria/*.json`). Any tag restriction for this run?
   *Recommendation:* null — take the full pool, prioritize by hand at the
   pending/cut step.
+>A. Keep null
 - **Q3.4 — min_POx:** recent resources omit it; the HOWTO (p. 6–7) warns
   that setting `min_POx` *overrides* the status logic (e.g. 0.90 selects
   only single-candidate P(O|x) > 0.9 hosts and drops combined-top-two
   cases). Omit?
   *Recommendation:* omit (null), matching `Lick-2025B-*`/`Lick-2026A-2`.
+>A. Omit
 - **Q3.5 — Magnitude limits:** past Lick values: `max_mag` 19.5 (2025B-1,
   which also set `min_mag = 9.0`), 20.36 (2025B-2), 19.5 (2025B-3), 20.5
   (2026A-2). Magnitudes are the PATH primary host r-band. New moon falls
@@ -148,6 +168,7 @@ recommended default so you can just confirm or correct.
   *Recommendation:* `max_mag = 20.5` (dark time supports the faint limit;
   matches the most recent run), and omit `min_mag` unless you want to
   filter bright/nearby galaxies (then 9.0 as in 2025B-1).
+>A. Use max_mag = 20.5
 
 #### 4. Target counts (how many fit a Kast night)
 
@@ -159,6 +180,7 @@ recommended default so you can just confirm or correct.
   single August night, what request size?
   *Recommendation:* `num_targ_longslit = 20` — enough surplus to choose
   ~8–10 pending targets spread in RA, expecting ~5–6 observed.
+>A. Use num_targ_longslit = 15
 
 #### 5. Database access & environment
 
@@ -173,6 +195,7 @@ recommended default so you can just confirm or correct.
   *Recommendation:* I will run commands as
   `conda run -n astro env $(grep -v '^#' .../automation/config/secrets.env | xargs) <command>`
   unless the vars are already in your login environment.
+>A. They are in my .bashrc shell profile.
 - **Q5.2 — Git/PR workflow:** the HOWTO (p. 7) says: branch from `main` on
   `chime_ffff_pz`, add the JSON in a new same-named directory, and PR;
   branch naming follows the campaign (repo CLAUDE.md, e.g. `Keck-2025B-6`).
@@ -181,6 +204,7 @@ recommended default so you can just confirm or correct.
   *Recommendation:* yes — I write
   `chime_ffff_pz/data/Observing/<name>/<name>.json`; you create the branch
   `<name>` and PR.
+>A. I've put us on the right branch.
 - **Q5.3 — CANFAR registration:** the HOWTO (p. 7) flags a known issue —
   add the resource name to `data/Observing/fu_resources.csv` with `N`, then
   run `chime_ffff_pz_canfar_upload -f` (needs local CANFAR auth) to create
@@ -188,6 +212,7 @@ recommended default so you can just confirm or correct.
   to upload?
   *Recommendation:* defer; it's only needed for the raw-data upload after
   the run. I'll add the `N` row to `fu_resources.csv` when I make the JSON.
+>A. We will not need CANFAR for this.
 
 #### 6. Output format & location + the exact commands I propose
 
@@ -228,6 +253,8 @@ recommended default so you can just confirm or correct.
   ```
 
   (name/dates/counts/mag per your answers to Q1.1, Q2.1, Q4.1, Q3.5.)
+>A. I confirm
+
 - **Q6.2 — Proposed command sequence (to run only after your sign-off):**
 
   ```bash
@@ -238,6 +265,7 @@ recommended default so you can just confirm or correct.
   ```
 
   OK?
+>A. I confirm
 
 #### 7. Open unknowns
 
@@ -246,12 +274,33 @@ recommended default so you can just confirm or correct.
   night-planner branch history mentions "Lick pointing limits" work.)
   *Recommendation:* assume a full night; I'll apply any documented Shane
   limits at the *plan* stage, since the server only applies max_AM.
+>A. Assume a full night; we are not allowed to point at Dec > 82 deg.
 - **Q7.2 — Kast setup** (dichroic d46/d57, grism/grating, slit width) is
   not part of the Resource, only of the night plan — defer to the plan
   step? *Recommendation:* yes, defer.
+>A. Yes, defer.
 - **Q7.3 — Editing after creation:** if any parameter changes, I rerun
   `chime_ffff_pz_add_furesource` on the edited JSON (HOWTO p. 7:
   "If you need to edit/update the resource, rerun the script"). No
   question — just noting the correction path.
+
+### Notes from generation (2026-08-10, via Fable 5)
+
+- **Night 2 of the run:** the run is 2 nights but this Resource's valid
+  window covers only night 1 (2026-08-14 03:00–13:30Z), as confirmed. If a
+  night-2 plan is later wanted, widen `valid_stop` to ~2026-08-15T13:30Z in
+  `Lick-2026B-01.json` and rerun `chime_ffff_pz_add_furesource` (cheap,
+  per Q7.3), then rerun `chime_ffff_pz_targets`.
+- **Generation results:** the upload returned a clean "Your request
+  succeeded!" (no benign-error message this time). `chime_ffff_pz_targets`
+  returned 14 targets on the first pull (no reruns needed). The Dec > +82°
+  Shane pointing cut (Q7.1) dropped 2 targets — FRB20250102C (Pri_Dec
+  +84.08°) and FRB20251003A (Pri_Dec +84.70°) — leaving 12 in
+  `Night_plans/Lick-2026B-01/Lick-2026B-01_possible_targs.xlsx`.
+- **New question for the author:** the server returned 14 targets even
+  though `num_targ_longslit` was 15 and the Dec cut then removed 2 more.
+  With 12 viable targets for a ~15-target night, is that acceptable, or
+  should we rerun the (stochastic) target selection — or raise
+  `num_targ_longslit` slightly to buffer against the Dec cut?
 
 ## Logs
