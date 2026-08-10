@@ -94,6 +94,18 @@ bottom tracks every update.
   masks) and **MOSFIRE** (software mask designs, but reconfigurable at night);
   single-slit/echelle: **Kast, HIRES, ESI, NGPS**; IFU: **KCWI** (and GMOS-IFU,
   NGPS slicer).
+- **Kast FRB-host setup & exposure heuristic (2026B-01; from the authors'
+  prior Lick/Kast plans):** standard setup is the **d57 dichroic** (split
+  ~5700 Å), **600/7500** grating on the red arm, **600/4310** grism on the
+  blue arm, **2" slit**. Kast is dual-beam — both arms expose
+  *simultaneously*, so per-target wall clock = one arm's total, not the sum.
+  Total integration T per arm scales with primary-host r-mag:
+  <15.5 → 1800 s; 15.5–17.5 → 2400 s; 17.5–19.3 → 3600 s; ≥19.3 → 5400 s.
+  Red splits into 600 s subframes (300 s if mag < 13); blue (less efficient)
+  into 900 s (T ≤ 1800), 1200 s (T = 2400–3600), or 1800 s (T ≥ 5400)
+  subframes, ≥2 per arm, keeping red_total ≈ blue_total. Cell strings are
+  "N x 600" / "N x 1200"; Duration (hh:mm) = max arm total; slew rows stay
+  at 5 min. Implemented in `night_planner/estimate_kast_exposures.py`.
 
 ### Skills & tools for telescope night planning (researched 2026-07-11)
 
@@ -331,3 +343,16 @@ Sources: `context/HOWTOs/FFFF-PZ-HOWTO.pdf` (pp. 6–8) and
   out that the archive template stores some sexagesimal DEC values as Excel
   time cells (negative decs silently lose their sign) — always write RA/DEC
   as text.
+- **v0.13 — 2026-08-10:** Added Kast exposure estimates to the Lick-2026B-01
+  Night plan (Fable 5) via the new `night_planner/estimate_kast_exposures.py`:
+  d57 / red 600/7500 / blue 600/4310 / 2" slit, with the r-mag → total-
+  integration heuristic calibrated to 9 prior Lick/Kast plans (recorded above
+  under Astronomy knowledge). Filled red side / blue side / Duration on each
+  target's "Science + overhead" row, set slew rows to 0:05, and stamped the
+  Kast setup note in cell Q1 of every target sheet; Redshift left blank
+  (unknown pre-obs).
+- **v0.14 — 2026-08-10:** Wrote the Lick-2026B-01 target-selection report
+  (Fable 5) into the prompt file's Reports section. Durable fact: CHIME FRB
+  tag definitions (CHIME-Blind/-Repeater/-Unbiased/-Lowz/-GBO/-Bright/-KKO,
+  etc.), including their stochastic-draw weights and per-sample cuts, live in
+  `chime-ffff-pz` at `chime_ffff_pz/data/Criteria/*.json`.

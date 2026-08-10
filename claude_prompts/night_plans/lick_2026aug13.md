@@ -62,11 +62,104 @@ Add this to your context file and log your work.
 
 If you have any new questions, pose them in the Q&A section below.  Use Fable if you can.  Log your work.
 
-3. Thanks!  Now generate a Night plan doc, modeled after the ones in the `/mnt/scratch/xavier/Observing/Observations/Lick_Kast/obs_docs/2026` folder, e.g. `Lick_2026A-4_Night_plan.xlsx`. Name it `Lick_2026B-01_Night_plan.xlsx`. Name the sheets as the targets in the target list.  Log your work.  Use Fable if you can. Explain your reasonsing for the targets chosen in the Reports section below.  It should include the tags for each FRB.  
+### Night plan
 
-4. For the Kast setup, we will use the d56 dichroic and the 
+1. Thanks!  Now generate a Night plan doc, modeled after the ones in the `/mnt/scratch/xavier/Observing/Observations/Lick_Kast/obs_docs/2026` folder, e.g. `Lick_2026A-4_Night_plan.xlsx`. Name it `Lick_2026B-01_Night_plan.xlsx`. Name the sheets as the targets in the target list.  Log your work.  Use Fable if you can. Explain your reasonsing for the targets chosen in the Reports section below.  It should include the tags for each FRB.  
+
+2. For the Kast setup, we will use the d57 dichroic, 600/7500 grism, and the 600/4310 grism with a 2" slit.
+Please estimate exposure times based on that and our previous Night plans.
+Then update the Night plan spreadsheet accordingly.  Use Fable if you can.
+Log your work.
 
 ## Reports
+
+### Target selection report — Lick-2026B-01, night 1 (2026-08-10, via Fable 5)
+
+#### How the targets were chosen
+
+The selection was criteria-driven, not hand-ranked — it is worth being honest
+about the mechanism:
+
+1. **The Resource encodes the criteria** confirmed in the Q&A below. The
+   FFFF-PZ Resource `Lick-2026B-01` specifies: instrument `KAST` (Lick Shane
+   3 m), `frb_surveys = "all"` (this FFFF-PZ instance is CHIME-only, so
+   effectively CHIME/FRB), longslit mode → server-default status
+   **NeedSpectrum**, `max_AM = 2.0`, `max_mag = 20.5` (PATH primary-host
+   r-band), `frb_tags = null` and `min_POx` omitted (no tag or P(O|x)
+   restriction), `num_targ_longslit = 15`, valid window the night of
+   2026-08-13→14 UT.
+2. **The server filtered for feasibility and drew the set.** FFFF-PZ applies
+   a twilight-bounded minimum-airmass filter (astroplan-based) for that night
+   at Lick and returns targets from the qualifying pool; when more targets
+   qualify than requested, the draw is **stochastic** (tag-weighted, not an
+   optimizer). It returned **14** targets — a feasible, criteria-satisfying
+   set, not a scientifically ranked one.
+3. **We then applied the Shane Dec ≤ +82° pointing limit** (the server cuts
+   only on airmass, per Q7.1). This dropped **2** of the 14:
+   **FRB20250102C** (Pri_Dec ≈ +84.08°) and **FRB20251003A**
+   (Pri_Dec ≈ +84.70°), leaving the **12** targets in the plan
+   (`Night_plans/Lick-2026B-01/Lick-2026B-01_possible_targs.xlsx`).
+4. **Observability:** in mid-August at Lick the astronomical night spans
+   roughly LST 19 h → 2.5 h, so the 12 targets (RA ≈ 0.5 h–15.7 h, most
+   circumpolar or nearly so) are all reachable at airmass ≤ 2 at some point
+   in the night. Six of the 12 sit at Dec +67.9° to +79.6°
+   (FRB20240901A, FRB20260310B, FRB20250202A, FRB20201128D, FRB20260215E,
+   FRB20240324A) — legal but within ~15° of the +82° limit, a plan-stage
+   caution for slews and tracking near the pole.
+
+#### The 12 targets (with FRB tags)
+
+Sorted by RA. Coordinates are the PATH primary-host positions (as in the
+possible-targs sheet); P(O|x) and r-mag are the PATH primary-host values.
+
+| TNS | FRB tags | P(O\|x) (primary) | host r-mag | RA (h:m:s) | Dec (d:m:s) | DM |
+|---|---|---|---|---|---|---|
+| FRB20200702C | CHIME-Repeater | 0.996 | 15.98 | 00:33:04.69 | +28:49:52.56 | 201.3 |
+| FRB20250902A | CHIME-Unbiased | 0.995 | 18.57 | 01:37:12.16 | +11:29:16.98 | 364.4 |
+| FRB20230805A | CHIME-Repeater, CHIME-Blind | 0.771 | 17.99 | 02:24:03.98 | +52:41:35.99 | 638.5 |
+| FRB20231223B | CHIME-Repeater | 0.918 | 16.27 | 05:14:47.75 | +48:45:03.64 | 499.4 |
+| FRB20240901A | CHIME-Blind | 0.990 | 19.05 | 09:49:01.75 | +75:11:20.22 | 506.4 |
+| FRB20260310B | CHIME-Unbiased, CHIME-Lowz | 0.998 | 18.95 | 11:42:52.56 | +79:37:05.46 | 287.5 |
+| FRB20250202A | CHIME-GBO | 0.682 | 18.97 | 12:05:16.27 | +76:38:44.90 | 724.2 |
+| FRB20201128D | CHIME-Blind | 0.957 | 16.32 | 12:12:29.87 | +73:17:42.88 | 158.1 |
+| FRB20260215E | CHIME-Unbiased | 0.992 | 19.79 | 12:40:56.95 | +67:56:47.80 | 403.2 |
+| FRB20240324A | CHIME-Blind | 0.956 | 19.18 | 12:51:21.51 | +78:49:57.44 | 163.7 |
+| FRB20200621B | CHIME-Blind | 0.921 | 16.87 | 15:27:07.55 | +58:43:19.10 | 637.3 |
+| FRB20230729A | CHIME-Blind | 0.962 | 18.44 | 15:44:13.00 | +39:33:23.25 | 599.8 |
+
+No target in this set has a missing tag, P(O|x), magnitude, or DM. (The two
+targets in the 14-row pull that were cut for Dec carried tags CHIME-Blind
+for FRB20250102C and CHIME-Unbiased, CHIME-Lowz for FRB20251003A.)
+
+#### What the tags mean
+
+The tags are CHIME/FRB sample/subsample labels; each corresponds to a
+criteria definition in `chime-ffff-pz` (`chime_ffff_pz/data/Criteria/*.json`),
+which also sets the selection weight used in the stochastic draw. Only the
+tags present in this set are defined here, quoting the criteria files'
+descriptions:
+
+- **CHIME-Blind** (weight 0.2): "Catch all sample for FRBs that do not meet
+  any of the standard tagging criteria."
+- **CHIME-Repeater** (weight 0.9): the criteria file carries no description;
+  by name this is the sample of repeating CHIME FRBs (interpretation from
+  the name, not documented).
+- **CHIME-Unbiased** (weight 0.5): "Sample of FRBs with precise localization
+  occuring within the DESI or Euclid footprints."
+- **CHIME-Lowz** (weight 0.9): "Sample of FRBs which may be at very low
+  redshift, with precise localization" (its criteria include DM ≤ 300).
+- **CHIME-GBO** (weight 0.8): "Sample of FRBs observed by the Green Bank
+  Outrigger" (i.e. with a GBO baseband localization).
+
+Tag counts in the 12-target set: CHIME-Blind 6, CHIME-Repeater 3,
+CHIME-Unbiased 3, CHIME-Lowz 1, CHIME-GBO 1 (two targets carry two tags).
+
+#### Honesty note
+
+P(O|x) and magnitudes are PATH primary-host values reported by FFFF-PZ; the
+set is criteria-driven and feasibility-filtered (with a stochastic draw),
+not hand-curated — the observer still down-selects roughly 5–6 targets for
+the night by RA coverage and priority.
 
 ## Q&A
 
