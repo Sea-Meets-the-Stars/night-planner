@@ -321,3 +321,13 @@ Sources: `context/HOWTOs/FFFF-PZ-HOWTO.pdf` (pp. 6–8) and
   (Dec ≤ +82° Shane cut dropped 2 targets → 12 in
   Night_plans/Lick-2026B-01/). Added the possible-targs spreadsheet
   convention and the Dec +82° pointing limit above.
+- **v0.12 — 2026-08-10:** Built the Lick-2026B-01 Night plan (Fable 5) via the
+  new `night_planner/make_lick_night_plan.py` →
+  `Night_plans/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx`. Departure from
+  the archive template (per the author's explicit prompt): science sheets are
+  named per target TNS (12 sheets, RA order) instead of per night. Checklist
+  copied from `Lick_2026A-4_Night_plan.xlsx` with Done flags reset; exposure
+  times and Kast red/blue setup left blank (deferred to the observer); watch
+  out that the archive template stores some sexagesimal DEC values as Excel
+  time cells (negative decs silently lose their sign) — always write RA/DEC
+  as text.

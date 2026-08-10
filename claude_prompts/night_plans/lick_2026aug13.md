@@ -64,6 +64,8 @@ If you have any new questions, pose them in the Q&A section below.  Use Fable if
 
 3. Thanks!  Now generate a Night plan doc, modeled after the ones in the `/mnt/scratch/xavier/Observing/Observations/Lick_Kast/obs_docs/2026` folder, e.g. `Lick_2026A-4_Night_plan.xlsx`. Name it `Lick_2026B-01_Night_plan.xlsx`. Name the sheets as the targets in the target list.  Log your work.  Use Fable if you can. Explain your reasonsing for the targets chosen in the Reports section below.  It should include the tags for each FRB.  
 
+4. For the Kast setup, we will use the d56 dichroic and the 
+
 ## Reports
 
 ## Q&A
@@ -302,5 +304,33 @@ recommended default so you can just confirm or correct.
   With 12 viable targets for a ~15-target night, is that acceptable, or
   should we rerun the (stochastic) target selection — or raise
   `num_targ_longslit` slightly to buffer against the Dec cut?
+>A. That will be enough targets.
+
+### Night-plan sheet design (2026-08-10, via Fable 5)
+
+- Built `Night_plans/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx` via the new
+  `night_planner/make_lick_night_plan.py`, modeled on
+  `Lick_2026A-4_Night_plan.xlsx`. Per the prompt, the science sheets are
+  named by target: 15 sheets in order — `Observing Checklist`, then one
+  sheet per TNS (12, RA-sorted), then `FRB Observing Summary` and
+  `Post Observing Tracking`. The template's `dont use` scratch sheet was
+  not reproduced.
+- Each target sheet carries the template's 15-column timeline header
+  (A→O), a `slew to --> ` row, and a `Science + overhead` row with
+  RA/DEC (text), Pri/Sec mags, and Comments = `P(O|x)=…; tag=…` merged
+  from `Lick-2026B-01_targets.csv`. Start/Duration/End, `red side`,
+  `blue side`, and `Redshift;` are deliberately blank (Kast setup and
+  exposure times deferred per Q7.2). The Calibrations/Red/Blue side block
+  (Focus/Bias/Flats, unchecked) is on every target sheet.
+- The first target sheet (`FRB20200702C`) carries the standard-star
+  bookend note (evening & morning twilight; BD+28 4211 / Feige 110 /
+  HZ 44 as August options, no commitment) plus the template's
+  Standard Star Options table — with RA/DEC written as text, since the
+  template stored several declinations as Excel time cells (e.g. Feige110's
+  −05° dec was stored as a positive time).
+- The `Observing Checklist` was copied verbatim from the template with all
+  `Done` flags reset to False for this run.
+- Correct or redirect any of these choices and I will regenerate — the
+  script is parameterized (inputs, template, output paths).
 
 ## Logs
