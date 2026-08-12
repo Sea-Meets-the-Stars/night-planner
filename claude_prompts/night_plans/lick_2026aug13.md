@@ -426,4 +426,59 @@ recommended default so you can just confirm or correct.
 - Correct or redirect any of these choices and I will regenerate — the
   script is parameterized (inputs, template, output paths).
 
+### Night-plan REGENERATION request (2026-08-10, lordrick_fussin branch)
+
+User feedback: "looks like it build some files but did not make a coherent night plan, a night plan looks something like this /home/lordrick/Projects/night-planner/Night_plans/Lick-2026A-4_template/Lick_2026A-4_Night_plan.xlsx, notice the naming of the sheets, make sure you have the ability to get START TIMES end TIMES, LST Time for any given dates, make a branch with the same name add _lordrick_fussin at the end and let's try, also update the specific prompt file with this prompt and I'll answer any questions or assumptions you generate there"
+
+**What's wrong:**
+Current plan has sheets named by TARGET (one per FRB). Template has sheets named by DATE (e.g., "May 15th", "May 16th", "May 17th") with multiple targets listed sequentially on each night sheet.
+
+**Template structure observed:**
+- Sheets: `Observing Checklist`, `<Date>` (one per night), `FRB Observing Summary`, `Post Observing Tracking`
+- Each date sheet has columns: Start (LST), Start (UT), Start (PST), Duration, End (PST), Action, target, RA, DEC, mag(r), sec mag, red side, blue side, Redshift, Comments
+- Timeline uses formulas: `=C4 + TIME(14,30,0)` for LST from PST, `=E4 + D4` for end times
+- Sidereal time calculator section in columns U-W
+- Multiple targets per night listed sequentially with slew + science rows
+- Standard stars included (HZ_44, etc.)
+
+**Claude's questions & assumptions (lordrick_fussin iteration):**
+
+1. **Sheet naming for 2-night run:** Use "August 13th" and "August 14th" (or "Aug 13th"/"Aug 14th")? Match template's full month name?
+   *Recommendation:* "August 13th", "August 14th"
+   Sure use "August 13th", "August 14th"
+
+2. **Sidereal time calculation:** Need LST at arbitrary PST times for Aug 13/14, 2026 at Lick. Will write Python script to calculate:
+   - LST at local midnight (for sidereal time calculator section)
+   - LST at 12° twilight (evening/morning)
+   - LST ↔ PST conversion for target scheduling
+   *Assumption:* Use astropy (Lick lon=-121.6429°, lat=+37.3414°, tz=UTC-7 for PDT)
+   Use Astropy and compare with online calculators through some API, if not possible offer me your answers and I'll make a table to compare answers with online calculators on your sample times
+
+3. **Timeline start:** What PST time to start the night plan timeline? Template starts at 20:30 PST (~12° twilight). Use astronomical twilight calculator or fixed offset?
+   *Recommendation:* Calculate 12° twilight for Aug 13, 2026 at Lick
+   Always start at the 1/2 hour mark or hour mark before ~12 degree twilight, so if 12 degree 20:43, start at 20:30, if 12 degree is 21:18, start at 21:00 and so forth and so on.
+
+4. **Target selection for night 1:** We have 12 viable targets. How many to schedule on night 1 (Aug 13th sheet)?
+   *Recommendation:* ~5-6 based on past obslogs, prioritized by RA coverage for LST window ~19h-2.5h
+   While selecting targets for Lick, we also have to think about hour angle and airmass, we can't observe targets West of 3:45 hours, therefore we If a target is going to set, we shall observe it first, if it needs more time that how long it will be up before crossing our pointing limit, then we don't observe it, we also generally like to observe targets at it's highest airmass but this is not a priority, we also cannot point west of 5:00 hours. Ask questions about this if you don't understand, also your note your reasoning for the selecting the targets and why that particular order.
+
+5. **Exposure times (Kast d57, 600/7500, 600/4310, 2" slit):** Template shows patterns like "4 x 900" red, "2 x 1800" blue. Scale by target brightness? Use template as guide?
+   *Recommendation:*
+   - r ≤ 17: 3×900 red, 2×1350 blue (≈45 min + overhead)
+   - r 17-19: 4×900 red, 2×1800 blue (≈60 min)
+   - r 19-20.5: 6×900 red, 3×1800 blue (≈90 min)
+   (Total overhead ~30% → 1h blocks become ~1.3h)
+
+   Yap, for things brighter that 15 mag, I would go for 30min + overhead
+
+6. **Standard stars:** Template lists HZ_44 (RA 13:23:35), Feige 110, BD+28 4211. Which for Aug 13 night? One at twilight, one at dawn?
+   *Recommendation:* Pick by RA visibility; HZ_44 transits ~LST 13h (visible Aug eve)
+   Also, at highest airmass during begining of the night
+
+7. **Output location:** Overwrite `Night_plans/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx` or new filename?
+   *Recommendation:* Overwrite (it's on new branch _lordrick_fussin)
+   overwrite
+
+>A. [AWAITING ANSWERS]
+
 ## Logs
