@@ -356,3 +356,37 @@ Sources: `context/HOWTOs/FFFF-PZ-HOWTO.pdf` (pp. 6–8) and
   tag definitions (CHIME-Blind/-Repeater/-Unbiased/-Lowz/-GBO/-Bright/-KKO,
   etc.), including their stochastic-draw weights and per-sample cuts, live in
   `chime-ffff-pz` at `chime_ffff_pz/data/Criteria/*.json`.
+- **v0.15 — 2026-08-11:** REGENERATED Lick-2026B-01 Night plan (Sonnet 4.5
+  via lordrick). Corrected sheet structure: date-named sheets ("August 13th")
+  not target-named, matching the Lick-2026A-4 template. ~~Added full Lick/Shane
+  pointing constraints: **Dec ≤ +82°**, **RA ≥ 5h** (no targets west of 5h),
+  **HA ≥ -3:45h** (cannot observe west of 3h45m HA).~~ **[WRONG - see v0.16]**
+  Created automated calculation scripts: `scripts/lick_2026b01_calculations.py`
+  (LST/twilight/airmass/target-selection) and `scripts/build_night_plan.py`
+  (Excel generation from selected targets). For Aug 13, 2026: **18° astronomical
+  twilight** 21:38 PDT / 20:38 PST (LST 18h02m) to 04:46 PDT / 03:46 PST
+  (LST 1h11m), timeline starts 21:30 PDT. **Lick calendar timezone
+  convention:** tables use "PST" label year-round (actual UTC-8), even in
+  summer when local time is PDT (UTC-7); verified against
+  ucolick.org/calendar (2-3 min agreement). ~~Of 12 viable targets (after Dec
+  cut), 8 pass all pointing limits; selected 6 for night 1 (FRB20230729A,
+  FRB20200621B, FRB20240324A, FRB20260215E, FRB20201128D, FRB20250202A)
+  totaling ~520 min for 7.1h night.~~ **[4 of 6 targets WRONG - see v0.16]**
+  Night plan → `Night_plans/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx`.
+- **v0.16 — 2026-08-12:** CORRECTED Lick-2026B-01 Night plan (Sonnet 4.5
+  via lordrick). **CRITICAL FIX:** v0.15 had wrong Shane pointing limits.
+  **CORRECT constraints:** (1) **Dec ≤ +82°**, (2) **HA: -5h ≤ HA ≤ +3.75h**
+  (symmetric - cannot point >5h east OR >3.75h west of meridian), (3) **NO
+  RA limits** - observable RAs depend on LST and time of year. **Hour angle
+  convention:** HA = LST - RA (±12h); negative HA = east of meridian (before
+  transit), positive HA = west (after transit). Of 12 viable targets (after
+  Dec cut), **only 6 pass HA limits during the night**: 2 evening (RA 15-16h:
+  FRB20230729A, FRB20200621B), 4 morning (RA 0-5h: FRB20200702C, FRB20250902A,
+  FRB20230805A, FRB20231223B), totaling **420 min** (7.0h). **Rejected:** 6
+  targets at RA 9-13h (always HA > +3.75h, too far west). v0.15 incorrectly
+  selected 4 of these rejected targets! Created
+  `scripts/observable_ra_calculator.py` showing time-dependent RA windows.
+  Full corrections in `Night_plans/Lick-2026B-01/CORRECTIONS_SUMMARY.md` and
+  `HOWTO_night_plan_creation.md`. **KEY LESSON:** Always verify telescope
+  mechanical limits with observer - HA constraints create LST-dependent RA
+  windows, not static forbidden zones.
