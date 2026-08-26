@@ -94,6 +94,18 @@ bottom tracks every update.
   masks) and **MOSFIRE** (software mask designs, but reconfigurable at night);
   single-slit/echelle: **Kast, HIRES, ESI, NGPS**; IFU: **KCWI** (and GMOS-IFU,
   NGPS slicer).
+- **Kast FRB-host setup & exposure heuristic (2026B-01; from the authors'
+  prior Lick/Kast plans):** standard setup is the **d57 dichroic** (split
+  ~5700 Å), **600/7500** grating on the red arm, **600/4310** grism on the
+  blue arm, **2" slit**. Kast is dual-beam — both arms expose
+  *simultaneously*, so per-target wall clock = one arm's total, not the sum.
+  Total integration T per arm scales with primary-host r-mag:
+  <15.5 → 1800 s; 15.5–17.5 → 2400 s; 17.5–19.3 → 3600 s; ≥19.3 → 5400 s.
+  Red splits into 600 s subframes (300 s if mag < 13); blue (less efficient)
+  into 900 s (T ≤ 1800), 1200 s (T = 2400–3600), or 1800 s (T ≥ 5400)
+  subframes, ≥2 per arm, keeping red_total ≈ blue_total. Cell strings are
+  "N x 600" / "N x 1200"; Duration (hh:mm) = max arm total; slew rows stay
+  at 5 min. Implemented in `night_planner/estimate_kast_exposures.py`.
 
 ### Skills & tools for telescope night planning (researched 2026-07-11)
 
@@ -232,6 +244,47 @@ Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
   targets *within* the twilight-bounded night is our job (start from
   astroplan's Scheduler).
 
+### FFFF-PZ Resource creation for CHIME FRB runs (HOWTO + chime-ffff-pz, 2026-08-13 prep)
+
+Sources: `context/HOWTOs/FFFF-PZ-HOWTO.pdf` (pp. 6–8) and
+`/home/xavier/Projects/FRBs/chime-ffff-pz` (docs/, scripts/, data/Observing/).
+
+- **Naming:** `<Site>-<Semester>-<run#>` (e.g. `Lick-2025B-3`); one Resource
+  per observing *run* (1–3 nights), run # unpadded by convention and
+  incrementing within the semester. The name keys everything downstream
+  (targets/obsplan/logobs/finder commands, git branch, CANFAR folder).
+- **Workflow:** (1) hand-write JSON at
+  `chime_ffff_pz/data/Observing/<name>/<name>.json`; (2)
+  `chime_ffff_pz_add_furesource <json>` (PUT `add_frb_resource/`, HTTP 200;
+  often prints a benign "error"); (3) confirm on the web dashboard; (4)
+  `chime_ffff_pz_targets <name>` (PUT `targets_from_frb_followup_resource/`,
+  HTTP 201) → `<name>_targets.csv` in the same folder (columns: TNS, FRB
+  RA/Dec/DM/survey/tags, Pri_*/Sec_* host name/RA/Dec/POx/mag/filter, mode,
+  Resource). Selection is stochastic — rerun if too few. Later:
+  `<name>_pending.csv` + `chime_ffff_pz_obsplan`, finders, starlist
+  (`chime_ffff_pz_starlist <observatory>`), `chime_ffff_pz_logobs`.
+- **JSON fields** (Lick/Kast practice, from Lick-2025B-*/2026A-2):
+  `instrument="KAST"`, UT `valid_start/valid_stop` (loose window OK — server
+  clips to astronomical twilight and applies the min-airmass filter),
+  `num_targ_img/mask = 0`, `num_targ_longslit` = 20–30 requested (only ~4–6
+  observed per Kast night), `max_AM = 2.0`, `frb_surveys = "all"`,
+  `frb_tags/frb_statuses = null` (server default → NeedSpectrum for
+  longslit), `max_mag` 19.5–20.5 (PATH primary host r); **omit `min_POx`** —
+  setting it overrides the status logic (HOWTO warning).
+- **Auth:** `FFFF_PZ_USER/PASS/URL` (`https://frb.chimenet.ca/f4pz/`) from
+  `chime-ffff-pz/automation/config/secrets.env`; run in the `astro` conda
+  env. Git: branch named after the resource, JSON PR'd to main (author runs
+  git). CANFAR registration (`fu_resources.csv` + `canfar_upload -f`) only
+  matters for post-run data upload.
+- **Observing spreadsheet ("possible targs"):** each Lick/Kast run folder in
+  obs_docs carries a `possible_targs.xlsx` (sheet `possible_targs`; columns
+  TNS, RA_HMS, DEC_DMS, Epoch, Pri_mag, Sec_mag) — primary-host coords in
+  sexagesimal, Epoch 2000.0, sorted by RA. Build it from the targets CSV with
+  `night_planner/make_lick_possible_targs.py`, which also applies the
+  **Shane pointing limit: no targets at Dec > +82°** (author, Q7.1 of the
+  2026-08-13 plan). Note the server may return fewer targets than
+  `num_targ_longslit` requests (e.g. 14 of 15 for Lick-2026B-01).
+
 ## Version History
 
 - **v0.1 — 2026-07-11:** Created during start-up prompt 1. Seeded project purpose,
@@ -269,3 +322,71 @@ Full survey in [`claudes_context.md`](claudes_context.md); durable takeaways:
   subsection of claude_prompts/context_prompts.md, with pointers into the context
   and brain files. Added the Gaia-epoch (equinox 2016.0 + proper motions)
   starlist fact noted while re-verifying archive files.
+- **v0.10 — 2026-08-13:** Lick 2026-08-13 plan prep (Fable 5). Read the
+  FFFF-PZ HOWTO PDF and the chime-ffff-pz repo; added the "FFFF-PZ Resource
+  creation" subsection (naming convention, JSON fields, add_furesource →
+  targets workflow, auth, per-night Kast capacity). Posed Q&A in
+  claude_prompts/night_plans/lick_2026aug13.md; no Resource generated yet.
+- **v0.11 — 2026-08-10:** Generated the Lick-2026B-01 Resource (Fable 5):
+  wrote/uploaded the JSON (clean success), pulled 14 targets, and built the
+  observing spreadsheet via the new `night_planner/make_lick_possible_targs.py`
+  (Dec ≤ +82° Shane cut dropped 2 targets → 12 in
+  Night_plans/Lick-2026B-01/). Added the possible-targs spreadsheet
+  convention and the Dec +82° pointing limit above.
+- **v0.12 — 2026-08-10:** Built the Lick-2026B-01 Night plan (Fable 5) via the
+  new `night_planner/make_lick_night_plan.py` →
+  `Night_plans/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx`. Departure from
+  the archive template (per the author's explicit prompt): science sheets are
+  named per target TNS (12 sheets, RA order) instead of per night. Checklist
+  copied from `Lick_2026A-4_Night_plan.xlsx` with Done flags reset; exposure
+  times and Kast red/blue setup left blank (deferred to the observer); watch
+  out that the archive template stores some sexagesimal DEC values as Excel
+  time cells (negative decs silently lose their sign) — always write RA/DEC
+  as text.
+- **v0.13 — 2026-08-10:** Added Kast exposure estimates to the Lick-2026B-01
+  Night plan (Fable 5) via the new `night_planner/estimate_kast_exposures.py`:
+  d57 / red 600/7500 / blue 600/4310 / 2" slit, with the r-mag → total-
+  integration heuristic calibrated to 9 prior Lick/Kast plans (recorded above
+  under Astronomy knowledge). Filled red side / blue side / Duration on each
+  target's "Science + overhead" row, set slew rows to 0:05, and stamped the
+  Kast setup note in cell Q1 of every target sheet; Redshift left blank
+  (unknown pre-obs).
+- **v0.14 — 2026-08-10:** Wrote the Lick-2026B-01 target-selection report
+  (Fable 5) into the prompt file's Reports section. Durable fact: CHIME FRB
+  tag definitions (CHIME-Blind/-Repeater/-Unbiased/-Lowz/-GBO/-Bright/-KKO,
+  etc.), including their stochastic-draw weights and per-sample cuts, live in
+  `chime-ffff-pz` at `chime_ffff_pz/data/Criteria/*.json`.
+- **v0.15 — 2026-08-11:** REGENERATED Lick-2026B-01 Night plan (Sonnet 4.5
+  via lordrick). Corrected sheet structure: date-named sheets ("August 13th")
+  not target-named, matching the Lick-2026A-4 template. ~~Added full Lick/Shane
+  pointing constraints: **Dec ≤ +82°**, **RA ≥ 5h** (no targets west of 5h),
+  **HA ≥ -3:45h** (cannot observe west of 3h45m HA).~~ **[WRONG - see v0.16]**
+  Created automated calculation scripts: `scripts/lick_2026b01_calculations.py`
+  (LST/twilight/airmass/target-selection) and `scripts/build_night_plan.py`
+  (Excel generation from selected targets). For Aug 13, 2026: **18° astronomical
+  twilight** 21:38 PDT / 20:38 PST (LST 18h02m) to 04:46 PDT / 03:46 PST
+  (LST 1h11m), timeline starts 21:30 PDT. **Lick calendar timezone
+  convention:** tables use "PST" label year-round (actual UTC-8), even in
+  summer when local time is PDT (UTC-7); verified against
+  ucolick.org/calendar (2-3 min agreement). ~~Of 12 viable targets (after Dec
+  cut), 8 pass all pointing limits; selected 6 for night 1 (FRB20230729A,
+  FRB20200621B, FRB20240324A, FRB20260215E, FRB20201128D, FRB20250202A)
+  totaling ~520 min for 7.1h night.~~ **[4 of 6 targets WRONG - see v0.16]**
+  Night plan → `Night_plans/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx`.
+- **v0.16 — 2026-08-12:** CORRECTED Lick-2026B-01 Night plan (Sonnet 4.5
+  via lordrick). **CRITICAL FIX:** v0.15 had wrong Shane pointing limits.
+  **CORRECT constraints:** (1) **Dec ≤ +82°**, (2) **HA: -5h ≤ HA ≤ +3.75h**
+  (symmetric - cannot point >5h east OR >3.75h west of meridian), (3) **NO
+  RA limits** - observable RAs depend on LST and time of year. **Hour angle
+  convention:** HA = LST - RA (±12h); negative HA = east of meridian (before
+  transit), positive HA = west (after transit). Of 12 viable targets (after
+  Dec cut), **only 6 pass HA limits during the night**: 2 evening (RA 15-16h:
+  FRB20230729A, FRB20200621B), 4 morning (RA 0-5h: FRB20200702C, FRB20250902A,
+  FRB20230805A, FRB20231223B), totaling **420 min** (7.0h). **Rejected:** 6
+  targets at RA 9-13h (always HA > +3.75h, too far west). v0.15 incorrectly
+  selected 4 of these rejected targets! Created
+  `scripts/observable_ra_calculator.py` showing time-dependent RA windows.
+  Full corrections in `Night_plans/Lick-2026B-01/CORRECTIONS_SUMMARY.md` and
+  `HOWTO_night_plan_creation.md`. **KEY LESSON:** Always verify telescope
+  mechanical limits with observer - HA constraints create LST-dependent RA
+  windows, not static forbidden zones.
