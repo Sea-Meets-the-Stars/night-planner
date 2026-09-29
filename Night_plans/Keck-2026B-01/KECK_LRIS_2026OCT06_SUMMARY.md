@@ -1,6 +1,11 @@
-# Keck/LRIS Night Plan - October 2, 2026
+# Keck/LRIS Night Plan - October 6, 2026
 
-Created by JXP and Claude (2026-09-09)
+Created by Lordrick and Claude (2026-09-09)
+
+> **Date correction (2026-09-17):** the run is actually the night of **Oct 6**,
+> not Oct 2 as originally planned in Prompts 1-11 below. See Prompt 12 for
+> what changed and what didn't when the whole pipeline was rerun for the
+> correct date.
 
 ## Session Log
 
@@ -379,30 +384,82 @@ insensitive to the error.
 
 ---
 
+### Prompt 12
+> I made a mistake here, turns out, the night is on the 6th of october and not
+> the second, review how we made this plan and update the plans and all the
+> dates in the files
+
+**Action:** The run date was wrong throughout Prompts 1-11 — corrected
+`2026-10-02` → `2026-10-06` and reran the whole pipeline (not just a text
+find/replace), since twilight, LST, and every target's airmass/HA/vignetting
+status are date-dependent.
+
+**Renamed** (content and filenames both carried the wrong date):
+- `scripts/keck_2026oct02_calculations.py` → `scripts/keck_2026oct06_calculations.py`
+- `Keck_LRIS_2026Oct02_Night_plan.xlsx` → `Keck_LRIS_2026Oct06_Night_plan.xlsx`
+- `keck_lris_oct02.starlist` → `keck_lris_oct06.starlist`
+- `KECK_LRIS_2026OCT02_SUMMARY.md` → `KECK_LRIS_2026OCT06_SUMMARY.md` (this
+  file)
+- `scripts/build_keck_night_plan.py` kept its name (no date in it) but its
+  internal date default, checklist title, sheet name, and start-time constant
+  were updated.
+
+**Regenerated result — same 5 targets, same 45% utilization, timings shift by
+~10-20 min:** evening twilight moved from 19:22→**19:19 HST**, morning from
+05:01→**05:02 HST** (dark time unchanged at 9.7h to 1 decimal). The scheduled
+targets and their order are identical to the Oct 2 plan (FRB20260502A [MOS],
+FRB20250408A, FRB20260102A [MOS], FRB20260418B, FRB20240106A [MOS]) — a
+4-day shift in RA/LST wasn't enough to change which targets clear the
+Nasmyth-deck/HA/window filters for this pool. **One rejection reason did
+change:** FRB20260418A (mag>21, MOS) was "vignetted by the Nasmyth deck" on
+Oct 2 but is "below horizon all night" on Oct 6 — still excluded either way,
+but for a different geometric reason, which is exactly the kind of detail a
+find/replace on the date string would have silently gotten wrong.
+
+**Not changed (flagged for the author, not touched by Claude):** the live
+FFFF-PZ `Keck-2026B-01` Resource
+(`chime-ffff-pz/chime_ffff_pz/data/Observing/Keck-2026B-01/Keck-2026B-01.json`)
+still has `valid_start`/`valid_stop` set to the Oct 2/3 UTC window
+(`2026-10-03T05:00:01Z`–`2026-10-03T15:45:38Z`). That's a live object on a
+shared server (per Prompt 6) — updating it means another
+`chime_ffff_pz_add_furesource` call, which wasn't run here since it's a
+state-changing action on shared infrastructure, not a local file. Recommend
+re-submitting the Resource with the Oct 6/7 UTC window before relying on it
+for a fresh target pull.
+
+**Also not changed:** the git branch this work lives on is named
+`keck-2026oct02` (predates this correction) and the Session Log text for
+Prompts 1-11 above still says "Oct 2" throughout, since that's an accurate
+record of what was actually discussed at the time — only this doc's
+*current-state* sections (Ephemeris, target tables, timeline, output files,
+below) were updated to the corrected date.
+
+---
+
 ## Ephemeris
 
 | Parameter | Value |
 |-----------|-------|
-| Date | October 2, 2026 |
+| Date | October 6, 2026 |
 | Observatory | Keck (Maunakea) |
 | Latitude | 19.828333° N |
 | Longitude | 155.4783° W |
 | Elevation | 4160 m |
 | Timezone | HST (UTC-10) |
-| Evening twilight (18°) | 19:22 HST |
-| Morning twilight (18°) | 05:01 HST |
+| Evening twilight (18°) | 19:19 HST |
+| Morning twilight (18°) | 05:02 HST |
 | Dark time | 9.7 hours |
-| Evening LST | 19h 48m |
-| Morning LST | 5h 28m |
+| Evening LST | 20h 01m |
+| Morning LST | 5h 45m |
 
 ## Observable RA Range
 
 | Time | RA Range (HA ±5.5h) |
 |------|---------------------|
-| Evening | 14.3h - 1.3h |
-| Morning | 0h - 11h |
+| Evening | 14.5h - 1.5h |
+| Morning | 0.3h - 11.3h |
 
-## Target Analysis (REGENERATED, Prompt 9 — refreshed 10-target FFFF-PZ pull, `info` column, real MOS timing)
+## Target Analysis (REGENERATED, Prompt 12 — Oct 6 date correction; pool/logic unchanged from Prompt 9-10, only ephemeris shifted)
 
 **Pool changed underneath this doc as of Prompt 9:** the author re-pulled
 `Keck-2026B-01` directly (`num_targ_mask=5`, `num_targ_longslit=10`, down
@@ -416,9 +473,9 @@ scheduled targets (FRB20260518B, FRB20260611G) aren't in this pull at all.
 ```
 10 targets (Keck-2026B-01 FFFF-PZ pull, all mag > 19)
  ├─ 4 fail sky-observability
- │   ├─ 3 vignetted by the Keck I Nasmyth deck while rising
- │   │   (FRB20260514A, FRB20260418A, FRB20260503B)
- │   └─ 1 below horizon all night (FRB20260627D)
+ │   ├─ 2 vignetted by the Keck I Nasmyth deck while rising
+ │   │   (FRB20260514A, FRB20260503B)
+ │   └─ 2 below horizon all night (FRB20260418A, FRB20260627D)
  └─ 6 pass sky-observability
      ├─ 4 are mag > 21 -> need a MOS slitmask (weeks lead time,
      │   can't be milled in time for this run)
@@ -427,23 +484,26 @@ scheduled targets (FRB20260518B, FRB20260611G) aren't in this pull at all.
          (FRB20250408A, FRB20260418B)
 ```
 
-(A 5th MOS target, FRB20260418A, fails sky-observability too — vignetted —
-so it's mag>21 *and* not up tonight regardless of mask status.)
+(A 5th MOS target, FRB20260418A, fails sky-observability too — below the
+horizon all night on Oct 6 — so it's mag>21 *and* not up tonight regardless
+of mask status. On the Oct 2 date this same target failed for a different
+reason, Nasmyth-deck vignetting — a 4-day RA/LST shift moved it from one
+failure mode to the other without changing the outcome.)
 
 ### All 10 targets from the Keck-2026B-01 FFFF-PZ Resource (min_mag=19, LRIS)
 
 | TNS | RA (h) | Dec (°) | mag | LRIS Mode | Min AM | Observable | Reason / info |
 |-----|--------|---------|-----|-----------|--------|------------|----------------|
 | FRB20260102A | 1.94 | +14 | 21.2 | MOS | 1.01 | sky: YES | Mag 21.2 > 21: MOS mask required (~1.0h once milled) |
-| FRB20260418B | 6.18 | +39 | 20.2 | longslit | 1.10 | YES | scheduled 19:32 |
-| FRB20240106A | 6.73 | +60 | 22.5 | MOS | 1.40 | sky: YES | Mag 22.5 > 21: MOS mask required (~1.0h once milled) |
-| FRB20250411A | 7.51 | +31 | 25.6 | MOS | 1.22 | sky: YES | Mag 25.6 > 21: MOS mask required (~2.0h once milled) |
-| FRB20260514A | 8.48 | +69 | 20.3 | longslit | 1.91 | NO | Vignetted by Keck I Nasmyth deck (az 19°, alt 32° — needs 33° in az 5–146°) |
-| FRB20260418A | 9.35 | +36 | 21.2 | MOS | 1.90 | NO | Vignetted by Nasmyth deck (az 59°, alt 32°); also Mag 21.2 > 21: MOS mask required (~1.0h once milled) |
-| FRB20260503B | 9.48 | +18 | 20.9 | longslit | 2.16 | NO | Vignetted by Keck I Nasmyth deck (az 79°, alt 28°) |
-| FRB20260627D | 16.23 | +68 | 19.6 | longslit | 1.91 | NO | Below horizon all night |
-| FRB20260502A | 18.57 | +47 | 22.4 | MOS | 1.17 | sky: YES | Mag 22.4 > 21: MOS mask required (~1.0h once milled) |
-| FRB20250408A | 21.19 | +77 | 21.0 | longslit | 1.87 | YES | scheduled 19:32 |
+| FRB20260418B | 6.18 | +39 | 20.2 | longslit | 1.09 | YES | scheduled 19:29 |
+| FRB20240106A | 6.73 | +60 | 22.5 | MOS | 1.38 | sky: YES | Mag 22.5 > 21: MOS mask required (~1.0h once milled) |
+| FRB20250411A | 7.51 | +31 | 25.6 | MOS | 1.18 | sky: YES | Mag 25.6 > 21: MOS mask required (~2.0h once milled) |
+| FRB20260514A | 8.48 | +69 | 20.3 | longslit | 1.86 | NO | Vignetted by Keck I Nasmyth deck (az 18°, alt 33° — needs 33° in az 5–146°) |
+| FRB20260418A | 9.35 | +36 | 21.2 | MOS | 1.77 | NO | Below horizon all night; also Mag 21.2 > 21: MOS mask required (~1.0h once milled) |
+| FRB20260503B | 9.48 | +18 | 20.9 | longslit | 1.97 | NO | Vignetted by Keck I Nasmyth deck (az 80°, alt 31°) |
+| FRB20260627D | 16.23 | +68 | 19.6 | longslit | 1.97 | NO | Below horizon all night |
+| FRB20260502A | 18.57 | +47 | 22.4 | MOS | 1.18 | sky: YES | Mag 22.4 > 21: MOS mask required (~1.0h once milled) |
+| FRB20250408A | 21.19 | +77 | 21.0 | longslit | 1.87 | YES | scheduled 20:29 |
 
 All 10 pass the mag>19 selection rule (server-side `min_mag=19.0`). Every
 `info` note comes from **our own** mag cut, independent of FFFF-PZ's `mode`
@@ -454,51 +514,49 @@ Prompt 9) — do not trust that column.
 
 | # | Target | Time (HST) | RA | Dec | mag | AM | Mode | Exposure (each arm) | Duration | Notes |
 |---|--------|------------|-----|-----|-----|-----|------|----------------------|----------|-------|
-| 1 | FRB20260502A | 19:32-20:32 | 18.57h | +47° | 22.4 | 1.2 | **MOS** | mask required | 60.0 min | Submit mask design |
-| 2 | FRB20250408A | 20:32-21:30 | 21.19h | +77° | 21.0 | 1.9 | longslit | 3 x 1060s | 58.0 min | |
-| 3 | FRB20260102A | 21:42-22:42 | 1.94h | +14° | 21.2 | 1.0 | **MOS** | mask required | 60.0 min | Submit mask design |
-| 4 | FRB20260418B | 01:42-02:06 | 6.18h | +39° | 20.2 | 1.1 | longslit | 3 x 380s | 24.0 min | Rising |
-| 5 | FRB20240106A | 02:32-03:32 | 6.73h | +60° | 22.5 | 1.4 | **MOS** | mask required | 60.0 min | Submit mask design |
+| 1 | FRB20260502A | 19:29-20:29 | 18.57h | +47° | 22.4 | 1.2 | **MOS** | mask required | 60.0 min | Submit mask design |
+| 2 | FRB20250408A | 20:29-21:27 | 21.19h | +77° | 21.0 | 1.9 | longslit | 3 x 1060s | 58.0 min | |
+| 3 | FRB20260102A | 21:29-22:29 | 1.94h | +14° | 21.2 | 1.7 | **MOS** | mask required | 60.0 min | Submit mask design |
+| 4 | FRB20260418B | 01:29-01:53 (Oct 7) | 6.18h | +39° | 20.2 | 1.7 | longslit | 3 x 380s | 24.0 min | Rising |
+| 5 | FRB20240106A | 02:19-03:19 (Oct 7) | 6.73h | +60° | 22.5 | 1.8 | **MOS** | mask required | 60.0 min | Submit mask design |
 
 **FRB20250411A (mag 25.6, needs the full 2h MOS bucket) does not fit any
-window** — its own airmass<2.0 window is only ~100 min once other targets
-claim earlier time, so the scheduler correctly excludes it (reason now
-logged: `needs 120 min but only 70 min left in its AM<2.0 window`). This is
-a real geometric/time-budget constraint, not a mask-readiness issue.
+window** — its own airmass<2.0 window is only ~90 min once other targets
+claim earlier time, so the scheduler correctly excludes it (reason logged:
+`needs 120 min but only 90 min left in its AM<2.0 window (02:49-04:49)`).
+This is a real geometric/time-budget constraint, not a mask-readiness issue.
 
-## Night Timeline (REGENERATED, Prompt 10 — MOS targets included with allocated time)
+## Night Timeline (REGENERATED, Prompt 12 — Oct 6 date correction)
 
 ```
-19:20 HST  Flux standard (BD28d4211)          5 min
-19:25      Focus check                         5 min
-19:32      FRB20260502A [MOS]                60.0 min   AM 1.2
-20:32      FRB20250408A                       58.0 min   AM 1.9
-21:30      [gap]                               12 min
-21:42      FRB20260102A [MOS]                 60.0 min   AM 1.0
-22:42      [gap - no targets]                 180 min
-01:42      FRB20260418B (rising)               24.0 min   AM 1.1
-02:06      [gap]                                26 min
-02:32      FRB20240106A [MOS]                 60.0 min   AM 1.4
-03:32      Flux standard (Feige110)             5 min
-03:37      Calibrations (arcs, flats)          20 min
-03:57      END
+19:10 HST  Flux standard (BD28d4211)          5 min
+19:15      Focus check                         5 min
+19:29      FRB20260502A [MOS]                60.0 min   AM 1.20
+20:29      FRB20250408A                       58.0 min   AM 1.87
+21:27      [gap]                                2 min
+21:29      FRB20260102A [MOS]                 60.0 min   AM 1.72
+22:29      [gap - no targets]                 180 min
+01:29      FRB20260418B (rising)               24.0 min   AM 1.74
+01:53      [gap]                                26 min
+02:19      FRB20240106A [MOS]                 60.0 min   AM 1.80
+03:19      Flux standard (Feige110)             5 min
+03:24      Calibrations (arcs, flats)          20 min
+03:44      END
 ```
 
-## Night Utilization (REGENERATED, Prompt 10)
+## Night Utilization (REGENERATED, Prompt 12 — Oct 6 date correction)
 
 | Metric | Value |
 |--------|-------|
 | Science time | 4.4 hours (262 min) |
 | Available dark time | 9.7 hours |
 | Utilization | 45% |
-| Gap time | ~4.4 hours (spread across 4 gaps between targets) |
+| Gap time | ~3.5 hours (208 min, spread across 3 gaps between targets) |
 
-Up from Prompt 9's 14% purely because MOS-required targets are now
-scheduled instead of held out — the underlying 10-target pool and its
-sky-observability are unchanged from Prompt 9. Of the 6 sky-observable
-targets, 5 now fit the night (2 longslit + 3 MOS); the 6th
-(FRB20250411A) doesn't fit any window at its required 2h. See
-Recommendations for mask-design lead time.
+Same as Prompt 10's result — this is a date correction, not a logic or pool
+change, so utilization is unchanged. Of the 6 sky-observable targets, 5 now
+fit the night (2 longslit + 3 MOS); the 6th (FRB20250411A) doesn't fit any
+window at its required 2h. See Recommendations for mask-design lead time.
 
 ## LRIS Configuration
 
@@ -526,9 +584,9 @@ which the real LRIS ETC can't even model (see Prompt 7). 600/4000 and
 ## Recommendations
 
 1. **Submit MOS mask designs now for the 3 scheduled MOS targets** (FRB20260502A,
-   FRB20260102A, FRB20240106A): ~3 weeks lead time to the 2026-10-02 run —
+   FRB20260102A, FRB20240106A): ~4 weeks lead time to the 2026-10-06 run —
    this is the actual blocker for whether this plan is real or provisional.
-   If masks can't be ready in time, those 3 slots (178 min) revert to gap.
+   If masks can't be ready in time, those 3 slots (180 min) revert to gap.
 
 2. **Request more targets in the next Keck FFFF-PZ pull:**
    - At S/N=10/exposure (3x min), real longslit exposures run ~19-58 min
@@ -553,7 +611,7 @@ which the real LRIS ETC can't even model (see Prompt 7). 600/4000 and
    (`num_targ_mask > 0`) going forward.
 
 5. **Nasmyth-deck-aware scheduling for Keck I/LRIS:**
-   - Rising targets (az 5.3-146.2°, i.e. NE/E) need alt ≥ 33.3° before they're clear — schedule them later in their window (3 of 10 targets in this pool lost to this while rising: FRB20260514A, FRB20260418A, FRB20260503B)
+   - Rising targets (az 5.3-146.2°, i.e. NE/E) need alt ≥ 33.3° before they're clear — schedule them later in their window (2 of 10 targets in this pool lost to this while rising on Oct 6: FRB20260514A, FRB20260503B; a 3rd, FRB20260418A, fails for a different reason on this date — below the horizon all night, not vignetting)
    - Setting/transiting targets only need the normal 18° floor — prioritize these first, as done here (FRB20250408A)
 
 6. **Keep future Keck pulls Keck-native:** this run confirms reusing a Lick-derived pool (Prompt 5, 1 target/2%) is a poor substitute for a dedicated FFFF-PZ Resource with `min_mag=19` (Prompt 6) — always create a Keck-specific Resource rather than filtering another site's list.
@@ -566,22 +624,27 @@ which the real LRIS ETC can't even model (see Prompt 7). 600/4000 and
 
 | File | Description |
 |------|-------------|
-| `Keck_LRIS_2026Oct02_Night_plan.xlsx` | Excel night plan with timeline |
-| `keck_lris_oct02.starlist` | Keck starlist (5 targets, 3 flagged MASK REQUIRED, + standards) |
+| `Keck_LRIS_2026Oct06_Night_plan.xlsx` | Excel night plan with timeline |
+| `keck_lris_oct06.starlist` | Keck starlist (5 targets, 3 flagged MASK REQUIRED, + standards) |
 | `Keck-2026B-01_targets.csv` | Raw 10-target pull from the FFFF-PZ Keck-2026B-01 Resource (Prompt 9 refresh) |
 | `target_analysis.csv` | All 10 targets with observability/mode/info |
 | `selected_targets.csv` | 5 selected targets with scheduling (2 longslit + 3 MOS) |
-| `KECK_LRIS_2026OCT02_SUMMARY.md` | This document |
+| `KECK_LRIS_2026OCT06_SUMMARY.md` | This document |
 
 Resource JSON and CLI outputs also live at
 `chime-ffff-pz/chime_ffff_pz/data/Observing/Keck-2026B-01/` (the FFFF-PZ side
-of record: `Keck-2026B-01.json`, `Keck-2026B-01_targets.csv`).
+of record: `Keck-2026B-01.json`, `Keck-2026B-01_targets.csv`). **Not yet
+updated for the Oct 6 correction (Prompt 12):** that JSON's
+`valid_start`/`valid_stop` still encode the Oct 2/3 UTC window
+(`2026-10-03T05:00:01Z`-`2026-10-03T15:45:38Z`) — it's a live Resource on a
+shared server, so re-submitting it with the Oct 6/7 window is a follow-up
+for the author, not done here.
 
 ## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/keck_2026oct02_calculations.py` | Ephemeris, target analysis, scheduling |
+| `scripts/keck_2026oct06_calculations.py` | Ephemeris, target analysis, scheduling |
 | `scripts/build_keck_night_plan.py` | Excel night plan generation |
 | `scripts/lris_etc.py` | Real LRIS exposure-time calculator (Prompt 7) — client for the UCO/Lick web S/N calculator (etc.ucolick.org) |
 
@@ -629,6 +692,8 @@ of record: `Keck-2026B-01.json`, `Keck-2026B-01_targets.csv`).
 
 21. **Verify hardcoded site constants against a canonical source, not a web search alone.** Keck's `EarthLocation` latitude (19.8263°) was wrong by ~7 arcsec — caught by checking against `astropy.coordinates.EarthLocation.of_site('keck')` (IRAF Observatory Database), which is more authoritative than the scattered values a web search turns up (Wikipedia, GPS-lookup sites, etc. all differ slightly). The error was too small to change this run's target selection, but "doesn't matter this time" isn't the same as "correct" — fix it anyway, since a future target or a tighter constraint could make it matter.
 
+22. **A wrong date is a silent, whole-pipeline error, not a cosmetic one — and a 4-day shift can still change individual outcomes.** Every twilight/LST/airmass/HA/vignetting calculation in this doc depended on `date_str`; the run date being wrong for 11 prompts meant the entire ephemeris was subtly off the whole time, even though the final schedule composition happened to come out the same. Fixing it required rerunning the pipeline, not editing date strings by hand — a text find/replace on "Oct 2"→"Oct 6" would have kept the old (wrong) twilight times and missed that FRB20260418A's rejection reason actually changes (vignetted → below horizon) between the two dates.
+
 ## Git Commands
 
 ```bash
@@ -656,6 +721,14 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 # Push
 git push -u origin keck-2026oct02
 ```
+
+**Note on the branch name (flagged for the author, not changed here — git
+operations on this repo are JXP's to run, per this repo's CLAUDE.md):** the
+above is the actual history of how this branch was created and is left
+as-is. The branch itself is still named `keck-2026oct02`, which now
+undersells what it contains (the Oct 6 corrected plan). Renaming it
+(`git branch -m keck-2026oct02 keck-2026oct06` + force-push a new upstream)
+is optional cleanup, not required for the plan itself to be correct.
 
 
 ### Acounting for the Nasmyth Platform

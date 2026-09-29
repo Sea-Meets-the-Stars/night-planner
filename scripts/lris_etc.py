@@ -171,7 +171,7 @@ def estimate_lris_exposure_real(mag_r, airmass=1.2, target_sn=10.0,
     you median-reject it. This replaced an earlier version that instead
     found a *combined* exposure time and divided it across sub-exposures,
     which silently under-delivered S/N per individual frame (see
-    KECK_LRIS_2026OCT02_SUMMARY.md, Prompt 8).
+    KECK_LRIS_2026OCT06_SUMMARY.md, Prompt 8).
 
     Parameters
     ----------

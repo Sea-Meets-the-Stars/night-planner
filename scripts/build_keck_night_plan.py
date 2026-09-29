@@ -1,5 +1,5 @@
 """
-Build night plan Excel file for Keck/LRIS Oct 2, 2026
+Build night plan Excel file for Keck/LRIS Oct 6, 2026
 
 Created by JXP and Claude
 """
@@ -64,7 +64,7 @@ def add_observing_checklist(ws):
         "Data transferred"
     ]
 
-    ws['A1'] = "Keck/LRIS Oct 2, 2026 Observing Checklist"
+    ws['A1'] = "Keck/LRIS Oct 6, 2026 Observing Checklist"
     ws['A1'].font = Font(size=14, bold=True)
 
     ws['A3'] = "Task"
@@ -302,15 +302,15 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst):
     return ws
 
 
-def build_keck_night_plan(output_path, selected_csv, date='2026-10-02'):
+def build_keck_night_plan(output_path, selected_csv, date='2026-10-06'):
     """
     Build the complete Keck night plan Excel file.
     """
     # Load selected targets
     selected_targets = pd.read_csv(selected_csv)
 
-    # Start time: 19:20 HST (before twilight at 19:22)
-    start_hst = datetime(2026, 10, 2, 19, 20, 0, tzinfo=HST)
+    # Start time: 19:10 HST (before twilight at 19:19)
+    start_hst = datetime(2026, 10, 6, 19, 10, 0, tzinfo=HST)
 
     # Create workbook
     wb = Workbook()
@@ -320,7 +320,7 @@ def build_keck_night_plan(output_path, selected_csv, date='2026-10-02'):
     checklist = wb.create_sheet("Observing Checklist")
     add_observing_checklist(checklist)
 
-    add_night_sheet(wb, "October 2nd", selected_targets, start_hst)
+    add_night_sheet(wb, "October 6th", selected_targets, start_hst)
 
     # Save
     wb.save(output_path)
@@ -330,7 +330,7 @@ def build_keck_night_plan(output_path, selected_csv, date='2026-10-02'):
 def main():
     """Main execution."""
     selected_csv = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-01/selected_targets.csv'
-    output_path = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-01/Keck_LRIS_2026Oct02_Night_plan.xlsx'
+    output_path = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-01/Keck_LRIS_2026Oct06_Night_plan.xlsx'
 
     build_keck_night_plan(output_path, selected_csv)
 
