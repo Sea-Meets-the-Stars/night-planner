@@ -1,0 +1,371 @@
+{
+  "instrument": "lris",
+  "telescope": "Keck I",
+  "date": "2026-10-10",
+  "output_dir": "Night_plans/Keck-2026B-3",
+  "timezone": "Pacific/Honolulu",
+  "sun": {
+    "sunset": "2026-10-10T18:02:00-10:00",
+    "dusk_nautical": "2026-10-10T18:50:00-10:00",
+    "dusk_astronomical": "2026-10-10T19:15:00-10:00",
+    "dawn_astronomical": "2026-10-11T05:02:00-10:00",
+    "dawn_nautical": "2026-10-11T05:28:00-10:00",
+    "sunrise": "2026-10-11T06:15:00-10:00"
+  },
+  "night_start": "2026-10-10T19:10:00-10:00",
+  "night_end": "2026-10-11T05:03:00-10:00",
+  "schedule": [
+    {
+      "name": "FRB20260708D",
+      "ra_deg": 284.5395927391,
+      "dec_deg": 49.7823872865,
+      "mag": 20.42,
+      "mode": "longslit",
+      "start": "2026-10-10T19:26:00-10:00",
+      "science_start": "2026-10-10T19:36:00-10:00",
+      "end": "2026-10-10T20:00:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 24.0,
+      "exposure_red": "3 x 480",
+      "exposure_blue": "3 x 480",
+      "airmass": 1.1986432807011895,
+      "window_start": "2026-10-10T19:16:00-10:00",
+      "window_end": "2026-10-10T22:26:00-10:00",
+      "notes": ""
+    },
+    {
+      "name": "FRB20250209B",
+      "ra_deg": 99.00404462,
+      "dec_deg": 24.6364106,
+      "mag": 20.5,
+      "mode": "longslit",
+      "start": "2026-10-11T01:26:00-10:00",
+      "science_start": "2026-10-11T01:36:00-10:00",
+      "end": "2026-10-11T02:01:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 25.0,
+      "exposure_red": "3 x 500",
+      "exposure_blue": "3 x 500",
+      "airmass": 1.0267434612893769,
+      "window_start": "2026-10-11T01:36:00-10:00",
+      "window_end": "2026-10-11T04:46:00-10:00",
+      "notes": ""
+    },
+    {
+      "name": "FRB20250411A",
+      "ra_deg": 112.65199854,
+      "dec_deg": 31.226619089,
+      "mag": 25.61,
+      "mode": "MOS (mask required)",
+      "start": "2026-10-11T02:16:00-10:00",
+      "science_start": "2026-10-11T02:26:00-10:00",
+      "end": "2026-10-11T04:31:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 125.0,
+      "exposure_red": "MOS mask required",
+      "exposure_blue": "MOS mask required",
+      "airmass": 1.1189636658605866,
+      "window_start": "2026-10-11T02:26:00-10:00",
+      "window_end": "2026-10-11T04:46:00-10:00",
+      "notes": "Mag 25.6 > 21: MOS mask required (~2.1h once milled)"
+    }
+  ],
+  "decisions": [
+    {
+      "name": "FRB20240102A",
+      "ra_deg": 40.94408245,
+      "dec_deg": 42.27301599,
+      "mag": 21.07,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 21.07 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20240208B",
+      "ra_deg": 40.40710696,
+      "dec_deg": 44.9388103,
+      "mag": 21.12,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 21.12 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20241229A",
+      "ra_deg": 275.4228249981,
+      "dec_deg": 77.8879356539,
+      "mag": 23.44,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Below horizon all night (min AM 1.98, 0.25 h at AM<2.0; need >0.5 h)",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20250501A",
+      "ra_deg": 283.546992,
+      "dec_deg": 46.922669,
+      "mag": 27.17,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 27.17 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20250209B",
+      "ra_deg": 99.00404462,
+      "dec_deg": 24.6364106,
+      "mag": 20.5,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 01:26 (10 min), on target 01:36-02:01 (25 min, longslit)",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20250822A",
+      "ra_deg": 64.86213594,
+      "dec_deg": 20.33195783,
+      "mag": 21.15,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 21.15 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20240120B",
+      "ra_deg": 266.28152444,
+      "dec_deg": 52.023842041,
+      "mag": 23.37,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 23.37 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20251213A",
+      "ra_deg": 8.00913821,
+      "dec_deg": 43.61142177,
+      "mag": 22.01,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 22.01 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20231027B",
+      "ra_deg": 119.17856704,
+      "dec_deg": -1.50901559,
+      "mag": 23.25,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 23.25 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20260307B",
+      "ra_deg": 150.7049057655,
+      "dec_deg": 41.7631569338,
+      "mag": 24.38,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Vignetted by Keck I Nasmyth deck (az 53\u00b0, alt 32\u00b0 - needs 33\u00b0 in az 5-146\u00b0) (min AM 1.91, 0.25 h at AM<2.0; need >0.5 h)",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20230702A",
+      "ra_deg": 132.1246969645,
+      "dec_deg": 26.3915264281,
+      "mag": 22.2,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 22.20 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20250411A",
+      "ra_deg": 112.65199854,
+      "dec_deg": 31.226619089,
+      "mag": 25.61,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 02:16 (10 min), on target 02:26-04:31 (125 min, MOS (mask required))",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20250819A",
+      "ra_deg": 139.64978207,
+      "dec_deg": 44.746763588,
+      "mag": 24.83,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 24.83 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20260427A",
+      "ra_deg": 265.5751947866,
+      "dec_deg": 74.5162412778,
+      "mag": 21.27,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 21.27 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20260418A",
+      "ra_deg": 140.1851271232,
+      "dec_deg": 36.3545271248,
+      "mag": 21.2,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 65 min on target (+10 min slew) but only 15 min left in its AM<2.0 window (04:16-04:46)",
+      "window_start": "2026-10-11T04:16:00-10:00",
+      "window_end": "2026-10-11T04:46:00-10:00"
+    },
+    {
+      "name": "FRB20260514A",
+      "ra_deg": 127.1275614616,
+      "dec_deg": 69.2396522182,
+      "mag": 20.27,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 22 min on target (+10 min slew) but only 15 min left in its AM<2.0 window (04:36-04:46)",
+      "window_start": "2026-10-11T04:36:00-10:00",
+      "window_end": "2026-10-11T04:46:00-10:00"
+    },
+    {
+      "name": "FRB20260708D",
+      "ra_deg": 284.5395927391,
+      "dec_deg": 49.7823872865,
+      "mag": 20.42,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 19:26 (10 min), on target 19:36-20:00 (24 min, longslit)",
+      "window_start": "2026-10-11T04:36:00-10:00",
+      "window_end": "2026-10-11T04:46:00-10:00"
+    },
+    {
+      "name": "FRB20260702A",
+      "ra_deg": 137.8468613589,
+      "dec_deg": 41.9330358117,
+      "mag": 22.5,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 22.50 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": "2026-10-11T04:36:00-10:00",
+      "window_end": "2026-10-11T04:46:00-10:00"
+    },
+    {
+      "name": "FRB20260825A",
+      "ra_deg": 238.6220587307,
+      "dec_deg": 46.1459244694,
+      "mag": 21.76,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Below horizon all night (min AM 1.90, 0.25 h at AM<2.0; need >0.5 h)",
+      "window_start": "2026-10-11T04:36:00-10:00",
+      "window_end": "2026-10-11T04:46:00-10:00"
+    },
+    {
+      "name": "FRB20260829B",
+      "ra_deg": 279.0775832694,
+      "dec_deg": 57.0301323105,
+      "mag": 21.78,
+      "status": "rejected",
+      "stage": "2b. Mask",
+      "reason": "No mask available: mag 21.78 > 21 needs MOS, not in MOS_MASKS_AVAILABLE",
+      "window_start": "2026-10-11T04:36:00-10:00",
+      "window_end": "2026-10-11T04:46:00-10:00"
+    }
+  ],
+  "blocks": [],
+  "overheads": [
+    {
+      "start": "2026-10-10T19:10:00-10:00",
+      "end": "2026-10-10T19:15:00-10:00",
+      "label": "Evening standard (BD+28 4211)"
+    },
+    {
+      "start": "2026-10-10T19:15:00-10:00",
+      "end": "2026-10-10T19:20:00-10:00",
+      "label": "Focus check"
+    },
+    {
+      "start": "2026-10-11T04:31:00-10:00",
+      "end": "2026-10-11T04:41:00-10:00",
+      "label": "Slew to Feige 110"
+    },
+    {
+      "start": "2026-10-11T04:41:00-10:00",
+      "end": "2026-10-11T04:46:00-10:00",
+      "label": "Morning standard (Feige 110)"
+    },
+    {
+      "start": "2026-10-11T04:46:00-10:00",
+      "end": "2026-10-11T04:56:00-10:00",
+      "label": "Arc lamps"
+    },
+    {
+      "start": "2026-10-11T04:56:00-10:00",
+      "end": "2026-10-11T05:06:00-10:00",
+      "label": "Internal flats"
+    }
+  ],
+  "idle_gaps": [
+    {
+      "start": "2026-10-10T19:20:00-10:00",
+      "end": "2026-10-10T19:26:00-10:00"
+    },
+    {
+      "start": "2026-10-10T20:00:00-10:00",
+      "end": "2026-10-11T01:26:00-10:00"
+    },
+    {
+      "start": "2026-10-11T02:01:00-10:00",
+      "end": "2026-10-11T02:16:00-10:00"
+    }
+  ],
+  "overruns": [
+    {
+      "label": "Internal flats",
+      "start": "2026-10-11T04:56:00-10:00",
+      "end": "2026-10-11T05:06:00-10:00",
+      "minutes_past_end": 3.0
+    }
+  ],
+  "request": {
+    "instrument": "lris",
+    "argv": [
+      "--targets-csv",
+      "Night_plans/Keck-2026B-3/Keck-2026B-3_targets.csv",
+      "--output-dir",
+      "Night_plans/Keck-2026B-3",
+      "--date",
+      "2026-10-10"
+    ]
+  },
+  "summary": {
+    "n_scheduled": 3,
+    "n_rejected": 17,
+    "on_target_min": 174.0,
+    "slew_min": 30.0,
+    "overhead_min": 45.0,
+    "idle_min": 347.0,
+    "night_min": 593.0,
+    "utilization": 0.2934232715008432
+  }
+}

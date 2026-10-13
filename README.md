@@ -8,7 +8,7 @@ Created by J. Xavier Prochaska and Claude
 
 ## Overview
 
-**night-planner** generates optimized observing schedules for CHIME/FRB host galaxy spectroscopy at Lick Observatory (Shane 3m + Kast spectrograph). The system handles:
+**night-planner** generates optimized observing schedules for CHIME/FRB host galaxy spectroscopy at Lick Observatory (Shane 3m + Kast spectrograph) and Keck (Keck I + LRIS: longslit, MOS, imaging). The system handles:
 
 - **Ephemeris calculations** (twilight times, LST, airmass)
 - **Telescope constraints** (Dec limits, hour angle limits)
@@ -35,6 +35,25 @@ python scripts/build_night_plan.py
 ```
 
 Output: `Night_plans/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx`
+
+### Keck/LRIS (example: Oct 6, 2026)
+
+```bash
+# 1. Point at global FFFF-PZ, create the Resource, pull targets
+set_ffff_pz_global
+chime_ffff_pz_add_furesource Keck-2026B-02.json   # adds OR modifies by name
+chime_ffff_pz_targets Keck-2026B-02
+
+# 2. Schedule (ETC exposures, Keck slews, masks), then build outputs
+python scripts/keck_2026oct06_calculations.py
+python scripts/build_keck_night_plan.py
+python scripts/keck_2026oct06_rejection_analysis.py
+```
+
+Output: `Night_plans/Keck-2026B-02/` (xlsx, starlist, per-target rejection
+report). Keck rules: 10 min base slew, 20 min from Dec < +20 to Dec > +20
+(`scripts/keck_overheads.py`); MOS blocks 1-2 h + 5 min buffer, only for
+masks in `MOS_MASKS_AVAILABLE`.
 
 ### Run Tests
 
@@ -120,6 +139,8 @@ night-planner/
 │   ├── Shane_telescope_constraints.md
 │   └── Testing_guide.md
 ├── Night_plans/                   # 📅 Observing plans
+│   ├── Keck-2026B-01/            # Oct 6, 2026, earlier B-01 plan (record)
+│   ├── Keck-2026B-02/            # Oct 6, 2026, current Keck/LRIS plan
 │   └── Lick-2026B-01/            # Aug 13-14, 2026
 │       ├── HOWTO_night_plan_creation.md
 │       ├── CORRECTIONS_SUMMARY.md
@@ -129,7 +150,11 @@ night-planner/
 │   ├── lick_2026b01_calculations.py    # Ephemeris & target selection
 │   ├── build_night_plan.py             # Excel generation
 │   ├── observable_ra_calculator.py     # RA windows by date
-│   └── check_deadtime_lick_2026b01.py  # Timeline analysis
+│   ├── check_deadtime_lick_2026b01.py  # Timeline analysis
+│   ├── keck_2026oct06_calculations.py  # Keck/LRIS ephemeris & scheduling
+│   ├── build_keck_night_plan.py        # Keck Excel generation
+│   ├── keck_overheads.py               # Keck slew rule (all instruments)
+│   └── lris_etc.py                     # Real LRIS ETC client
 ├── tests/                         # 🧪 Test suite
 │   ├── README.md
 │   └── test_data/
@@ -157,6 +182,11 @@ night-planner/
 | `build_night_plan.py` | Generate Excel night plan with timeline |
 | `observable_ra_calculator.py` | Show observable RAs for any date + year plot |
 | `check_deadtime_lick_2026b01.py` | Analyze timeline for gaps |
+| `keck_2026oct06_calculations.py` | Keck/LRIS ephemeris, Nasmyth-deck limits, ETC exposures, scheduling |
+| `build_keck_night_plan.py` | Keck Excel night plan |
+| `keck_overheads.py` | Keck slew times (10 min base, 20 min Dec<+20 -> Dec>+20) |
+| `keck_2026oct06_rejection_analysis.py` | Per-target accept/reject report |
+| `lris_etc.py` | LRIS exposure times from the UCO/Lick ETC |
 | `generate_test_frbs.py` | Create 17 synthetic edge case datasets |
 | `run_all_tests.py` | Run observability on all test cases |
 

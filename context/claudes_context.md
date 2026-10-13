@@ -40,6 +40,16 @@ in top-level `YSE_App/frb_*.py` modules; the ORM data model is in
   `ClassicalNightType`). This captures the three professional observing modes:
   classical / queue / ToO.
 
+**FFFF-PZ servers** (credentials and URL in `~/.bashrc`; the CLI reads
+`FFFF_PZ_URL`/`FFFF_PZ_USER`/`FFFF_PZ_PASS`):
+
+- Global: `https://frb.chimenet.ca/f4pz/` (alias `set_ffff_pz_global`).
+- Local docker: `http://0.0.0.0:8000/` (alias `set_ffff_pz_local`).
+- Resources are per server, so one added locally does not exist on global.
+  `chime_ffff_pz_add_furesource` (`add_frb_resource/`) **adds or modifies**
+  by name. Check that a name is free first: a target pull on a missing name
+  returns 402 "Could not find resource".
+
 **The observing-run model** — `models/frbfollowup_models.py`:
 
 - `FRBFollowUpResource` ≈ *one observing run*: `name`, `instrument` (FK),
@@ -74,7 +84,9 @@ in top-level `YSE_App/frb_*.py` modules; the ORM data model is in
 - `grab_targets_by_mode(...)` — mode logic: **imaging** targets are those with
   status `NeedImage` (no host identified yet); **longslit** targets need status
   `NeedSpectrum` plus host `P_Ox > min_POx` and magnitude cuts; **mask** not
-  implemented.
+  implemented. This is why every pulled target comes back tagged `longslit`
+  even when `num_targ_mask > 0`. The night-planner re-derives MOS from
+  magnitude (mag > 21).
 - `select_with_priority(...)` / `assign_probs(...)` — when more targets pass
   than requested (`num_targ_*`), draw probabilistically (uniform random vs
   tag-derived priority probabilities, looping until N selected). Selection is

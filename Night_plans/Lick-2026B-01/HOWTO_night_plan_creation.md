@@ -718,3 +718,232 @@ scripts/
 **Key Decision:** Use **PST (UTC-8) year-round** for LST calculations, matching Lick calendar convention.
 
 **Ready for observing!**
+
+---
+
+## Appendix: Target Selection Pipeline Investigation (2026-08-14)
+
+After creating the initial plan, we investigated alternative target sources and discovered **critical issues with the FFFF-PZ automated target selection**.
+
+### Scripts and Tools Used
+
+#### 1. FFFF-PZ Database Tools
+
+```bash
+# Add resource to FFFF-PZ database
+chime_ffff_pz_add_furesource chime_ffff_pz/data/Observing/Lick-2026B-1/Lick-2026B-1.json
+
+# Query targets assigned to resource
+chime_ffff_pz_targets Lick-2026B-1
+# Output: Lick-2026B-1_targets.csv (4 targets)
+
+# Generate finder charts (requires FFFF-PZ API running on localhost:8000)
+cd chime_ffff_pz/data/Observing/Lick-2026B-1
+chime_ffff_pz_finder FRB20200702C Lick-2026B-1
+
+# Generate telescope starlist from finder JSON files
+chime_ffff_pz_starlist lick
+# Output: lick.starlist
+```
+
+#### 2. Custom Target Query Script
+
+**Location:** `scripts/query_ffffpz_targets.py`
+
+Queries local FFFF-PZ database for all FRBs matching:
+- Observable RA range (13.28h to 6.80h, wraps around 0h)
+- Dec < 82° (Shane limit)
+- Returns 314 candidates with P_Ux values
+
+```bash
+python scripts/query_ffffpz_targets.py
+# Output: Night_plans/Lick-2026B-01/ffffpz_candidates.csv (314 FRBs)
+```
+
+**Key finding:** Identified 64 FRBs with P_Ux > 0.5 (likely hostless), 241 with P_Ux < 0.5 (likely has host).
+
+**CRITICAL ERROR MADE:** Initially prioritized P_Ux = 1.000 thinking it meant "perfect host ID". **WRONG!** P_Ux = probability FRB is hostless:
+- **P_Ux = 1.0** → 100% hostless (NO galaxy) ❌
+- **P_Ux = 0.0** → has identified host ✓
+
+Corrected: select P_Ux < 0.1 for targets with hosts.
+
+#### 3. HA Limit Correction Script
+
+**Location:** `scripts/fix_ha_limits.py`
+
+**Problem discovered:** Original night plan violated Shane HA pointing limits (-5.0h to +3.75h) for ALL 6 targets!
+- Evening targets: calculated end HA +9.4h to +9.7h (beyond +3.75h limit)
+- Morning targets: calculated start HA -6.5h to -12.2h (beyond -5.0h limit)
+
+**Solution:** Clips observable windows to Shane HA limits using astropy LST calculations.
+
+```bash
+python scripts/fix_ha_limits.py
+# Output: Night_plans/Lick-2026B-01/selected_targets_ha_corrected.csv
+```
+
+**Results:**
+- Evening targets MUST END by 22:48-23:05 PDT (when HA reaches +3.75h)
+- Morning targets START staggered as HA crosses -5.0h:
+  - FRB20200702C: 23:08 PDT (HA = -5.0h)
+  - FRB20250902A: 00:12 PDT
+  - FRB20230805A: 00:59 PDT
+  - FRB20231223B: 03:49 PDT
+
+**Key insight:** Total individual windows (1318 min) >> night duration (525 min) due to overlap. **Cannot observe all 6 targets for 70 min each!**
+
+See `HA_LIMIT_FIX.md` for full analysis.
+
+#### 4. hco_batch_jul26.csv Investigation
+
+**Location:** `Night_plans/Lick-2026B-01/hco_batch_jul26.csv`
+
+Pre-selected batch of 19 FRBs from HCO observing campaign. Manual investigation revealed:
+
+**All 19 in local FFFF-PZ DB** ✓
+**13 observable** on 2026-08-13
+**7 have PATH results**
+**3 with P_Ux = 0.000** (perfect host ID!)
+
+**Top new candidates found:**
+- **FRB20260405B**: RA=13.87h, mag=**15.36**, P_Ux=**0.000** ← BRIGHTEST of all!
+- **FRB20260404D**: RA=13.59h, mag=16.93, P_Ux=**0.000** ← Better than original evening targets
+
+**Why weren't these returned by `chime_ffff_pz_targets`?**
+
+Investigation revealed: The API endpoint returns FRBs **already assigned** to the resource in the database, not all FRBs matching the criteria!
+
+Server-side selection logic (unknown) appears to filter by:
+1. Time window
+2. Criteria (max_AM, max_mag)
+3. **Additional unknown filters** (status? tags? manual curation?)
+
+### Pipeline Limitations Discovered
+
+**`chime_ffff_pz_targets` is NOT reliable for target selection!**
+
+Reasons:
+1. Returns pre-assigned FRBs only (4 in our case)
+2. Returned 2 non-observable targets (FRB20250102C RA=6.93h, FRB20251003A RA=10.07h outside RA range)
+3. Missed better targets (FRB20260405B mag 15.36 vs returned targets mag 16-19)
+4. No HA limit filtering on server side
+
+### Recommended Workflow for Future Nights
+
+**DO NOT rely on FFFF-PZ automated selection alone!**
+
+1. **Start with curated batch files** (e.g., hco_batch_jul26.csv)
+2. **Query local FFFF-PZ** for full FRB info:
+   ```python
+   from chime_ffff_pz.utils import ffff_pz_utils
+   frbs = ffff_pz_utils.get_transients()
+   ```
+3. **Filter manually:**
+   - P_Ux < 0.1 (has identified host)
+   - Check PATH results exist
+   - Observable RA/Dec for specific night
+   - Brightness (mag < 19 preferred)
+4. **Calculate HA windows** with `fix_ha_limits.py`
+5. **Select 4-6 targets** based on:
+   - Brightness (lower mag = shorter exposures)
+   - P_Ux (lower = better host ID)
+   - Observable time window (after HA clipping)
+6. **Generate finders** (if FFFF-PZ API running):
+   ```bash
+   chime_ffff_pz_finder <FRB_name> <resource_name>
+   ```
+7. **Generate starlist**:
+   ```bash
+   chime_ffff_pz_starlist lick
+   ```
+8. **Update night plan** with final selection
+
+### All Files Created During Investigation
+
+```
+Night_plans/Lick-2026B-01/
+├── hco_batch_jul26.csv                    # Pre-selected batch (19 FRBs)
+├── ffffpz_candidates.csv                  # All 314 observable FRBs
+├── Lick-2026B-1_targets.csv              # API-returned (4 FRBs, limited)
+├── selected_targets_ha_corrected.csv      # HA-clipped windows (original 6)
+├── lick.starlist                          # Telescope starlist (5 of 6)
+├── finder_charts/                         # Finder PNGs (5 of 6)
+│   ├── FRB20200621B_finder.png
+│   ├── FRB20200702C_finder.png
+│   ├── FRB20230729A_finder.png
+│   ├── FRB20230805A_finder.png
+│   └── FRB20250902A_finder.png
+├── NEW_TARGETS_FROM_FFFFPZ.md            # Initial analysis (P_Ux error)
+├── FFFF-PZ_TARGETS.md                    # API targets comparison
+├── HCO_BATCH_COMPARISON.md               # ★ BEST - found superior targets
+└── HA_LIMIT_FIX.md                       # HA violation analysis
+
+scripts/
+├── query_ffffpz_targets.py               # Query all observable FRBs
+├── fix_ha_limits.py                      # Calculate HA-corrected windows
+└── document_pipeline_workflow.md         # Full investigation summary
+
+chime-ffff-pz/chime_ffff_pz/data/Observing/Lick-2026B-1/
+├── Lick-2026B-1.json                     # Resource definition
+├── Lick-2026B-1_targets.csv              # API-returned targets
+├── lick.starlist                          # Telescope starlist
+└── FRB*_finder.json/png                   # Finder charts
+```
+
+### Critical Lessons Learned
+
+1. **P_Ux Definition:**
+   - P_Ux = probability FRB is hostless
+   - For spectroscopy, select P_Ux < 0.1 (has host)
+   - P_Ux = 1.000 → hostless (BAD for spectroscopy!)
+
+2. **HA Limits are Critical:**
+   - Shane: -5.0h ≤ HA ≤ +3.75h
+   - Original plan violated limits for all 6 targets
+   - Reduces observable time significantly (especially for morning targets)
+
+3. **FFFF-PZ API Limitations:**
+   - `chime_ffff_pz_targets` returns pre-assigned FRBs, not all matching criteria
+   - Server-side selection logic unknown and incomplete
+   - Manual filtering required for best results
+
+4. **Pre-Selected Batches are Valuable:**
+   - hco_batch_jul26.csv contained superior targets
+   - FRB20260405B (mag 15.36, P_Ux=0.000) better than all API-returned targets
+
+5. **PATH Results Required:**
+   - Check existence before generating finders
+   - Magnitudes from PATH candidates determine exposure times
+
+6. **Observable != Schedulable:**
+   - RA range calculation doesn't account for HA limits
+   - Targets can be "observable" but not fit in night after HA clipping
+   - Heavy overlap means can't observe all targets
+
+### Final Target Recommendation (Post-Investigation)
+
+**Replace 1-2 evening targets with hco_batch candidates:**
+
+**Evening (choose 2):**
+- ★ **FRB20260405B** (mag=15.36, P_Ux=0.000) ← BEST NEW
+- ★ **FRB20260404D** (mag=16.93, P_Ux=0.000) ← EXCELLENT NEW
+- FRB20200621B (mag=16.87, have finder) ← Original, still good
+
+**Morning (keep original 4):**
+- FRB20200702C (mag=15.98, P_Ux=0.003) - brightest morning target
+- FRB20250902A (mag=18.57, P_Ux=0.003)
+- FRB20230805A (mag=17.99, P_Ux=0.105)
+- FRB20231223B (mag=16.27, P_Ux=0.035) - need to generate finder
+
+**Action items if using new targets:**
+1. Generate finders for FRB20260405B + FRB20260404D
+2. Recalculate HA windows
+3. Regenerate starlist with final selection
+4. Update Excel night plan
+
+---
+
+**Investigation Date:** 2026-08-14
+**Tools Used:** chime_ffff_pz_targets, chime_ffff_pz_finder, chime_ffff_pz_starlist, custom Python scripts
+**Key Discovery:** FFFF-PZ automated selection incomplete; manual curation found better targets
