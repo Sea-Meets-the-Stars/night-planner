@@ -7,6 +7,14 @@ Created by Lordrick and Claude (2026-09-09)
 > what changed and what didn't when the whole pipeline was rerun for the
 > correct date.
 
+> **Superseded (2026-09-30):** the current Oct 6 plan is built from the
+> global FFFF-PZ **Keck-2026B-02** pull and lives in
+> [`../Keck-2026B-02/`](../Keck-2026B-02/KECK_LRIS_2026OCT06_B02_SUMMARY.md).
+> It has 9 targets (4 MOS, 5 longslit), a 10-min base slew, and +5 min per
+> mask. Prompts 15-19 below explain how it got there. The Ephemeris section
+> of this doc is still valid. The target, timeline and utilization sections
+> are the Prompt 14 snapshot of the B-01 pool.
+
 ## Session Log
 
 ### Prompt 1
@@ -434,6 +442,92 @@ record of what was actually discussed at the time — only this doc's
 *current-state* sections (Ephemeris, target tables, timeline, output files,
 below) were updated to the corrected date.
 
+### Prompt 13
+> review our keck night plan and tell me how the slew times were calculated,
+> also, confirm if the start and end times match with this
+> https://ucolick.org/calendar/keckcal2021-30/keck2026.18oct
+
+**Action:** Review only, no changes. Slews were not computed from telescope
+geometry: `lris_etc.py` added a flat +5 min "slew/acquisition" to each
+longslit block, MOS blocks were flat 60/90/120 min, and
+`build_keck_night_plan.py` wrote a flat 3-min "slew to" row and subtracted
+it from the science row (so the scheduler and the xlsx disagreed). The UCO
+Keck calendar's Oct 6 row (18° twilight ends 19:19, dawn begins 05:01, LST
+20:01 / 05:44, 9.7 h, altitude 4160 m) matches `find_twilight()` (19:19:00,
+05:02:00, 20h00m36s / 5h45m11s, 9.72 h) to within the 1-min search step.
+
+### Prompt 14
+> for the mask overhead is included, but let's make the base slew time 5 min
+> not 3, also, if we are moving from below +20 to above +20 in all Keck
+> instrument, make it 20mins, add these for Keck and redo the plan
+
+**Action:** New shared module `scripts/keck_overheads.py`
+(`keck_slew_minutes()`: 5 min base, 20 min for Dec < +20 -> Dec > +20; the
+reverse direction stays 5 min). The scheduler now charges the slew per
+transition, starting from the evening standard (BD+28 4211, Dec +28.9) and
+including the slew to the morning standard (Feige 110). On-target time is
+`science_min` (longslit ETC total; MOS block unchanged since it already
+includes mask overhead). The xlsx takes the slew and on-target times from
+the scheduler, so the two can no longer disagree.
+
+**Result:** same 5 targets and order. 40 min of slews in total. One 20-min
+slew (FRB20260102A +13.9 -> FRB20260418B +39.4) falls in the existing
+mid-night gap, so no target moves. MOS blocks now get their full 60 min
+(were 57), and the other targets shift by about 5 min. FRB20250411A is still
+excluded (needs 120 min + 5 min slew, only 85 min left in its window).
+Night ends 03:49 HST (was 03:44). Per-target reasons are in
+`target_rejection_analysis.md` (new).
+
+### Prompt 15
+> Wait where is the Gap?
+
+**Action:** Answered, no changes. Main gap 22:37-01:09 HST (152 min), plus
+01:48-02:14 (26 min), and 03:49-05:02 unused before dawn. Cause: the B-01
+pool ran out of targets. All 5 survivors were scheduled, and the last two
+don't rise below AM 2.0 until 01:29 and 02:19. The LST during the gap runs
+about 23.3h-1.9h.
+
+### Prompt 16
+> Try requesting targets again from FFFF-PZ global, check the .bashrc for url
+
+**Action:** Global FFFF-PZ is `https://frb.chimenet.ca/f4pz/`
+(`set_ffff_pz_global` in `~/.bashrc`). A pull of Keck-2026B-01 returned 402
+"Could not find resource" because B-01 was only ever added to the local
+docker instance. The author said the 01 name is taken on global, so a new
+Resource, **Keck-2026B-02**, was created there after checking the name was
+free (`add_frb_resource` is add-or-modify). Its settings: 10 mask + 20
+longslit, with the valid window moved from the stale Oct 2/3 night to
+`2026-10-07T05:00:01Z`-`15:45:38Z`. It returned 20 targets (9 shared with
+B-01). A dry-run gave 9 targets but dropped the CHIME repeater FRB20250408A
+and needed new masks.
+
+### Prompt 17
+> Do we have the sme 5 masks still in? it will be very difficult to get a mask milled now
+
+**Action:** No. The B-02 dry-run kept FRB20260102A and FRB20240106A, dropped
+FRB20260502A, and added two new masks (FRB20260829B, FRB20260603D). A
+dry-run restricted to the B-01 masks gave 8 targets and a 104-min gap
+(23:25-01:09).
+
+### Prompt 18
+> Will the new mask fill up the Gap?
+
+**Action:** Only FRB20260603D (RA 23.6h, AM<2 window 19:19-03:19) can reach
+the gap. The other new MOS targets are only up in early evening or near
+dawn. Adding it as a fourth mask cut the gap to 39 min.
+
+### Prompt 19
+> I will try put it in the plan, increase all slew times that are 5 mins to 10, and add 5 more min buffer time for each mask, remake the plan
+
+**Action:** `KECK_SLEW_BASE_MIN` is now 10 (the 20-min crossing is
+unchanged). Added `MOS_MASK_BUFFER_MIN = 5` and `MOS_MASKS_AVAILABLE` (the 5
+B-01 MOS candidates plus FRB20260603D; any other mag>21 target is rejected
+as "No mask available"). The plan was rebuilt from the B-02 pull into
+`Night_plans/Keck-2026B-02/`: 9 targets, 6.1 h on target plus 100 min of
+slews, 63% of dark time, 10 min idle, ending 03:59. The repeater
+FRB20250408A is still unscheduled (7 min left in its window). The scripts
+now point at B-02, and this folder's outputs are kept as the earlier record.
+
 ---
 
 ## Ephemeris
@@ -512,12 +606,15 @@ Prompt 9) — do not trust that column.
 
 ### Selected Targets (5) — MOS targets now included with allocated time (Prompt 10)
 
+Times are on-target (updated Prompt 14); Duration excludes slew, which is
+listed in the Night Timeline below.
+
 | # | Target | Time (HST) | RA | Dec | mag | AM | Mode | Exposure (each arm) | Duration | Notes |
 |---|--------|------------|-----|-----|-----|-----|------|----------------------|----------|-------|
-| 1 | FRB20260502A | 19:29-20:29 | 18.57h | +47° | 22.4 | 1.2 | **MOS** | mask required | 60.0 min | Submit mask design |
-| 2 | FRB20250408A | 20:29-21:27 | 21.19h | +77° | 21.0 | 1.9 | longslit | 3 x 1060s | 58.0 min | |
-| 3 | FRB20260102A | 21:29-22:29 | 1.94h | +14° | 21.2 | 1.7 | **MOS** | mask required | 60.0 min | Submit mask design |
-| 4 | FRB20260418B | 01:29-01:53 (Oct 7) | 6.18h | +39° | 20.2 | 1.7 | longslit | 3 x 380s | 24.0 min | Rising |
+| 1 | FRB20260502A | 19:34-20:34 | 18.57h | +47° | 22.4 | 1.2 | **MOS** | mask required | 60.0 min | Submit mask design |
+| 2 | FRB20250408A | 20:39-21:32 | 21.19h | +77° | 21.0 | 1.9 | longslit | 3 x 1060s | 53.0 min | |
+| 3 | FRB20260102A | 21:37-22:37 | 1.94h | +14° | 21.2 | 1.7 | **MOS** | mask required | 60.0 min | Submit mask design |
+| 4 | FRB20260418B | 01:29-01:48 (Oct 7) | 6.18h | +39° | 20.2 | 1.7 | longslit | 3 x 380s | 19.0 min | Rising |
 | 5 | FRB20240106A | 02:19-03:19 (Oct 7) | 6.73h | +60° | 22.5 | 1.8 | **MOS** | mask required | 60.0 min | Submit mask design |
 
 **FRB20250411A (mag 25.6, needs the full 2h MOS bucket) does not fit any
@@ -526,37 +623,40 @@ claim earlier time, so the scheduler correctly excludes it (reason logged:
 `needs 120 min but only 90 min left in its AM<2.0 window (02:49-04:49)`).
 This is a real geometric/time-budget constraint, not a mask-readiness issue.
 
-## Night Timeline (REGENERATED, Prompt 12 — Oct 6 date correction)
+## Night Timeline (Prompt 14 snapshot, B-01 pool, 5-min slews — superseded by Keck-2026B-02)
 
 ```
 19:10 HST  Flux standard (BD28d4211)          5 min
 19:15      Focus check                         5 min
-19:29      FRB20260502A [MOS]                60.0 min   AM 1.20
-20:29      FRB20250408A                       58.0 min   AM 1.87
-21:27      [gap]                                2 min
-21:29      FRB20260102A [MOS]                 60.0 min   AM 1.72
-22:29      [gap - no targets]                 180 min
-01:29      FRB20260418B (rising)               24.0 min   AM 1.74
-01:53      [gap]                                26 min
-02:19      FRB20240106A [MOS]                 60.0 min   AM 1.80
-03:19      Flux standard (Feige110)             5 min
-03:24      Calibrations (arcs, flats)          20 min
-03:44      END
+19:29      slew -> FRB20260502A                5 min
+19:34      FRB20260502A [MOS]                 60 min   AM 1.20
+20:34      slew -> FRB20250408A                5 min
+20:39      FRB20250408A                       53 min   AM 1.87
+21:32      slew -> FRB20260102A                5 min
+21:37      FRB20260102A [MOS]                 60 min   AM 1.69
+22:37      [gap - no targets]                152 min
+01:09      slew -> FRB20260418B               20 min   (Dec +13.9 -> +39.4)
+01:29      FRB20260418B (rising)              19 min   AM 1.93
+01:48      [gap]                              26 min
+02:14      slew -> FRB20240106A                5 min
+02:19      FRB20240106A [MOS]                 60 min   AM 1.83
+03:19      slew -> Feige110                    5 min
+03:24      Flux standard (Feige110)            5 min
+03:29      Calibrations (arcs, flats)         20 min
+03:49      END   (18° dawn 05:02 HST)
 ```
 
-## Night Utilization (REGENERATED, Prompt 12 — Oct 6 date correction)
+## Night Utilization (Prompt 14 snapshot — superseded by Keck-2026B-02)
 
 | Metric | Value |
 |--------|-------|
-| Science time | 4.4 hours (262 min) |
+| On-target time | 4.2 hours (252 min) |
+| Slew time | 40 min (4 x 5 min + 1 x 20 min) |
 | Available dark time | 9.7 hours |
-| Utilization | 45% |
-| Gap time | ~3.5 hours (208 min, spread across 3 gaps between targets) |
+| Utilization (on target / dark) | 43% |
 
-Same as Prompt 10's result — this is a date correction, not a logic or pool
-change, so utilization is unchanged. Of the 6 sky-observable targets, 5 now
-fit the night (2 longslit + 3 MOS); the 6th (FRB20250411A) doesn't fit any
-window at its required 2h. See Recommendations for mask-design lead time.
+Utilization is lower than Prompt 12's 45% only because slew is now counted
+separately rather than inside "science time". The target list is unchanged.
 
 ## LRIS Configuration
 
@@ -583,10 +683,11 @@ which the real LRIS ETC can't even model (see Prompt 7). 600/4000 and
 
 ## Recommendations
 
-1. **Submit MOS mask designs now for the 3 scheduled MOS targets** (FRB20260502A,
-   FRB20260102A, FRB20240106A): ~4 weeks lead time to the 2026-10-06 run —
-   this is the actual blocker for whether this plan is real or provisional.
-   If masks can't be ready in time, those 3 slots (180 min) revert to gap.
+1. **Masks (updated Prompt 19):** the current B-02 plan uses 4 masks.
+   FRB20260502A, FRB20260102A and FRB20240106A are the existing ones.
+   **FRB20260603D is new**, and the author will try to get it milled. If it
+   isn't ready, its 22:22-23:37 slot goes idle. Any other mag>21 target is
+   excluded because new masks are very hard to get this late.
 
 2. **Request more targets in the next Keck FFFF-PZ pull:**
    - At S/N=10/exposure (3x min), real longslit exposures run ~19-58 min
@@ -638,14 +739,19 @@ updated for the Oct 6 correction (Prompt 12):** that JSON's
 `valid_start`/`valid_stop` still encode the Oct 2/3 UTC window
 (`2026-10-03T05:00:01Z`-`2026-10-03T15:45:38Z`) — it's a live Resource on a
 shared server, so re-submitting it with the Oct 6/7 window is a follow-up
-for the author, not done here.
+for the author, not done here. **Superseded (Prompt 16):** the global
+server now has **Keck-2026B-02** with the Oct 6/7 window
+(`chime-ffff-pz/chime_ffff_pz/data/Observing/Keck-2026B-02/`), and that is
+the Resource of record for this night.
 
 ## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/keck_2026oct06_calculations.py` | Ephemeris, target analysis, scheduling |
+| `scripts/keck_2026oct06_calculations.py` | Ephemeris, target analysis, scheduling (reads/writes `Night_plans/Keck-2026B-02/` since Prompt 19) |
 | `scripts/build_keck_night_plan.py` | Excel night plan generation |
+| `scripts/keck_overheads.py` | Keck slew rule for all instruments: 10 min base, 20 min Dec<+20 -> Dec>+20 (Prompts 14, 19) |
+| `scripts/keck_2026oct06_rejection_analysis.py` | Per-target accept/reject report, `target_rejection_analysis.md` |
 | `scripts/lris_etc.py` | Real LRIS exposure-time calculator (Prompt 7) — client for the UCO/Lick web S/N calculator (etc.ucolick.org) |
 
 ## Lessons Learned

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>night-planner</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+
+<header>
+  <a href="#/" class="brand">night&#8209;planner</a>
+  <nav id="nav"></nav>
+  <span id="context"></span>
+</header>
+
+<main id="view"></main>
+
+<template id="tpl-home">
+  <h1>Plan a night</h1>
+  <p class="lede">Pick the instrument and the date of observation.</p>
+  <form id="home-form" class="card">
+    <label>Instrument
+      <select id="instrument"></select>
+    </label>
+    <label>Date of observation (evening, local)
+      <input type="date" id="date" required>
+    </label>
+    <button type="submit">Continue</button>
+  </form>
+
+  <h2>Open an existing plan</h2>
+  <div id="plan-list" class="card"></div>
+</template>
+
+<template id="tpl-setup">
+  <h1>Targets and constraints</h1>
+  <p class="lede" id="setup-lede"></p>
+
+  <section class="card">
+    <h2>1. Target table</h2>
+    <p class="hint">Any table will do &mdash; FFFF&#8209;PZ pulls and your own
+      spreadsheets alike. Columns are detected automatically; you'll only be
+      asked when something is genuinely ambiguous.</p>
+    <div class="row">
+      <input type="file" id="targets-file" accept=".csv">
+      <span class="or">or</span>
+      <input type="text" id="targets-path" placeholder="path to a CSV on disk" size="46">
+      <button id="inspect-btn" type="button">Inspect</button>
+    </div>
+    <div id="inspect-result"></div>
+  </section>
+
+  <section class="card">
+    <h2>2. Constraints</h2>
+    <div class="grid">
+      <label>Start time <span class="hint">blank = evening twilight</span>
+        <input type="text" id="start" placeholder="HH:MM local">
+      </label>
+      <label>Max targets
+        <input type="number" id="max-targets" placeholder="20" min="1">
+      </label>
+      <label>Output directory
+        <input type="text" id="output-dir" placeholder="Night_plans/&hellip;">
+      </label>
+    </div>
+
+    <label class="check">
+      <input type="checkbox" id="assume-masks">
+      <span>Schedule MOS targets without a mask yet
+        <span class="hint">allocates their time on the commitment that we'll do our
+          best to mill the mask before the run &mdash; submit the designs</span></span>
+    </label>
+
+    <h3>Blocked windows <span class="hint">ToO, weather hold, engineering</span></h3>
+    <div id="blocks"></div>
+    <button type="button" class="ghost" id="add-block">+ blocked window</button>
+
+  </section>
+
+  <p class="hint">To rescue a target the scheduler drops for want of time, generate
+    first &mdash; the Rejections page lets you force one in once you can see why
+    it was dropped.</p>
+
+  <button id="generate-btn" class="primary">Generate plan</button>
+  <div id="generate-status"></div>
+</template>
+
+<template id="tpl-plan">
+  <h1>Night plan</h1>
+  <div id="plan-head"></div>
+  <div id="timeline"></div>
+  <div id="legend" class="legend"></div>
+  <div id="overruns"></div>
+  <table id="plan-table" class="data"></table>
+</template>
+
+<template id="tpl-rejections">
+  <h1>Why each target is in or out</h1>
+  <div id="rej-summary"></div>
+
+  <section class="card" id="rescue-card">
+    <h2>Force rejected targets in</h2>
+    <p class="hint">Pick any rejected target and give it a time. It will be
+      placed after the last scheduled target, with however many minutes you
+      allow &mdash; the planner still checks the telescope can point there, and
+      says so if it can't.</p>
+    <div class="row">
+      <select id="rescue-pick"></select>
+      <input type="number" id="rescue-mins" min="1" placeholder="min">
+      <button type="button" id="rescue-add">Add</button>
+    </div>
+    <div id="rescue-chosen"></div>
+    <div class="row">
+      <button type="button" class="primary" id="regen-btn">Regenerate plan</button>
+      <span id="regen-status" class="hint"></span>
+    </div>
+  </section>
+
+  <table id="rej-table" class="data"></table>
+</template>
+
+<template id="tpl-finders">
+  <h1>Finder charts</h1>
+  <section class="card">
+    <h2>Generate</h2>
+    <p class="hint">By default the slit is drawn at this target's own
+      dispersion-weighted parallactic angle over its scheduled exposure, and the
+      offset star comes from Gaia &mdash; no FFFF&#8209;PZ needed, so this works
+      for any target table.</p>
+    <label class="check">
+      <input type="checkbox" id="fd-ffffpz">
+      <span>Use FFFF&#8209;PZ instead (fit the slit through the two host candidates)
+        <span class="hint">needs the target to exist in an FFFF&#8209;PZ Resource</span></span>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="fd-overwrite">
+      <span>Re-render charts that already exist</span>
+    </label>
+    <div class="row">
+      <button type="button" class="primary" id="fd-generate">Generate finders</button>
+      <span id="fd-status" class="hint"></span>
+    </div>
+    <div id="fd-notes"></div>
+  </section>
+  <div id="finder-grid" class="finders"></div>
+</template>
+
+<template id="tpl-starlist">
+  <h1>Starlist</h1>
+  <section class="card">
+    <h2>Generate</h2>
+    <label class="check">
+      <input type="checkbox" id="sl-standards" checked>
+      <span>Include flux standards
+        <span class="hint">picked from the PypeIt standard-star library at the
+          times they'd actually be taken, lowest airmass first</span></span>
+    </label>
+    <div class="row">
+      <label style="margin:0">Max airmass for standards
+        <input type="number" id="sl-maxam" value="2.0" step="0.1" min="1">
+      </label>
+      <button type="button" class="primary" id="sl-generate">Generate starlist</button>
+      <span id="sl-status" class="hint"></span>
+    </div>
+    <div id="sl-notes"></div>
+  </section>
+  <div class="row" id="starlist-actions"></div>
+  <pre id="starlist-text" class="starlist"></pre>
+</template>
+
+<template id="tpl-airmass">
+  <h1>Airmass through the night</h1>
+  <div class="row">
+    <label>Target <select id="airmass-target"></select></label>
+  </div>
+  <div id="airmass-plot"></div>
+  <div id="airmass-note" class="hint"></div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

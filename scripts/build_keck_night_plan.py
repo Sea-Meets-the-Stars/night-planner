@@ -13,6 +13,10 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord, EarthLocation
 from astropy.time import Time
 
+from keck_overheads import keck_slew_minutes
+from keck_2026oct06_calculations import MORNING_STANDARD_DEC
+from night_plan_io import load_night_meta, resolve_local_dt, OBSERVATORY_TZ
+
 # Constants
 # Verified against astropy's EarthLocation.of_site('keck') (IRAF Observatory
 # Database), 2026-09-11: lat 19.828333 deg, lon -155.478333 deg, height 4160 m.
@@ -102,7 +106,7 @@ def add_observing_checklist(ws):
         ws.cell(row=i, column=2, value=val)
 
 
-def add_night_sheet(wb, date_str, selected_targets, start_hst):
+def add_night_sheet(wb, date_str, selected_targets, start_hst, blocks=None):
     """
     Add the main observing night sheet.
 
@@ -112,7 +116,13 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst):
     date_str : str (e.g., "October 2nd")
     selected_targets : DataFrame
     start_hst : datetime
+    blocks : list of (start, end, reason) tuples, optional
+        Blacked-out windows (ToO, weather hold) from night_meta.json --
+        rendered as explicit rows wherever they fall in the timeline. The
+        scheduler already guarantees no science target overlaps a block,
+        so each one always lands inside a natural gap between rows.
     """
+    blocks = blocks or []
     ws = wb.create_sheet(date_str)
 
     # Set up column headers (Keck format)
@@ -166,7 +176,7 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst):
             ha_start_str = f"{ha_start:+.1f}h"
             ha_end_str = f"{ha_end:+.1f}h"
 
-        duration_str = f"{duration_min} min" if duration_min > 0 else ""
+        duration_str = f"{duration_min:g} min" if duration_min > 0 else ""
 
         # Write row
         ws.cell(row=current_row, column=1, value=f"{lst_start:.1f}h")
@@ -188,6 +198,20 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst):
 
         current_row += 1
         current_time = end_time
+
+    emitted_blocks = set()
+
+    def emit_blocks_before(upto_time):
+        """Write a row for any not-yet-emitted block ending at or before upto_time."""
+        nonlocal current_time
+        for i, (b_start, b_end, reason) in enumerate(blocks):
+            if i in emitted_blocks or b_end > upto_time + timedelta(minutes=1):
+                continue
+            if current_time < b_start:
+                current_time = b_start
+            add_row(action='ToO / Blocked', comments=reason,
+                    duration_min=(b_end - current_time).total_seconds() / 60)
+            emitted_blocks.add(i)
 
     # Evening standard star (BD+28 4211)
     add_row(action="Flux Standard", target="BD28d4211",
@@ -211,32 +235,35 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst):
 
         ra_str, dec_str = format_ra_dec(ra_deg, dec_deg)
 
-        # Get scheduled times
+        # Get scheduled times (scheduled_start = slew start)
         sched_start = targ.get('scheduled_start')
         if pd.notna(sched_start):
             if isinstance(sched_start, str):
                 sched_start = pd.to_datetime(sched_start)
-            # Jump to scheduled time if there's a gap
-            if hasattr(sched_start, 'tzinfo') and sched_start.tzinfo is not None:
-                if sched_start > current_time:
-                    current_time = sched_start
-            else:
-                # Handle naive datetime
+            if not (hasattr(sched_start, 'tzinfo') and sched_start.tzinfo is not None):
                 sched_start = sched_start.replace(tzinfo=HST)
-                if sched_start > current_time:
-                    current_time = sched_start
 
-        total_min = int(targ.get('total_min', 30))
+            # Any block between here and this target's start gets its own
+            # row first, then jump past it (and any remaining gap) as before.
+            emit_blocks_before(sched_start)
+            if sched_start > current_time:
+                current_time = sched_start
+
+        slew_min = int(targ['slew_min'])
+        on_target_min = float(targ['on_target_min'])
         red_exp = targ.get('red_exp', '2 x 600')
         blue_exp = targ.get('blue_exp', '2 x 600')
         am = targ.get('min_airmass', 1.5)
         tags = str(targ.get('tags', '')) if pd.notna(targ.get('tags')) else ''
         is_mos = targ.get('lris_mode') == 'MOS (mask required)'
-        comment_bits = (['MASK REQUIRED'] if is_mos else []) + ([tags] if tags else [])
+        forced = str(targ.get('lris_mode', '')).startswith('longslit (forced')
+        comment_bits = ((['MASK REQUIRED'] if is_mos else [])
+                        + (['NO MASK: longslit, low S/N'] if forced else [])
+                        + ([tags] if tags else []))
         comments = ' | '.join(comment_bits)[:40]
 
-        # Slew
-        add_row(action=f"slew to", target=tns, duration_min=3)
+        # Slew (Keck rule: 10 min base, 20 min Dec<+20 -> Dec>+20)
+        add_row(action=f"slew to", target=tns, duration_min=slew_min)
 
         # Science observation
         add_row(action="Science" if not is_mos else "Science (MOS)",
@@ -248,10 +275,18 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst):
                 blue_side=blue_exp,
                 airmass=f"{am:.2f}",
                 comments=comments,
-                duration_min=total_min - 3,  # Subtract slew time
+                duration_min=on_target_min,
                 ra_hours=ra_hours)
 
+    # Any block after the last science target (e.g. a late-night ToO)
+    if blocks:
+        emit_blocks_before(max(b[1] for b in blocks))
+
     # Morning standard star (Feige 110)
+    last_dec = (selected_targets['Dec_deg'].iloc[-1] if len(selected_targets)
+                else None)
+    add_row(action="slew to", target="Feige110",
+            duration_min=keck_slew_minutes(last_dec, MORNING_STANDARD_DEC))
     add_row(action="Flux Standard", target="Feige110",
             ra="23:19:58.40", dec="-05:09:56.2",
             mag_r="11.8",
@@ -291,6 +326,8 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst):
     notes = [
         gap_note,
         "- All targets observable at airmass < 2.0 when scheduled",
+        "- Keck slews: 10 min base; 20 min when moving from Dec < +20 to Dec > +20",
+        "- MOS blocks include a 5 min buffer per mask on top of the 1-2h allocation",
         "- LRIS setup: 560 dichroic, 600/4000 blue grism, 600/7500 red grating (~7200A)",
         "- Exposure times from the real LRIS ETC (etc.ucolick.org): S/N=10/pixel per single exposure, 3 exposures min",
         "- MOS (mag>21) targets need ~1-2h once masked (see info column); utilization is target-count-limited: request more targets"
@@ -302,15 +339,30 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst):
     return ws
 
 
-def build_keck_night_plan(output_path, selected_csv, date='2026-10-06'):
+def build_keck_night_plan(output_path, selected_csv, output_dir, date='2026-10-06',
+                           start_override=None, sheet_name='October 6th'):
     """
     Build the complete Keck night plan Excel file.
+
+    Parameters
+    ----------
+    start_override : datetime, optional
+        Takes precedence over night_meta.json (and that in turn over the
+        2026-10-06 default) -- see night_plan_io.
     """
     # Load selected targets
     selected_targets = pd.read_csv(selected_csv)
 
-    # Start time: 19:10 HST (before twilight at 19:19)
-    start_hst = datetime(2026, 10, 6, 19, 10, 0, tzinfo=HST)
+    meta = load_night_meta(output_dir)
+    if start_override is not None:
+        start_hst = start_override
+    elif meta is not None:
+        start_hst = meta['start_local']
+    else:
+        # Fallback matching the original committed default, for a bare
+        # selected_targets.csv with no night_meta.json yet.
+        start_hst = datetime(2026, 10, 6, 19, 10, 0, tzinfo=HST)
+    blocks = meta['blocks'] if meta is not None else []
 
     # Create workbook
     wb = Workbook()
@@ -320,19 +372,55 @@ def build_keck_night_plan(output_path, selected_csv, date='2026-10-06'):
     checklist = wb.create_sheet("Observing Checklist")
     add_observing_checklist(checklist)
 
-    add_night_sheet(wb, "October 6th", selected_targets, start_hst)
+    add_night_sheet(wb, sheet_name, selected_targets, start_hst, blocks=blocks)
 
     # Save
     wb.save(output_path)
     print(f"Night plan saved to: {output_path}")
+    print(f"Start: {start_hst.strftime('%H:%M %Z')}"
+          f"{' (manual override)' if start_override is not None else ' (from night_meta.json)' if meta else ' (default)'}")
+    if blocks:
+        for b_start, b_end, reason in blocks:
+            print(f"Block: {b_start.strftime('%H:%M')}-{b_end.strftime('%H:%M')} ({reason})")
+
+
+def parse_args(argv=None):
+    """
+    Parameters
+    ----------
+    argv : list of str, optional
+        Defaults to sys.argv[1:]. Passed explicitly by night_planner.cli.
+    """
+    import argparse
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--selected-csv')
+    p.add_argument('--output-dir')
+    p.add_argument('--output-path')
+    p.add_argument('--start', help='Manual start override, HH:MM local '
+                   '(Pacific/Honolulu) or full ISO datetime. Overrides '
+                   'night_meta.json if both are present.')
+    p.add_argument('--date')
+    return p.parse_args(argv)
+
+
+def run(args):
+    """Execute the Excel build for an already-parsed args namespace (see
+    keck_2026oct06_calculations.run() for why this is split from main())."""
+    output_dir = args.output_dir or '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02'
+    selected_csv = args.selected_csv or f'{output_dir}/selected_targets.csv'
+    output_path = args.output_path or f'{output_dir}/Keck_LRIS_2026Oct06_Night_plan.xlsx'
+    date = args.date or '2026-10-06'
+
+    start_override = (resolve_local_dt(date, args.start, OBSERVATORY_TZ['keck'])
+                       if args.start else None)
+
+    build_keck_night_plan(output_path, selected_csv, output_dir, date=date,
+                           start_override=start_override)
 
 
 def main():
-    """Main execution."""
-    selected_csv = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-01/selected_targets.csv'
-    output_path = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-01/Keck_LRIS_2026Oct06_Night_plan.xlsx'
-
-    build_keck_night_plan(output_path, selected_csv)
+    """Standalone entry point: `python scripts/build_keck_night_plan.py ...`."""
+    return run(parse_args())
 
 
 if __name__ == '__main__':

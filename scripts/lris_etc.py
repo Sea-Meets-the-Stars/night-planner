@@ -210,7 +210,9 @@ def estimate_lris_exposure_real(mag_r, airmass=1.2, target_sn=10.0,
         "red_exp": exp_str,
         "blue_exp": exp_str,
         "science_min": round(science_min, 1),
-        "total_min": round(science_min + 5, 1),  # + slew/acquisition
+        # + flat 5 min slew/acquisition. The Keck scheduler ignores this and
+        # charges slews per transition instead (keck_overheads.py).
+        "total_min": round(science_min + 5, 1),
         "mode": "longslit",
         "achieved_sn_blue": round(sn_blue, 1),
         "achieved_sn_red": round(sn_red, 1),

@@ -392,6 +392,30 @@ An earlier hardcoded value used lat 19.8263° (wrong by ~7 arcsec); fixed in
 both Keck scripts. If a coordinate for Keck ever needs re-deriving, check
 `EarthLocation.of_site('keck')` first rather than searching the web.
 
+### Keck slew-time rule (all Keck instruments, per the author 2026-09-29)
+
+- **Base slew = 10 min** between any two pointings (was 5 min on
+  2026-09-29, raised to 10 by the author 2026-09-30).
+- **Moving from Dec < +20° to Dec > +20° = 20 min.** Only the south-to-north
+  crossing, as stated; north-to-south stays at the base 10 min.
+- **MOS blocks get +5 min buffer per mask** (`MOS_MASK_BUFFER_MIN`) on top
+  of the 60/90/120 min allocation (per the author 2026-09-30).
+- **Late in the run, only schedule masks that exist or can still be milled**
+  (`MOS_MASKS_AVAILABLE`); other mag>21 targets are rejected at a "2b. Mask"
+  stage. The author said milling new masks close to the run is very hard, so
+  when a re-pull brings in new MOS targets, check which masks are new.
+- Applies to every Keck instrument (LRIS, DEIMOS, ...), so it lives in the
+  shared `scripts/keck_overheads.py` (`keck_slew_minutes(from_dec, to_dec)`),
+  not in an LRIS-specific file.
+- Slew is charged by the scheduler per transition (it depends on the previous
+  pointing), starting from the evening standard's Dec and including the slew to
+  the morning standard. On-target time is `science_min`: for longslit that is
+  the ETC exposure total (the old flat "+5 slew/acquisition" in `lris_etc`'s
+  `total_min` is replaced by the slew); for MOS the 60/90/120 min block
+  already includes mask-alignment overhead (per the author).
+- Before this rule, slews were a flat 3 min in the xlsx while the scheduler
+  budgeted 5 min, so the two scripts disagreed. Keep one source of truth.
+
 ### Keck-specific corrections to the Lick-derived scripts (2026-09-10)
 
 The Keck scripts (`scripts/keck_2026oct06_calculations.py`,
@@ -1104,3 +1128,87 @@ uninteresting ones -- log the reason at every skip point.
   always rerun the ephemeris/scheduling code for the corrected date rather
   than editing date strings by hand, since even a small date shift can flip
   an individual target's rejection reason (though not always the outcome).
+- **v0.36 — 2026-09-30 (UTC; HST 2026-09-29):** Author asked how Keck slew
+  times were computed and to check the Oct 6 ephemeris against the UCO Keck
+  calendar (ucolick.org/calendar/keckcal2021-30/keck2026.18oct; the Oct 6
+  row matches the script to within 1 min: twilight 19:19, dawn 05:01 vs
+  05:02 from the 1-min step, LST 20:01/05:44). Slews had been flat
+  constants (3 min in the xlsx, 5 min in the scheduler). Author set the Keck
+  rule: 5 min base, 20 min when moving from Dec < +20 to Dec > +20, for all
+  Keck instruments; MOS blocks already include mask overhead. Added
+  `scripts/keck_overheads.py`, made the scheduler charge per-transition
+  slews, and reran the Oct 6 plan: same 5 targets, 40 min of slews, one
+  20-min crossing (FRB20260102A +13.9 -> FRB20260418B +39.4) that lands in
+  the existing mid-night gap. Also added
+  `scripts/keck_2026oct06_rejection_analysis.py` and its
+  `target_rejection_analysis.md`. See "Keck slew-time rule" above.
+- **v0.37 — 2026-09-30 (UTC):** FFFF-PZ global server is
+  `https://frb.chimenet.ca/f4pz/` (`set_ffff_pz_global` alias in `~/.bashrc`;
+  local docker is `http://0.0.0.0:8000/`). A Resource added to the local
+  docker instance does not exist on global. `add_frb_resource` is
+  add-or-modify, so check that a name is free first (a target pull on a
+  missing name returns 402 "Could not find resource"). The Keck-2026B-01
+  name is taken on global per the author, so the Oct 6 Keck/LRIS Resource
+  on global is **Keck-2026B-02** (10 mask + 20 longslit, window
+  2026-10-07T05:00:01Z-15:45:38Z; 20 targets returned). The
+  05:00:01Z-15:45:38Z bounds (19:00-05:45 HST) are the standing Keck
+  Resource convention. The greedy scheduler has no priority input, so a
+  bigger pool can bump high-value targets (e.g. the CHIME repeater
+  FRB20250408A) out of crowded early-evening windows.
+- **v0.38 — 2026-09-30 (UTC):** Rebuilt the Oct 6 Keck/LRIS plan from the
+  global Keck-2026B-02 pull into `Night_plans/Keck-2026B-02/` (B-01 outputs
+  kept as the earlier record). Base Keck slew is now 10 min (20 min for the
+  Dec<+20 -> Dec>+20 crossing is unchanged), with +5 min buffer per MOS
+  block. Masks are restricted to the 5 B-01 MOS candidates plus
+  FRB20260603D, the one new mask the author will try to get, because it
+  fills the mid-night gap. Result: 9 targets (4 MOS, 5 longslit), 6.1 h on
+  target plus 100 min of slews, 63% of dark time. Only 10 min are idle
+  (01:59-02:09), and the night ends at 03:59. The CHIME repeater
+  FRB20250408A is still bumped (7 min left in its window) by the greedy
+  earliest-window order; the scheduler still has no priority input.
+- **v0.39 — 2026-09-30 (UTC):** Brought every doc up to date with the
+  Keck-2026B-02 plan. The B-01 SUMMARY now has a superseded banner, Prompts
+  15-19, and relabeled snapshot sections. The B-01 rejection report is
+  marked as a snapshot. README gained a Keck/LRIS quick start and scripts.
+  claudes_context gained an FFFF-PZ servers section and the reason every
+  target comes back `longslit` (FFFF-PZ mask mode isn't implemented).
+  `claude_prompts/night_plans/keck_2026oct02.md` got Sessions 4-5, and the
+  overview deck's slide 3 was changed to Keck-2026B-02, 9 targets, 6.1 h
+  (63%). For docs, keep the old run folder as a marked record rather than
+  rewriting its history, and point to the new run folder.
+- **v0.40 — 2026-09-30 (UTC):** Filler search for idle time
+  (`scripts/keck_2026oct06_filler_search.py`). Lessons:
+  (1) **Local FFFF-PZ pulls go stale.** Most mag>18 targets from other runs'
+  pulls are no longer NeedSpectrum (Redshift, TooDusty, GoodSpectrum,
+  NeedImage). Always check the current status with the read-only `chk_frb`
+  endpoint before scheduling a target from an old pull. `frb_status` is
+  the write endpoint; don't call it.
+  (2) Per the author: **never force a target above AM 2 into a Keck
+  schedule**, including Lick-excluded high-Dec targets. From Keck
+  (lat 19.8) anything above Dec ~84 never reaches AM 2 (e.g. FRB20260510A
+  2.52, FRB20251003A 2.68). Note: the existing code still allows AM < 2.5
+  for mag < 17 in `find_observable_window()`/`analyze_targets()`.
+  (3) Mag 18-19 targets are OK as *fillers* for idle Keck time (author).
+  (4) Fixed `analyze_targets()` crashing with `min_am_ha=None` for targets
+  that never rise.
+- **v0.41 — 2026-10-01 (UTC):** FRB20260603D (mag 22.6) moved to longslit
+  because no new mask will be milled (author). S/N=10 per exposure is
+  unreachable for mag > 22 in longslit (the ETC tops out at 3 x 7200 s), so
+  it keeps its 1 h block as 3 x 1200 s (`LONGSLIT_FORCED`): S/N per exposure
+  is 5.7 blue / 2.8 red. When a faint target is forced into longslit,
+  report its S/N and let the author decide; don't silently schedule hours.
+  Finders and the target list were made with `chime_ffff_pz_finder <TNS>
+  Keck-2026B-02` and `chime_ffff_pz_starlist keck --skip-missing`, run in the
+  Observing/Keck-2026B-02 dir. Notes:
+  (1) **Fresh shells may have `FFFF_PZ_URL` set to local docker
+  (0.0.0.0:8000) from `~/.bashrc`.** Export the global URL explicitly before
+  each FFFF-PZ call; the first finder run failed with connection refused.
+  (2) The starlist's "Skipped N FRBs (missing candidates files)" warning
+  only affects the magnitude printout; the rows are still written.
+  (3) Starlist output is in glob order, unsigned for positive Dec, and has
+  no standards. `scripts/make_keck_2026oct06_targetlist.py` reorders it to
+  schedule order, adds '+' and standards, annotates rows, and writes
+  `Keck-2026B-02.starlist`, a target-list .md and `finders/` copies.
+  (4) For MOS targets, the finder's `rotdest` is a longslit default; the
+  mask PA wins.
+

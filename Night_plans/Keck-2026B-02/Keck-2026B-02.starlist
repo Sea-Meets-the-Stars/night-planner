@@ -1,0 +1,26 @@
+# Keck/LRIS starlist, 2026-10-06 HST (Keck-2026B-02)
+# Created by JXP and Claude: chime_ffff_pz_finder/starlist rows, schedule order
+# _S rows = offset star; raoffset/decoffset = star -> target (arcsec)
+
+BD28d4211       21 51 11.02 +28 51 50.4 2000.0 vmag=10.5 # Evening flux standard 19:10 HST
+
+FRB20260518B    17 46 48.45 +41 14 16.9 2000.0 rotdest=57.14 rotmode=pa # 20:20-20:34 HST, 3 x 280 | longslit
+FRB20260518B_S  17 46 48.31 +41 14 41.9 2000.0 raoffset=1.53 decoffset=-25.02 rotdest=57.14 rotmode=pa
+FRB20260611G    18 26 36.45 +61 09 01.7 2000.0 rotdest=210.16 rotmode=pa # 20:44-21:14 HST, 3 x 600 | longslit
+FRB20260611G_S  18 26 37.48 +61 09 20.6 2000.0 raoffset=-7.43 decoffset=-18.80 rotdest=210.16 rotmode=pa
+FRB20260502A    18 33 56.81 +46 51 41.4 2000.0 rotdest=186.43 rotmode=pa # 21:24-22:29 HST, MOS mask required | MOS mask; rotdest = longslit default, use mask PA
+FRB20260502A_S  18 33 58.54 +46 51 41.6 2000.0 raoffset=-17.70 decoffset=-0.13 rotdest=186.43 rotmode=pa
+FRB20260603D    23 38 15.16 +30 52 55.3 2000.0 rotdest=340.67 rotmode=pa # 22:39-23:39 HST, 3 x 1200 | longslit, NO MASK, low S/N
+FRB20260603D_S  23 38 12.61 +30 53 01.6 2000.0 raoffset=32.87 decoffset=-6.35 rotdest=340.67 rotmode=pa
+FRB20260831H    23 41 00.89 +41 46 00.7 2000.0 rotdest=231.84 rotmode=pa # 23:49-00:07 HST, 3 x 360 | longslit
+FRB20260831H_S  23 40 59.61 +41 45 59.9 2000.0 raoffset=14.36 decoffset=0.86 rotdest=231.84 rotmode=pa
+FRB20260102A    01 56 29.02 +13 51 58.5 2000.0 rotdest=217.72 rotmode=pa # 00:17-01:22 HST, MOS mask required | MOS mask; rotdest = longslit default, use mask PA
+FRB20260102A_S  01 56 28.42 +13 51 22.5 2000.0 raoffset=8.71 decoffset=36.04 rotdest=217.72 rotmode=pa
+FRB20260418B    06 11 02.72 +39 21 33.4 2000.0 rotdest=170.81 rotmode=pa # 01:42-02:01 HST, 3 x 380 | longslit
+FRB20260418B_S  06 11 02.49 +39 21 06.9 2000.0 raoffset=2.71 decoffset=26.55 rotdest=170.81 rotmode=pa
+FRB20240106A    06 43 36.02 +60 21 01.5 2000.0 rotdest=35.27 rotmode=pa # 02:19-03:24 HST, MOS mask required | MOS mask; rotdest = longslit default, use mask PA
+FRB20240106A_S  06 43 37.72 +60 21 29.7 2000.0 raoffset=-12.60 decoffset=-28.20 rotdest=35.27 rotmode=pa
+FRB20250411A    07 30 36.48 +31 13 35.8 2000.0 rotdest=322.60 rotmode=pa # 03:34-04:54 HST, MOS mask required | MOS mask; rotdest = longslit default, use mask PA | FORCED truncated exposure
+FRB20250411A_S  07 30 42.52 +31 13 36.8 2000.0 raoffset=-77.47 decoffset=-0.96 rotdest=322.60 rotmode=pa
+
+Feige110        23 19 58.40 -05 09 56.2 2000.0 vmag=11.8 # Morning flux standard

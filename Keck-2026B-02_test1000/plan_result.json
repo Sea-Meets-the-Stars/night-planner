@@ -1,0 +1,427 @@
+{
+  "instrument": "lris",
+  "telescope": "Keck I",
+  "date": "2026-10-08",
+  "output_dir": "Keck-2026B-02_test1000",
+  "timezone": "Pacific/Honolulu",
+  "sun": {
+    "sunset": "2026-10-08T18:04:00-10:00",
+    "dusk_nautical": "2026-10-08T18:51:00-10:00",
+    "dusk_astronomical": "2026-10-08T19:17:00-10:00",
+    "dawn_astronomical": "2026-10-09T05:02:00-10:00",
+    "dawn_nautical": "2026-10-09T05:27:00-10:00",
+    "sunrise": "2026-10-09T06:15:00-10:00"
+  },
+  "night_start": "2026-10-08T19:10:00-10:00",
+  "night_end": "2026-10-09T05:02:00-10:00",
+  "schedule": [
+    {
+      "name": "FRB20260603D",
+      "ra_deg": 354.5631710959,
+      "dec_deg": 30.882019985,
+      "mag": 22.64,
+      "mode": "longslit (forced, no mask)",
+      "start": "2026-10-08T20:00:00-10:00",
+      "science_start": "2026-10-08T20:10:00-10:00",
+      "end": "2026-10-08T21:10:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 60.0,
+      "exposure_red": "3 x 1200",
+      "exposure_blue": "3 x 1200",
+      "airmass": 1.0194874453868155,
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-09T03:07:00-10:00",
+      "notes": "no mask: longslit 3x1200, S/N/exp b5.7 r2.8"
+    },
+    {
+      "name": "FRB20250408A",
+      "ra_deg": 317.81336582,
+      "dec_deg": 77.29243706,
+      "mag": 20.98,
+      "mode": "longslit",
+      "start": "2026-10-08T21:10:00-10:00",
+      "science_start": "2026-10-08T21:20:00-10:00",
+      "end": "2026-10-08T22:13:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 53.0,
+      "exposure_red": "3 x 1060",
+      "exposure_blue": "3 x 1060",
+      "airmass": 1.8652940271180791,
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T22:37:00-10:00",
+      "notes": ""
+    },
+    {
+      "name": "FRB20260831H",
+      "ra_deg": 355.25372255,
+      "dec_deg": 41.7668702,
+      "mag": 20.18,
+      "mode": "longslit",
+      "start": "2026-10-08T22:13:00-10:00",
+      "science_start": "2026-10-08T22:23:00-10:00",
+      "end": "2026-10-08T22:41:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 18.0,
+      "exposure_red": "3 x 360",
+      "exposure_blue": "3 x 360",
+      "airmass": 1.079447043533568,
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-09T03:17:00-10:00",
+      "notes": ""
+    },
+    {
+      "name": "FRB20260102A",
+      "ra_deg": 29.1209007981,
+      "dec_deg": 13.8662507058,
+      "mag": 21.18,
+      "mode": "MOS (mask required)",
+      "start": "2026-10-08T22:41:00-10:00",
+      "science_start": "2026-10-08T22:51:00-10:00",
+      "end": "2026-10-08T23:56:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 65.0,
+      "exposure_red": "MOS mask required",
+      "exposure_blue": "MOS mask required",
+      "airmass": 1.0054656185386202,
+      "window_start": "2026-10-08T21:17:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00",
+      "notes": "Mag 21.2 > 21: MOS mask required (~1.1h once milled)"
+    },
+    {
+      "name": "FRB20260418B",
+      "ra_deg": 92.76134818,
+      "dec_deg": 39.35928135,
+      "mag": 20.23,
+      "mode": "longslit",
+      "start": "2026-10-09T00:57:00-10:00",
+      "science_start": "2026-10-09T01:17:00-10:00",
+      "end": "2026-10-09T01:36:00-10:00",
+      "slew_min": 20.0,
+      "on_target_min": 19.0,
+      "exposure_red": "3 x 380",
+      "exposure_blue": "3 x 380",
+      "airmass": 1.0705620254347643,
+      "window_start": "2026-10-09T01:17:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00",
+      "notes": ""
+    },
+    {
+      "name": "FRB20240106A",
+      "ra_deg": 100.9000919989,
+      "dec_deg": 60.3504251286,
+      "mag": 22.52,
+      "mode": "MOS (mask required)",
+      "start": "2026-10-09T02:07:00-10:00",
+      "science_start": "2026-10-09T02:17:00-10:00",
+      "end": "2026-10-09T03:22:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 65.0,
+      "exposure_red": "MOS mask required",
+      "exposure_blue": "MOS mask required",
+      "airmass": 1.3510718898246872,
+      "window_start": "2026-10-09T02:17:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00",
+      "notes": "Mag 22.5 > 21: MOS mask required (~1.1h once milled)"
+    }
+  ],
+  "decisions": [
+    {
+      "name": "FRB20230702A",
+      "ra_deg": 132.1246969645,
+      "dec_deg": 26.3915264281,
+      "mag": 22.2,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 65 min on target (+10 min slew) but only 60 min left in its AM<2.0 window (03:57-04:47)",
+      "window_start": "2026-10-09T03:57:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20250408A",
+      "ra_deg": 317.81336582,
+      "dec_deg": 77.29243706,
+      "mag": 20.98,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 21:10 (10 min), on target 21:20-22:13 (53 min, longslit)",
+      "window_start": "2026-10-09T03:57:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20250411A",
+      "ra_deg": 112.65199854,
+      "dec_deg": 31.226619089,
+      "mag": 25.61,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 125 min on target (+10 min slew) but only 85 min left in its AM<2.0 window (02:37-04:47)",
+      "window_start": "2026-10-09T02:37:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20250819A",
+      "ra_deg": 139.64978207,
+      "dec_deg": 44.746763588,
+      "mag": 24.83,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 125 min on target (+10 min slew) but only 30 min left in its AM<2.0 window (04:27-04:47)",
+      "window_start": "2026-10-09T04:27:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20240106A",
+      "ra_deg": 100.9000919989,
+      "dec_deg": 60.3504251286,
+      "mag": 22.52,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 02:07 (10 min), on target 02:17-03:22 (65 min, MOS (mask required))",
+      "window_start": "2026-10-09T04:27:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20260102A",
+      "ra_deg": 29.1209007981,
+      "dec_deg": 13.8662507058,
+      "mag": 21.18,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 22:41 (10 min), on target 22:51-23:56 (65 min, MOS (mask required))",
+      "window_start": "2026-10-09T04:27:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20260427A",
+      "ra_deg": 265.5751947866,
+      "dec_deg": 74.5162412778,
+      "mag": 21.27,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "window already passed (ended 19:57, now 20:00)",
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T19:57:00-10:00"
+    },
+    {
+      "name": "FRB20260418B",
+      "ra_deg": 92.76134818,
+      "dec_deg": 39.35928135,
+      "mag": 20.23,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 00:57 (20 min), on target 01:17-01:36 (19 min, longslit)",
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T19:57:00-10:00"
+    },
+    {
+      "name": "FRB20260418A",
+      "ra_deg": 140.1851271232,
+      "dec_deg": 36.3545271248,
+      "mag": 21.2,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 65 min on target (+10 min slew) but only 30 min left in its AM<2.0 window (04:27-04:47)",
+      "window_start": "2026-10-09T04:27:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20260502A",
+      "ra_deg": 278.4866886915,
+      "dec_deg": 46.8615084959,
+      "mag": 22.39,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "window already passed (ended 22:07, now 22:41)",
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T22:07:00-10:00"
+    },
+    {
+      "name": "FRB20260514A",
+      "ra_deg": 127.1275614616,
+      "dec_deg": 69.2396522182,
+      "mag": 20.27,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 22 min on target (+10 min slew) but only 20 min left in its AM<2.0 window (04:37-04:47)",
+      "window_start": "2026-10-09T04:37:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20260518B",
+      "ra_deg": 266.7018601132,
+      "dec_deg": 41.2380265393,
+      "mag": 19.99,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "window already passed (ended 21:17, now 22:41)",
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T21:17:00-10:00"
+    },
+    {
+      "name": "FRB20260627D",
+      "ra_deg": 243.444251887,
+      "dec_deg": 68.2598201843,
+      "mag": 19.64,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Below horizon all night (min AM 2.00, 0.00 h at AM<2.0; need >0.5 h)",
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T21:17:00-10:00"
+    },
+    {
+      "name": "FRB20260611G",
+      "ra_deg": 276.6518695338,
+      "dec_deg": 61.1504847347,
+      "mag": 20.6,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "window already passed (ended 21:47, now 22:41)",
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T21:47:00-10:00"
+    },
+    {
+      "name": "FRB20260603D",
+      "ra_deg": 354.5631710959,
+      "dec_deg": 30.882019985,
+      "mag": 22.64,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 20:00 (10 min), on target 20:10-21:10 (60 min, longslit (forced, no mask))",
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T21:47:00-10:00"
+    },
+    {
+      "name": "FRB20260708D",
+      "ra_deg": 284.5395927391,
+      "dec_deg": 49.7823872865,
+      "mag": 20.42,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 24 min on target (+10 min slew) but only 14 min left in its AM<2.0 window (19:17-22:27)",
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T22:27:00-10:00"
+    },
+    {
+      "name": "FRB20260702A",
+      "ra_deg": 137.8468613589,
+      "dec_deg": 41.9330358117,
+      "mag": 22.5,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 65 min on target (+10 min slew) but only 40 min left in its AM<2.0 window (04:17-04:47)",
+      "window_start": "2026-10-09T04:17:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20260825A",
+      "ra_deg": 238.6220587307,
+      "dec_deg": 46.1459244694,
+      "mag": 21.76,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Below horizon all night (min AM 1.84, 0.50 h at AM<2.0; need >0.5 h)",
+      "window_start": "2026-10-09T04:17:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20260831H",
+      "ra_deg": 355.25372255,
+      "dec_deg": 41.7668702,
+      "mag": 20.18,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 22:13 (10 min), on target 22:23-22:41 (18 min, longslit)",
+      "window_start": "2026-10-09T04:17:00-10:00",
+      "window_end": "2026-10-09T04:47:00-10:00"
+    },
+    {
+      "name": "FRB20260829B",
+      "ra_deg": 279.0775832694,
+      "dec_deg": 57.0301323105,
+      "mag": 21.78,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "window already passed (ended 22:07, now 22:41)",
+      "window_start": "2026-10-08T19:17:00-10:00",
+      "window_end": "2026-10-08T22:07:00-10:00"
+    }
+  ],
+  "blocks": [
+    {
+      "start": "2026-10-08T19:00:00-10:00",
+      "end": "2026-10-08T20:00:00-10:00",
+      "reason": "ToO"
+    }
+  ],
+  "overheads": [
+    {
+      "start": "2026-10-08T19:10:00-10:00",
+      "end": "2026-10-08T19:15:00-10:00",
+      "label": "Evening standard (BD+28 4211)"
+    },
+    {
+      "start": "2026-10-08T19:15:00-10:00",
+      "end": "2026-10-08T19:20:00-10:00",
+      "label": "Focus check"
+    },
+    {
+      "start": "2026-10-09T03:22:00-10:00",
+      "end": "2026-10-09T03:32:00-10:00",
+      "label": "Slew to Feige 110"
+    },
+    {
+      "start": "2026-10-09T03:32:00-10:00",
+      "end": "2026-10-09T03:37:00-10:00",
+      "label": "Morning standard (Feige 110)"
+    },
+    {
+      "start": "2026-10-09T03:37:00-10:00",
+      "end": "2026-10-09T03:47:00-10:00",
+      "label": "Arc lamps"
+    },
+    {
+      "start": "2026-10-09T03:47:00-10:00",
+      "end": "2026-10-09T03:57:00-10:00",
+      "label": "Internal flats"
+    }
+  ],
+  "idle_gaps": [
+    {
+      "start": "2026-10-08T23:56:00-10:00",
+      "end": "2026-10-09T00:57:00-10:00"
+    },
+    {
+      "start": "2026-10-09T01:36:00-10:00",
+      "end": "2026-10-09T02:07:00-10:00"
+    },
+    {
+      "start": "2026-10-09T03:57:00-10:00",
+      "end": "2026-10-09T05:02:00-10:00"
+    }
+  ],
+  "overruns": [],
+  "request": {
+    "instrument": "lris",
+    "argv": [
+      "--targets-csv",
+      "/tmp/night-planner-uploads/Keck-2026B-02_targets.csv",
+      "--output-dir",
+      "Keck-2026B-02_test1000",
+      "--date",
+      "2026-10-08",
+      "--block",
+      "19:00-20:00@ToO",
+      "--assume-masks"
+    ]
+  },
+  "summary": {
+    "n_scheduled": 6,
+    "n_rejected": 14,
+    "on_target_min": 280.0,
+    "slew_min": 70.0,
+    "overhead_min": 45.0,
+    "idle_min": 157.0,
+    "night_min": 592.0,
+    "utilization": 0.47297297297297297
+  }
+}

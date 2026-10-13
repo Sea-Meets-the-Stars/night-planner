@@ -100,6 +100,71 @@ Prompts extracted from daily logs: 2026-09-09, 2026-09-10, 2026-09-11
 
 ---
 
+## Session 4: 2026-09-17
+
+### Prompt 12 — Date Correction (Oct 2 → Oct 6)
+> I made a mistake here, turns out, the night is on the 6th of october and not the second, review how we made this plan and update the plans and all the dates in the files
+
+**Result:** Reran the full pipeline for Oct 6 and renamed the dated files.
+The same 5 targets were scheduled. Twilight is 19:19 / 05:02 HST.
+
+---
+
+## Session 5: 2026-09-30 (UTC; HST 2026-09-29)
+
+Prompt numbers match `Night_plans/Keck-2026B-01/KECK_LRIS_2026OCT06_SUMMARY.md`.
+
+### Prompt 13 — Slew Review + Calendar Check
+> review our keck night plan and tell me how the slew times were calculated, also,  confirm if the start and end times match with this https://ucolick.org/calendar/keckcal2021-30/keck2026.18oct
+
+**Result:** Slews were flat constants: 3 min in the xlsx, 5 min in the
+scheduler. Twilight matches the UCO Keck calendar within 1 min.
+
+### Prompt 14 — Keck Slew Rule
+> for the mask overhead is included, but let's make the base slew time 5 min not 3, also, if we are moving from below +20 to above +20 in all Keck instrument, make it 20mins, add these for Keck and redo the plan
+
+**Result:** Added `scripts/keck_overheads.py`, with slews charged per
+transition, and `target_rejection_analysis.md`.
+
+### Prompt 15 — Where Is the Gap
+> Wait where is the Gap?
+
+**Result:** The gap is 22:37-01:09 HST (152 min) because the B-01 pool ran
+out of targets.
+
+### Prompt 16 — Global FFFF-PZ Pull
+> Try requesting targets again from FFFF-PZ global, check the .bashrc for url
+
+**Result:** Created **Keck-2026B-02** on global
+(`https://frb.chimenet.ca/f4pz/`) with 10 mask + 20 longslit and the Oct 6/7
+window. It returned 20 targets.
+
+### Prompt 17 — Existing Masks
+> Do we have the sme 5 masks still in? it will be very difficult to get a mask milled now
+
+**Result:** No. The new pool needed 2 new masks, so the dry-run was
+restricted to the existing masks.
+
+### Prompt 18 — New Mask vs Gap
+> Will the new mask fill up the Gap?
+
+**Result:** Only FRB20260603D reaches the gap, which it cuts from 104 to 39 min.
+
+### Prompt 19 — Remake Plan
+> I will try put it in the plan, increase all slew times that are 5 mins to 10, and add 5 more min buffer time for each mask, remake the plan
+
+**Result:** New plan in `Night_plans/Keck-2026B-02/`: 9 targets (4 MOS), 6.1 h
+on target plus 100 min of slews, 63% of dark time, 10 min idle. The
+repeater FRB20250408A is unscheduled.
+
+### Prompt 20 — Docs
+> update all docs
+
+**Result:** Updated the summaries, README, claudes_context/brain, this file,
+and the overview deck.
+
+---
+
 ## Key Lessons Learned
 
 1. **Don't reuse another site's target pool** — Lick targets are biased toward high Dec; Keck needs its own FFFF-PZ query
@@ -121,3 +186,6 @@ Prompts extracted from daily logs: 2026-09-09, 2026-09-10, 2026-09-11
 - **Target S/N:** 10 per pixel continuum, per single exposure
 - **Min exposures:** 3
 - **MOS times:** mag ≤23 → 1h, 23-24 → 1.5h, ≥24 → 2h
+- **MOS buffer:** +5 min per mask; only masks in `MOS_MASKS_AVAILABLE`
+- **Slews (all Keck):** 10 min base, 20 min Dec < +20 → Dec > +20
+- **Target pool:** Keck-2026B-02 (global FFFF-PZ), plan in `Night_plans/Keck-2026B-02/`
