@@ -18,6 +18,13 @@ Every angle has two tub settings 180 degrees apart, and which one is
 reachable depends on where the tub already sits, so both are always
 reported, as `pa.c` does.
 
+The zero point is confirmed against real data: Lick-2025B-3 frame r2046
+(FRB20250118B, 2025-10-24) records TUB 194.80 with HA -2:23:23 and Dec
++78:14:43, and inverting the table gives a slit axis of 43.85 deg
+against a parallactic angle of 42.54 deg at that instant -- agreement to
+1.3 deg, which is the precision of setting a tub by hand. calcint.c's
+table needs no offset.
+
 Created by JXP and Claude
 """
 

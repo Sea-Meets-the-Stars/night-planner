@@ -1464,3 +1464,41 @@ uninteresting ones -- log the reason at every skip point.
   blocks outside the night, exposures outside their own HA window, targets
   scheduled twice or missing from decisions. Keep DST dates and the
   manual-start/block variants in `DATES`.
+- **v0.54 — 2026-10-16 (UTC):** **The Shane tub zero point is confirmed
+  correct — v0.48's suspected 24.4 deg offset was wrong.** Lick-2025B-3 frame
+  `r2046.fits` (FRB20250118B, 2025-10-24) records TUB 194.80 together with HA
+  -2:23:23 and Dec +78:14:43. Inverting calcint.c gives slit axis 43.85 deg;
+  the parallactic angle at that instant is 42.54 deg. **Agreement to 1.3
+  deg.** `night_planner/lick_tub.py` needs no offset, and the note is now in
+  its docstring with the frame cited. Durable points:
+  (1) **A Kast header carries TUB, HA, DEC, AIRMASS, SLIT_N and the
+  gratings** -- enough to reconstruct exactly how any past frame was
+  observed. `scripts/tub_from_header.py` and `scripts/finder_from_frame.py`
+  do this; reach for them before trusting an anecdote about an angle.
+  (2) **Observed drift, measured not modelled:** on this target the tub was
+  set once per block and left. It matched parallactic to ~1 deg at the start
+  of the first block; by the end of the second, at Dec +78 near transit,
+  parallactic had moved to 8.6 deg while the tub still implied 44.3 -- **35.7
+  deg off**. High-Dec targets near transit rotate fastest; that is where
+  splitting a block actually pays.
+  (3) Both tub settings 180 deg apart are legitimate and observers do use the
+  far one: here they used 194.8, the "or" value our starlist prints, not 38.2.
+- **v0.55 — 2026-10-16 (UTC):** Drew a finder on a **burst** position by
+  mistake and the author spotted it by eye. Durable points:
+  (1) **The archived Lick-2026B-01/02 candidate files
+  (`ffffpz_candidates.csv`, `unassigned_targets_ra1-4h.csv`,
+  `candidates_ra1-4h_with_path.csv`, `extras_schedule.csv`) give the FRB
+  position in generically named `dec`/`Dec_deg` columns**, beside DM and
+  P_Ux. For FRB20250118B that is 5.9" from the host. Never read these with a
+  hand-rolled `pd.read_csv`; `targets_io.load_targets()` exists precisely to
+  refuse a burst position standing in for a host.
+  (2) **Verify a coordinate is on light before drawing a slit around it.**
+  `scripts/check_target_on_source.py` does it. DAOStarFinder is the wrong
+  tool -- it filters on roundness and rejects extended hosts; use smoothed
+  local maxima instead.
+  (3) The telescope pointing recorded in a Kast header is good evidence of
+  where the host is: here it was 0.34" from a 13-sigma source while the
+  catalogue row was 5.56" away. `finder_from_frame.py` now warns when a
+  supplied position differs from the pointing by more than the slit width.
+  (4) A geometry check and a position check are different questions. The
+  slit was centred on its given coordinate to 0.0000" the whole time.
