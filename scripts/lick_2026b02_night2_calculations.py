@@ -23,7 +23,7 @@ Night 1 (2026-09-14) results, per the author:
     precedent as FRB20260627D's forced-first override on night 1).
 
 Reuses the HA-window-first machinery from lick_2026b02_calculations.py
-(target_window computes each target's -5.0h<=HA<=+3.75h window, clipped to
+(target_window computes each target's -05:40<=HA<=+03:45 window, clipped to
 the twilight-bounded night, *before* scheduling -- see that module's
 docstring for why).
 """
@@ -40,7 +40,8 @@ from scripts.lick_2026b02_calculations import (
     HA_MAX, HA_MIN, DEC_LIMIT, find_twilight, target_window, ha_at, time_at_lst,
 )
 from night_planner.estimate_kast_exposures import estimate_exposure
-from schedule_overrides import resolve_start, fit_around_blocks, blocking_reason, push_past_blocks
+from schedule_overrides import (advance, resolve_start, fit_around_blocks,
+                                 blocking_reason, push_past_blocks)
 from night_plan_io import load_config, resolve_local_dt, resolve_blocks, save_night_meta, OBSERVATORY_TZ
 
 OUT_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-02'
@@ -71,7 +72,7 @@ SPARE_TARGETS = [
 # interesting, but it's rising right now. You can definitely get it in
 # twilight." Checked directly (see never_legal_diagnostic() below):
 # 2026sqf is circumpolar from Lick (Dec 53.51 > 90-lat 52.66) but the
-# Shane's HA mount limit is not a horizon limit -- its -5.0h<=HA<=+3.75h
+# Shane's HA mount limit is not a horizon limit -- its -05:40<=HA<=+03:45
 # window this specific night does not open until 07:03 PDT, 13 min AFTER
 # sunrise (06:50 PDT). Unlike FRB20260627D's forced-first override on
 # night 1 (a legal-but-short window, exposure truncated), this is not a
@@ -194,7 +195,7 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
                                               f"starts (start {start:%H:%M} >= "
                                               f"exit {window_close:%H:%M})"))
         else:
-            ideal_end = start + timedelta(minutes=dur_min)
+            ideal_end = advance(start, dur_min)
             end = min(ideal_end, window_close)
             got_min = (end - start).total_seconds() / 60.0
             reason = ('' if end >= ideal_end else
@@ -204,7 +205,7 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
             schedule.append(dict(row, scheduled=True, start_pst=start, end_pst=end,
                                   duration_min=got_min, red_side=red, blue_side=blue,
                                   skip_reason=reason))
-            current_time = end + timedelta(minutes=SLEW_MINUTES)
+            current_time = advance(end, SLEW_MINUTES)
 
     observable = observable.sort_values('exit_pst').reset_index(drop=True)
     for _, row in observable.iterrows():
@@ -239,7 +240,7 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
         schedule.append(dict(row, scheduled=True, start_pst=start, end_pst=end,
                               duration_min=dur_min, red_side=red, blue_side=blue,
                               skip_reason=''))
-        current_time = end + timedelta(minutes=SLEW_MINUTES)
+        current_time = advance(end, SLEW_MINUTES)
 
     return pd.DataFrame(schedule), current_time
 
@@ -261,7 +262,7 @@ def never_legal_diagnostic(name, ra_hours, twilight):
     entry_time = time_at_lst(lst_entry, twilight['evening_lst'].hour, twilight['evening_pst'])
     exit_time = time_at_lst(lst_exit, twilight['evening_lst'].hour, twilight['evening_pst'])
 
-    print(f"  {name}: Shane HA window (-5.0h..+3.75h) would run "
+    print(f"  {name}: Shane HA window ({HA_MIN:+.2f}h..{HA_MAX:+.2f}h) would run "
           f"{entry_time:%m-%d %H:%M} -> {exit_time:%m-%d %H:%M} {exit_time.tzname()} "
           f"(sunset {sunset:%H:%M}, sunrise {sunrise:%H:%M} {sunrise.tzname()}) -- "
           f"{'overlaps' if entry_time < sunrise and exit_time > sunset else 'does NOT overlap'} "
@@ -369,7 +370,7 @@ def run(args):
     for _, row in frb_scheduled_sorted.iterrows():
         if (row['start_pst'] - cursor).total_seconds() > 0:
             gaps.append((cursor, row['start_pst']))
-        cursor = row['end_pst'] + timedelta(minutes=SLEW_MINUTES)
+        cursor = advance(row['end_pst'], SLEW_MINUTES)
     if (twilight['morning_pst'] - cursor).total_seconds() > 0:
         gaps.append((cursor, twilight['morning_pst']))
 

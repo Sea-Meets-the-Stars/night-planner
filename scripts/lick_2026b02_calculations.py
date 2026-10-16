@@ -7,7 +7,7 @@ Created by JXP and Claude
 Shane 3m pointing limits (corrected; see Lick-2026B-01's
 HOWTO_night_plan_creation.md "Critical Corrections Made"):
     Dec <= +82 deg
-    -5.0h <= HA <= +3.75h   (HA = LST - RA, wrapped to +-12h)
+    -05:40 <= HA <= +03:45   (HA = LST - RA, wrapped to +-12h)
     NO RA limit -- observable RA depends on LST, which shifts with date.
 
 Unlike the original 2026B-01 pipeline (which picked a fixed observing
@@ -26,6 +26,10 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
+
+# Real-elapsed-time arithmetic, so a DST transition inside a night
+# cannot make the schedule run backwards.
+from schedule_overrides import advance
 from astropy import units as u
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, get_sun
 from astropy.time import Time
@@ -49,8 +53,13 @@ LICK = EarthLocation(lat=37.3414 * u.deg, lon=-121.6429 * u.deg, height=1283 * u
 # imports the constant itself (only the functions using it).
 PST = ZoneInfo('America/Los_Angeles')
 
-HA_MIN = -5.0
-HA_MAX = 3.75
+# Shane pointing limits. East is -05:40 and west +03:45, as the Lick
+# control system states them; the mount is asymmetric, which is why the
+# two differ. The east limit was -5.0 here until 2026-10-14, when the
+# author adopted the published -05:40 -- worth 40 minutes of extra
+# window on every target that rises into the night.
+HA_MIN = -(5 + 40 / 60)      # -05:40
+HA_MAX = 3 + 45 / 60         # +03:45
 DEC_LIMIT = 82.0
 
 SLEW_MINUTES = 5
@@ -64,36 +73,48 @@ def calculate_lst(utc_time, location=LICK):
 
 
 def find_twilight(date_str, twilight_alt=-18 * u.deg):
-    """Find evening/morning 18-degree twilight for a local PST date."""
+    """Find evening/morning 18-degree twilight for a local PST date.
+
+    Scans the whole 24 hours from local noon in one vectorised pass. The
+    previous version stepped 1 minute at a time with a 600-iteration cap,
+    which could only reach 22:00 -- so every date from late May to early
+    August, when 18-degree twilight falls later than that, raised
+    "Could not find evening twilight" and no summer night could be
+    planned at all.
+
+    Parameters
+    ----------
+    date_str : str
+        Local date, YYYY-MM-DD. The night runs from this evening.
+    twilight_alt : Quantity
+        Sun altitude defining twilight; -18 deg for astronomical.
+
+    Returns
+    -------
+    dict with evening/morning in PST, UTC and LST.
+    """
     local_date = datetime.strptime(date_str, '%Y-%m-%d')
     noon_pst = datetime(local_date.year, local_date.month, local_date.day,
                          12, 0, 0, tzinfo=PST)
 
-    search_time = noon_pst
-    evening_pst = None
-    for _ in range(600):
-        utc_time = search_time.astimezone(timezone.utc)
-        sun_altaz = get_sun(Time(utc_time)).transform_to(
-            AltAz(obstime=Time(utc_time), location=LICK))
-        if sun_altaz.alt < twilight_alt:
-            evening_pst = search_time
-            break
-        search_time += timedelta(minutes=1)
-    if evening_pst is None:
-        raise ValueError(f'Could not find evening twilight for {date_str}')
+    minutes = np.arange(0, 24 * 60 + 1)
+    times = [advance(noon_pst, int(m)) for m in minutes]
+    obstime = Time([t.astimezone(timezone.utc) for t in times])
+    alt = get_sun(obstime).transform_to(
+        AltAz(obstime=obstime, location=LICK)).alt
 
-    search_time = evening_pst + timedelta(hours=6)
-    morning_pst = None
-    for _ in range(600):
-        utc_time = search_time.astimezone(timezone.utc)
-        sun_altaz = get_sun(Time(utc_time)).transform_to(
-            AltAz(obstime=Time(utc_time), location=LICK))
-        if sun_altaz.alt > twilight_alt:
-            morning_pst = search_time
-            break
-        search_time += timedelta(minutes=1)
-    if morning_pst is None:
+    dark = alt < twilight_alt
+    if not dark.any():
+        raise ValueError(f'The sun never reaches {twilight_alt} on {date_str} '
+                         f'at Lick -- no astronomical night')
+
+    first_dark = int(np.argmax(dark))
+    after = np.where(~dark[first_dark:])[0]
+    if not len(after):
         raise ValueError(f'Could not find morning twilight for {date_str}')
+
+    evening_pst = times[first_dark]
+    morning_pst = times[first_dark + int(after[0])]
 
     evening_utc = evening_pst.astimezone(timezone.utc)
     morning_utc = morning_pst.astimezone(timezone.utc)
@@ -135,16 +156,16 @@ def time_at_lst(lst_target_hours, lst_ref_hours, time_ref):
     while dlst < 0:
         dlst += 24
     dt_hours = dlst * 0.9972696  # sidereal -> solar hours
-    return time_ref + timedelta(hours=dt_hours)
+    return advance(time_ref, dt_hours * 60.0)
 
 
 def target_window(ra_hours, dec_deg, twilight):
     """Compute the [entry, exit] PST window during which a target satisfies
-    -5.0h <= HA <= +3.75h, clipped to the twilight-bounded night.
+    -05:40 <= HA <= +03:45, clipped to the twilight-bounded night.
 
     Returns None if the target never satisfies the HA window during the
-    night (e.g. Dec > 82, or HA is already > +3.75 at evening twilight and
-    only increases further, or HA never reaches -5h before dawn).
+    night (e.g. Dec > 82, or the night ends before HA reaches -5h, or HA
+    passes +3.75 before the night starts).
     """
     if dec_deg > DEC_LIMIT:
         return None
@@ -159,14 +180,21 @@ def target_window(ra_hours, dec_deg, twilight):
     while ha_morn < ha_eve:
         ha_morn += 24
 
-    # Window (in HA-space) is [-5, +3.75]; find overlap with [ha_eve, ha_morn]
-    if ha_morn < HA_MIN or ha_eve > HA_MAX:
-        return None  # no overlap at all
-
-    ha_entry = max(ha_eve, HA_MIN)
-    ha_exit = min(ha_morn, HA_MAX)
-    if ha_entry >= ha_exit:
+    # The HA window repeats every 24h, and a night can straddle the wrap.
+    # A target already 10.5h past the meridian at dusk is the same target
+    # rising back into HA -5 before dawn, and testing only the k=0 copy of
+    # [HA_MIN, HA_MAX] calls that "never HA-legal" -- silently dropping
+    # every late riser. The night is shorter than 24h minus the window, so
+    # at most one copy can overlap; the widest is simply the safe pick.
+    best = None
+    for k in (-1, 0, 1):
+        entry = max(ha_eve, HA_MIN + 24 * k)
+        exit_ = min(ha_morn, HA_MAX + 24 * k)
+        if entry < exit_ and (best is None or exit_ - entry > best[1] - best[0]):
+            best = (entry, exit_, k)
+    if best is None:
         return None
+    ha_entry, ha_exit, wrap = best
 
     if ha_entry == ha_eve:
         entry_time = twilight['evening_pst']
@@ -180,7 +208,8 @@ def target_window(ra_hours, dec_deg, twilight):
         lst_exit = lst_for_ha(ra_hours, ha_exit)
         exit_time = time_at_lst(lst_exit, eve_lst, twilight['evening_pst'])
 
-    return entry_time, exit_time, ha_entry, ha_exit
+    # Report HA in the conventional +-12h frame, not the unwrapped one.
+    return entry_time, exit_time, ha_entry - 24 * wrap, ha_exit - 24 * wrap
 
 
 def analyze_targets(targets_csv, date_str):

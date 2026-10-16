@@ -17,6 +17,7 @@ Created by JXP and Claude
 
 import contextlib
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -33,13 +34,17 @@ from pydantic import BaseModel
 from night_planner.cli import INSTRUMENTS, generate_plan
 from night_planner.plan_store import load_plan
 from night_planner.targets_io import (
-    TargetTableError, detect_mapping, load_targets,
+    TargetTableError, detect_format, detect_mapping, load_targets,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = REPO_ROOT / 'frontend'
 PLANS_ROOT = REPO_ROOT / 'Night_plans'
 UPLOAD_DIR = Path(tempfile.gettempdir()) / 'night-planner-uploads'
+
+# Rows returned by /api/targets/inspect. Generous enough that a normal
+# target table is shown in full; anything beyond is reported as a count.
+PREVIEW_LIMIT = 500
 
 app = FastAPI(title='night-planner')
 
@@ -65,6 +70,27 @@ def _safe_dir(output_dir):
     if not path.is_dir():
         raise HTTPException(404, f'no such plan directory: {path}')
     return path
+
+
+def _plan_targets_csv(plan):
+    """
+    The target table a saved plan was generated from, if recoverable.
+
+    The finder reads the PATH secondary candidates out of it, so this is
+    best-effort: a plan whose inputs predate `request` simply gets charts
+    without a secondary marked, which is what it had before.
+    """
+    argv = (plan.request or {}).get('argv') or []
+    for flag, value in zip(argv, argv[1:]):
+        if flag == '--targets-csv':
+            return value
+        if flag == '--config':
+            try:
+                with open(value) as f:
+                    return json.load(f).get('targets_csv')
+            except Exception:
+                return None
+    return None
 
 
 def _require_plan(output_dir):
@@ -131,19 +157,29 @@ def inspect_targets(file: UploadFile = File(None), path: str = Query(None)):
     import pandas as pd
     frame = pd.read_csv(source)
     mapping = detect_mapping(frame)
+    # Decided once, here, rather than guessed per row later: whether a
+    # two-candidate slit is even meaningful is a property of where the
+    # table came from.
+    source_format = detect_format(frame)
 
-    preview = []
+    # Show the whole table, not a head(). A truncated preview with no
+    # indication it was truncated reads as "my rows are missing" -- which
+    # is exactly how appended targets at the bottom get reported as lost.
+    preview, truncated = [], 0
     if mapping.ok:
         try:
             canonical = load_targets(frame, mapping=mapping)
-            preview = canonical[['name', 'ra_deg', 'dec_deg', 'mag']].head(10) \
-                .to_dict('records')
+            columns = ['name', 'ra_deg', 'dec_deg', 'mag']
+            preview = canonical[columns].head(PREVIEW_LIMIT).to_dict('records')
+            truncated = max(len(canonical) - PREVIEW_LIMIT, 0)
         except TargetTableError as err:
             mapping.issues.append(str(err))
 
     return {'path': source, 'n_rows': len(frame),
             'columns': list(frame.columns),
-            'mapping': mapping.to_dict(), 'preview': preview}
+            'source_format': source_format,
+            'mapping': mapping.to_dict(), 'preview': preview,
+            'preview_truncated': truncated}
 
 
 # --------------------------------------------------------------------
@@ -316,6 +352,9 @@ def airmass(output_dir: str, target: str, step_min: int = 5):
     Computed on demand rather than stored: it's a dense curve that would
     bloat every plan file, and it's cheap to recompute for one target.
     """
+    from night_planner.adapters import SITES
+    from night_planner.sky import night_grid, track
+
     plan = _require_plan(output_dir)
     match = [t for t in plan.schedule if t.name == target]
     decision = [d for d in plan.decisions if d.name == target]
@@ -326,21 +365,15 @@ def airmass(output_dir: str, target: str, step_min: int = 5):
     else:
         raise HTTPException(404, f'{target} is not in this plan')
 
-    from night_planner.cli import _load_module
-    calc = _load_module(INSTRUMENTS[plan.instrument]['calc'])
+    location = SITES[plan.instrument]['location']
+    times = night_grid(plan.sun.sunset, plan.sun.sunrise, step_min)
+    curve = track(ra_deg, dec_deg, times, location)
 
-    points, time = [], plan.sun.sunset
-    while time <= plan.sun.sunrise:
-        am, alt, az, ha = calc.calculate_airmass(
-            ra_deg, dec_deg, time.astimezone(__import__('datetime').timezone.utc))
-        # calculate_airmass() returns a 99.9 sentinel below the horizon.
-        # Emit null instead so a chart draws a gap rather than a spike.
-        points.append({'time': time.isoformat(),
-                       'airmass': round(am, 3) if alt > 0 else None,
-                       'alt': round(alt, 2), 'az': round(az, 2),
-                       'ha': round(ha, 3)})
-        time += timedelta(minutes=step_min)
-
+    points = [{'time': t.isoformat(), 'airmass': a, 'alt': alt, 'az': az,
+               'ha': ha}
+              for t, a, alt, az, ha in zip(times, curve['airmass'],
+                                            curve['alt'], curve['az'],
+                                            curve['ha'])]
     scheduled = ({'start': match[0].science_start.isoformat(),
                   'end': match[0].end.isoformat()} if match else None)
     return {'target': target, 'ra_deg': ra_deg, 'dec_deg': dec_deg,
@@ -348,28 +381,101 @@ def airmass(output_dir: str, target: str, step_min: int = 5):
             'sun': plan.sun.to_dict()}
 
 
+@app.get('/api/airmass/all')
+def airmass_all(output_dir: str, step_min: int = 5, include_rejected: bool = False):
+    """
+    Every target's airmass across the night, plus the moon and LST.
+
+    One call rather than one per target: the night chart draws all of
+    them together, and the sample grid, sidereal times and moon are
+    shared, so computing them once is both faster and guarantees every
+    curve lands on the same x values.
+
+    `observable` marks the samples a target is actually pointable for,
+    which is what lets the chart draw the reachable part of a curve
+    differently from the rest.
+    """
+    from night_planner.adapters import SITES
+    from night_planner.sky import lst_hours, moon_track, night_grid, track
+
+    plan = _require_plan(output_dir)
+    site = SITES[plan.instrument]
+    location = site['location']
+
+    times = night_grid(plan.sun.sunset, plan.sun.sunrise, step_min)
+    sidereal = lst_hours(times, location)
+
+    scheduled = {t.name: t for t in plan.schedule}
+    wanted = list(plan.schedule)
+    if include_rejected:
+        wanted += [d for d in plan.decisions
+                   if d.status == 'rejected' and d.ra_deg is not None
+                   and d.name not in scheduled]
+
+    targets = []
+    for item in wanted:
+        curve = track(item.ra_deg, item.dec_deg, times, location, lst=sidereal)
+        block = scheduled.get(item.name)
+        targets.append({
+            'name': item.name,
+            'ra_deg': item.ra_deg, 'dec_deg': item.dec_deg,
+            'mag': item.mag,
+            'scheduled': ({'start': block.science_start.isoformat(),
+                           'end': block.end.isoformat()} if block else None),
+            'airmass': curve['airmass'],
+            'ha': curve['ha'],
+        })
+
+    return {
+        'output_dir': plan.output_dir,
+        'telescope': plan.telescope,
+        'date': plan.date,
+        'times': [t.isoformat() for t in times],
+        'lst': [round(float(h), 4) for h in sidereal],
+        'sun': plan.sun.to_dict(),
+        'moon': moon_track(times, location),
+        'targets': targets,
+    }
+
+
 # --------------------------------------------------------------------
 # Files: finders, starlist, export
 # --------------------------------------------------------------------
 
 @app.get('/api/image')
-def image(output_dir: str, name: str):
-    """Serve a finder chart from the plan's finders/ directory."""
+def image(output_dir: str, name: str, v: str = None):
+    """
+    Serve a finder chart from the plan's finders/ directory.
+
+    `v` is ignored here and carries the file's modification time, set by
+    the caller. Without it the URL of a regenerated chart is unchanged,
+    so a browser holding the cached copy shows yesterday's slit next to
+    today's report -- which is how a parallactic chart ends up sitting
+    under a line claiming it was drawn through both candidates.
+    """
     base = _safe_dir(output_dir) / 'finders'
     path = (base / name).resolve()
     if not path.is_relative_to(base.resolve()) or not path.is_file():
         raise HTTPException(404, f'no such finder: {name}')
+    # Safe to cache hard, because the URL changes whenever the file does.
     return FileResponse(path, media_type='image/png',
-                        headers={'Cache-Control': 'public, max-age=86400'})
+                        headers={'Cache-Control':
+                                 'public, max-age=86400, immutable'})
 
 
 @app.get('/api/finders')
 def finders(output_dir: str):
-    """List the finder charts available for a plan."""
+    """
+    List the finder charts available for a plan.
+
+    Each entry carries the file's modification time so the viewer can
+    version the image URL and never show a stale chart.
+    """
     base = _safe_dir(output_dir) / 'finders'
     if not base.is_dir():
         return []
-    return sorted(p.name for p in base.glob('*.png'))
+    return [{'name': p.name, 'mtime': int(p.stat().st_mtime)}
+            for p in sorted(base.glob('*.png'))]
 
 
 @app.get('/api/starlist', response_class=PlainTextResponse)
@@ -397,8 +503,7 @@ def starlist(output_dir: str, name: str = None):
 class FinderRequest(BaseModel):
     output_dir: str
     targets: list = []            # empty = every scheduled target
-    use_ffffpz: bool = False      # fit the slit through two host candidates
-    resource: Optional[str] = None  # FFFF-PZ Resource name, for that path
+    slit_mode: str = 'parallactic'  # or 'candidates': both hosts on the slit
     overwrite: bool = False
 
 
@@ -407,17 +512,19 @@ def generate_finders(req: FinderRequest):
     """
     Build finder charts for a plan's targets.
 
-    Default path is self-contained: an image cutout, an offset star from
-    Gaia, and the slit drawn at the target's own dispersion-weighted
-    parallactic angle. Nothing is asked of FFFF-PZ, because for an
-    arbitrary target table the given coordinates are the target.
+    Two slit angles to choose between. 'parallactic' is the default and
+    needs nothing but the coordinates. 'candidates' lays the slit through
+    the two PATH candidates, which only exists for targets that came from
+    FFFF-PZ -- the second candidate is read from the plan's own target
+    table, so nothing is fetched and no Resource has to be live.
 
-    With use_ffffpz the chart comes from chime_ffff_pz_finder instead,
-    which fits the slit through the two best host candidates -- the right
-    choice when both are worth catching in one slit.
+    Any target without a second candidate falls back to parallactic and
+    is named in the report. That is the one outcome worth being loud
+    about: silently returning a parallactic slit to someone who asked for
+    both candidates means they set an angle they did not choose.
     """
     from night_planner.adapters import SITES
-    from night_planner.finder import generate_for_plan
+    from night_planner.finder import generate_for_plan, slit_report
 
     base = _safe_dir(req.output_dir)
     plan = _require_plan(req.output_dir)
@@ -425,58 +532,78 @@ def generate_finders(req: FinderRequest):
     if site is None:
         raise HTTPException(400, f'no site known for {plan.instrument}')
 
+    if req.slit_mode not in ('parallactic', 'candidates'):
+        raise HTTPException(400, f'slit_mode must be parallactic or '
+                                 f'candidates, not {req.slit_mode}')
+
     finder_dir = base / 'finders'
+    targets_csv = _plan_targets_csv(plan)
+    if req.slit_mode == 'candidates' and not targets_csv:
+        raise HTTPException(
+            400, 'this plan does not record the table it came from, so the '
+                 'second candidate cannot be read -- regenerate the plan '
+                 'from Setup, or use the parallactic slit')
 
-    if req.use_ffffpz:
-        return _ffffpz_finders(req, plan, finder_dir)
+    key = str(finder_dir)
 
-    results = generate_for_plan(plan, site['location'], finder_dir,
-                                 targets=req.targets or None,
-                                 overwrite=req.overwrite)
-    return {'mode': 'parallactic', 'finder_dir': str(finder_dir),
+    def note(done, total, name):
+        _FINDER_PROGRESS[key] = {'done': done, 'total': total,
+                                 'current': name,
+                                 'running': name is not None}
+
+    try:
+        results = generate_for_plan(
+            plan, site['location'], finder_dir,
+            targets=req.targets or None, overwrite=req.overwrite,
+            slit_length_arcmin=site.get('slit_length_arcmin', 2.9),
+            slit_width_arcsec=site.get('slit_width_arcsec', 1.0),
+            targets_csv=targets_csv, slit_mode=req.slit_mode,
+            rotator=site.get('rotator'), progress=note)
+    finally:
+        # A crash must not leave the viewer polling a bar that never ends.
+        _FINDER_PROGRESS.pop(key, None)
+
+    report = slit_report(results, req.slit_mode)
+    _write_slit_report(finder_dir, plan, report)
+    return {'mode': req.slit_mode, 'finder_dir': str(finder_dir),
+            'fell_back': report['fell_back'], 'report': report,
             'results': results}
 
 
-def _ffffpz_finders(req, plan, finder_dir):
+# Live progress for a running finder generation, keyed by finders dir.
+# A chart takes seconds (an image fetch plus a Gaia query), so a run of
+# ten is long enough that a spinner alone tells the observer nothing.
+# The endpoint is a plain `def`, so FastAPI runs it in a worker thread
+# and the poll below is served while it works.
+_FINDER_PROGRESS = {}
+
+
+@app.get('/api/finders/progress')
+def finders_progress(output_dir: str):
+    """How far a running finder generation has got, if one is running."""
+    key = str(_safe_dir(output_dir) / 'finders')
+    return _FINDER_PROGRESS.get(key, {'running': False})
+
+
+def _write_slit_report(finder_dir, plan, report):
     """
-    Run chime_ffff_pz_finder for each target and collect its output.
+    Save the slit report beside the charts.
 
-    That CLI lives in another environment and talks to the FFFF-PZ server,
-    so it is run as a subprocess rather than imported.
+    Written to disk as well as returned because it is the record of what
+    angle each chart was drawn at, and that question comes up again days
+    later when a spectrum looks wrong.
     """
-    import subprocess
-
-    frb_python = Path('/home/lordrick/miniconda3/envs/frb_env/bin/'
-                      'chime_ffff_pz_finder')
-    if not frb_python.exists():
-        raise HTTPException(503, f'chime_ffff_pz_finder not found at {frb_python}')
-    resource = req.resource or Path(plan.output_dir).name
-    obs_dir = Path('/home/lordrick/Projects/chime-ffff-pz/chime_ffff_pz/data/'
-                   'Observing') / resource
-    if not obs_dir.is_dir():
-        raise HTTPException(400, f'no FFFF-PZ Observing directory for '
-                                 f'{resource} at {obs_dir}')
-
-    env = {**os.environ, 'FFFF_PZ_URL': os.environ.get(
-        'FFFF_PZ_GLOBAL_URL', 'https://frb.chimenet.ca/f4pz/')}
-    names = req.targets or [t.name for t in plan.schedule]
-    results = []
-    for name in names:
-        proc = subprocess.run([str(frb_python), name, resource],
-                               cwd=str(obs_dir), env=env,
-                               capture_output=True, text=True, timeout=300)
-        entry = {'name': name, 'returncode': proc.returncode}
-        if proc.returncode != 0:
-            entry['error'] = (proc.stderr.strip().splitlines() or ['failed'])[-1]
-        else:
-            finder_dir.mkdir(parents=True, exist_ok=True)
-            for suffix in ('png', 'json'):
-                src = obs_dir / f'{name}_finder.{suffix}'
-                if src.exists():
-                    shutil.copy(src, finder_dir / src.name)
-            entry['png'] = str(finder_dir / f'{name}_finder.png')
-        results.append(entry)
-    return {'mode': 'ffffpz', 'finder_dir': str(finder_dir), 'results': results}
+    path = Path(finder_dir) / 'slit_report.txt'
+    header = [f'Slit angles for {plan.date} ({Path(plan.output_dir).name})',
+              f'Requested: {report["requested"]}',
+              'Created by JXP and Claude -- night-planner', '']
+    if report['fell_back']:
+        header += [f'Fell back to parallactic (not from FFFF-PZ): '
+                   f'{", ".join(report["fell_back"])}', '']
+    try:
+        path.write_text('\n'.join(header + report['lines']) + '\n')
+    except OSError:
+        pass        # the report is a convenience; never fail a render for it
 
 
 class StarlistRequest(BaseModel):
@@ -531,7 +658,8 @@ def generate_starlist(req: StarlistRequest):
     text, notes = build_starlist(
         plan, include_standards=req.include_standards,
         location=site['location'], library=library,
-        finder_dir=base / 'finders', max_airmass=req.max_airmass)
+        finder_dir=base / 'finders', max_airmass=req.max_airmass,
+        style=site.get('starlist_style', 'keck'))
 
     name = req.filename or f'{base.name}_generated.starlist'
     path = (base / name).resolve()

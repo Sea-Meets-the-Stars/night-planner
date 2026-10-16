@@ -125,15 +125,25 @@
   <h1>Finder charts</h1>
   <section class="card">
     <h2>Generate</h2>
-    <p class="hint">By default the slit is drawn at this target's own
-      dispersion-weighted parallactic angle over its scheduled exposure, and the
-      offset star comes from Gaia &mdash; no FFFF&#8209;PZ needed, so this works
-      for any target table.</p>
-    <label class="check">
-      <input type="checkbox" id="fd-ffffpz">
-      <span>Use FFFF&#8209;PZ instead (fit the slit through the two host candidates)
-        <span class="hint">needs the target to exist in an FFFF&#8209;PZ Resource</span></span>
-    </label>
+    <p class="hint">The offset star comes from Gaia and the image from
+      Pan&#8209;STARRS &mdash; no FFFF&#8209;PZ needed, so this works for any
+      target table.</p>
+    <fieldset class="slit-mode">
+      <legend>Slit angle</legend>
+      <label class="check">
+        <input type="radio" name="fd-slit" value="parallactic" checked>
+        <span>Parallactic
+          <span class="hint">dispersion-weighted over each target's own
+            exposure &mdash; loses the least blue light</span></span>
+      </label>
+      <label class="check">
+        <input type="radio" name="fd-slit" value="candidates">
+        <span>Through both PATH candidates
+          <span class="hint">needs FFFF&#8209;PZ targets &mdash; anything
+            without a second candidate falls back to parallactic and is
+            listed in the report</span></span>
+      </label>
+    </fieldset>
     <label class="check">
       <input type="checkbox" id="fd-overwrite">
       <span>Re-render charts that already exist</span>
@@ -142,7 +152,12 @@
       <button type="button" class="primary" id="fd-generate">Generate finders</button>
       <span id="fd-status" class="hint"></span>
     </div>
+    <div id="fd-progress" hidden>
+      <progress id="fd-bar" max="1" value="0"></progress>
+      <span id="fd-progress-text" class="hint"></span>
+    </div>
     <div id="fd-notes"></div>
+    <div id="fd-report"></div>
   </section>
   <div id="finder-grid" class="finders"></div>
 </template>
@@ -170,6 +185,26 @@
   <pre id="starlist-text" class="starlist"></pre>
 </template>
 
+<template id="tpl-nightchart">
+  <h1>Night chart</h1>
+  <p class="hint">Every scheduled target across the night. The faint dashed
+    curve is the whole track; the thick segment is when it is actually being
+    observed. Low airmass is at the top.</p>
+  <div class="row">
+    <label class="check">
+      <input type="checkbox" id="nc-rejected">
+      <span>Also draw rejected targets
+        <span class="hint">what you turned down, and when it was up</span></span>
+    </label>
+    <label class="check">
+      <input type="checkbox" id="nc-moon" checked>
+      <span>Moon</span>
+    </label>
+  </div>
+  <div id="nightchart-plot"></div>
+  <div id="nightchart-note" class="hint"></div>
+</template>
+
 <template id="tpl-airmass">
   <h1>Airmass through the night</h1>
   <div class="row">
@@ -178,6 +213,18 @@
   <div id="airmass-plot"></div>
   <div id="airmass-note" class="hint"></div>
 </template>
+
+<!-- Full-size finder viewer. Lives outside #view so it survives a route
+     change, and starts hidden until a chart is clicked. -->
+<div id="lightbox" hidden>
+  <button type="button" id="lb-close" aria-label="Close">&times;</button>
+  <button type="button" id="lb-prev" aria-label="Previous">&#8249;</button>
+  <button type="button" id="lb-next" aria-label="Next">&#8250;</button>
+  <figure>
+    <img id="lb-img" alt="">
+    <figcaption id="lb-caption"></figcaption>
+  </figure>
+</div>
 
 <script src="app.js"></script>
 </body>

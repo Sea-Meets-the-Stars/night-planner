@@ -15,7 +15,7 @@
   --forced: #b45309;
   --slew: #94a3b8;
   --overhead: #0d9488;
-  --idle: #e2e8f0;
+  --idle: #f59e0b;        /* idle is drawn hatched, see .seg.idle-hover */
   --blocked: #dc2626;
   --twilight: #1e293b;
 }
@@ -110,7 +110,7 @@ tr.rejected td { color: var(--muted); }
 #timeline { background: var(--card); border: 1px solid var(--line);
             border-radius: 8px; padding: 1.25rem 1.25rem 1.6rem; margin-bottom: 0.75rem; }
 .track { position: relative; height: 54px; margin: 1.6rem 0 1.2rem;
-         background: var(--idle); border-radius: 4px; }
+         background: #eef2f7; border-radius: 4px; }
 .seg { position: absolute; top: 0; bottom: 0; border-radius: 3px;
        overflow: hidden; color: #fff; font-size: 0.7rem; line-height: 54px;
        padding-left: 0.3rem; white-space: nowrap; }
@@ -177,7 +177,16 @@ pre.starlist { background: var(--card); border: 1px solid var(--line); border-ra
 
 /* Idle stretches carry no fill of their own -- the track shows through --
    but still need to be hoverable. */
-.seg.idle-hover { background: transparent; }
+/* Idle reads as hatched orange: unmistakably "nobody is using this time",
+   without the solid fill that would make it compete with real targets. */
+.seg.idle-hover, .legend i.idle {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(245, 158, 11, 0.30) 0 6px,
+    rgba(245, 158, 11, 0.07) 6px 12px);
+  border: 1px solid rgba(245, 158, 11, 0.55);
+}
+.legend i.idle { background-size: 6px 6px; }
 
 label.check { display: flex; gap: 0.5rem; align-items: flex-start;
               font-weight: 600; font-size: 0.9rem; margin: 0.9rem 0; }
@@ -199,3 +208,113 @@ label.check .hint { display: block; font-weight: 400; margin-top: 0.15rem; }
 #rescue-mins { width: 6rem; min-width: 0; margin-top: 0; }
 #rescue-chosen:empty { display: none; }
 #rescue-chosen { margin: 0.75rem 0; }
+
+/* Target preview: show the whole table, scrolled rather than silently cut. */
+.preview-scroll { max-height: 22rem; overflow-y: auto; border: 1px solid var(--line);
+                  border-radius: 8px; margin-top: 0.5rem; }
+.preview-scroll table.data { border: none; border-radius: 0; }
+.preview-scroll table.data th { position: sticky; top: 0; z-index: 1; }
+
+/* Slit-angle choice on the finder page: a real fork in what gets drawn,
+   so it reads as a group rather than two loose checkboxes. */
+.slit-mode {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem 0.3rem;
+  margin: 0.6rem 0;
+}
+
+.slit-mode legend {
+  padding: 0 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Finder lightbox: a chart is useless at 260px -- the slit, the offset
+   star and the zoom inset all need the full frame. Clicking a thumbnail
+   opens it as large as the window allows. */
+.finders figure { cursor: zoom-in; transition: border-color 0.12s; }
+.finders figure:hover { border-color: var(--accent); }
+
+#lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 16, 26, 0.88);
+}
+
+#lightbox[hidden] { display: none; }
+
+#lightbox figure {
+  margin: 0;
+  max-width: 94vw;
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#lb-img {
+  max-width: 94vw;
+  /* Leave room for the caption so a tall chart is never cropped. */
+  max-height: calc(94vh - 2.4rem);
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+}
+
+#lb-caption {
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  margin-top: 0.6rem;
+  text-align: center;
+  /* The backdrop is translucent, so the caption needs its own ground to
+     sit on or it reads against whatever thumbnail is behind it. */
+  background: rgba(10, 16, 26, 0.75);
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+}
+
+#lightbox button {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  line-height: 1;
+}
+
+#lightbox button:hover { background: rgba(255, 255, 255, 0.26); }
+
+#lb-close { top: 1rem; right: 1.2rem; width: 2.2rem; height: 2.2rem;
+            font-size: 1.5rem; }
+#lb-prev, #lb-next { top: 50%; transform: translateY(-50%);
+                     width: 2.8rem; height: 2.8rem; font-size: 2rem; }
+#lb-prev { left: 1.2rem; }
+#lb-next { right: 1.2rem; }
+
+@media (max-width: 600px) {
+  #lb-prev, #lb-next { width: 2.2rem; height: 2.2rem; font-size: 1.5rem; }
+}
+
+/* Slit report: which angle each finder was actually drawn at. */
+table.slit-report { border-collapse: collapse; margin-top: 0.6rem;
+                    font-size: 0.82rem; width: 100%; }
+table.slit-report th, table.slit-report td {
+  text-align: left; padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--line); }
+table.slit-report th { color: var(--muted); font-weight: 600; }
+/* A target that did not get what was asked for should catch the eye. */
+table.slit-report tr.fallback td { background: #fff7ed; }
+
+/* Finder generation is slow enough (an image fetch and a catalogue query
+   per chart) that the observer needs to see it moving, not just a
+   disabled button. */
+#fd-progress { display: flex; align-items: center; gap: 0.7rem;
+               margin-top: 0.6rem; }
+#fd-progress[hidden] { display: none; }
+#fd-bar { flex: 0 0 18rem; height: 0.6rem; }

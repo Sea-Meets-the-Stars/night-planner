@@ -23,11 +23,62 @@ from astropy.coordinates import SkyCoord
 from astropy.time import Time
 
 
+def parallactic_angle_from_ha(ha_hours, dec_deg, lat_deg):
+    """
+    Parallactic angle from hour angle, in degrees.
+
+    q = atan2( sin(HA), tan(lat) cos(dec) - sin(dec) cos(HA) )
+
+    The four-quadrant form is deliberate. Lick's own tool (Burrous 1990,
+    `helpful_scripts/pa.c`) uses asin(sin HA cos lat / cos alt), which
+    cannot separate the two solutions and so needs a patch for targets
+    north of the latitude, where the zenith lies south and q is near 180
+    rather than near 0. atan2 gets that right without the special case;
+    scripts/lick_cass_tub.py checks the two against each other.
+
+    Parameters
+    ----------
+    ha_hours : float
+        Hour angle, hours, negative east of the meridian.
+    dec_deg, lat_deg : float
+
+    Returns
+    -------
+    float : degrees, wrapped to [0, 180) -- a slit has no head or tail, so
+    an angle and its opposite describe the same orientation.
+    """
+    ha = np.radians(ha_hours * 15.0)
+    dec = np.radians(dec_deg)
+    lat = np.radians(lat_deg)
+
+    q = np.degrees(np.arctan2(
+        np.sin(ha),
+        np.tan(lat) * np.cos(dec) - np.sin(dec) * np.cos(ha)))
+    return q % 180.0
+
+
+def hour_angle(ra_deg, when, location):
+    """
+    Hour angle in hours at one instant, wrapped to [-12, +12).
+
+    Parameters
+    ----------
+    ra_deg : float
+    when : datetime (tz-aware)
+    location : astropy EarthLocation
+
+    Returns
+    -------
+    float
+    """
+    lst = Time(when).sidereal_time('apparent', longitude=location.lon)
+    ha = (lst.hour - ra_deg / 15.0) % 24
+    return ha - 24 if ha > 12 else ha
+
+
 def parallactic_angle(ra_deg, dec_deg, when, location):
     """
     Parallactic angle in degrees at one instant.
-
-    q = atan2( sin(HA), tan(lat) cos(dec) - sin(dec) cos(HA) )
 
     Parameters
     ----------
@@ -37,23 +88,10 @@ def parallactic_angle(ra_deg, dec_deg, when, location):
 
     Returns
     -------
-    float : degrees, wrapped to [0, 180) -- a slit has no head or tail, so
-    an angle and its opposite describe the same orientation.
+    float : degrees, wrapped to [0, 180).
     """
-    time = Time(when)
-    lst = time.sidereal_time('apparent', longitude=location.lon)
-    hour_angle = (lst.hour - ra_deg / 15.0) % 24
-    if hour_angle > 12:
-        hour_angle -= 24
-
-    ha = np.radians(hour_angle * 15.0)
-    dec = np.radians(dec_deg)
-    lat = np.radians(location.lat.deg)
-
-    q = np.degrees(np.arctan2(
-        np.sin(ha),
-        np.tan(lat) * np.cos(dec) - np.sin(dec) * np.cos(ha)))
-    return q % 180.0
+    return parallactic_angle_from_ha(hour_angle(ra_deg, when, location),
+                                      dec_deg, location.lat.deg)
 
 
 def parallactic_track(ra_deg, dec_deg, start, end, location, step_minutes=5):

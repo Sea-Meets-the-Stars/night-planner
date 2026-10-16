@@ -18,8 +18,10 @@ from datetime import datetime, timedelta, timezone
 import os
 
 from lris_etc import estimate_lris_exposure_real
-from keck_overheads import keck_slew_minutes
-from schedule_overrides import resolve_start, fit_around_blocks, blocking_reason, push_past_blocks
+from keck_overheads import (keck_slew_minutes, KECK_SLEW_BASE_MIN,
+                             KECK_SLEW_DEC_CROSS_MIN)
+from schedule_overrides import (resolve_start, fit_around_blocks, blocking_reason,
+                                 push_past_blocks, _overlapping_block)
 from night_planner.targets_io import load_targets
 
 # Flux standards (Dec in deg): telescope starts the science sequence at the
@@ -575,6 +577,11 @@ def analyze_targets(targets_csv, date_str='2026-10-06', mapping=None,
     return results_df, twilight, start_hst
 
 
+# Step at which find_observable_window() samples the night. The
+# scheduler reuses it as the grace it allows past a window edge,
+# because that is exactly how precisely the edge is known.
+WINDOW_SAMPLE_MIN = 10
+
 def find_observable_window(ra, dec, twilight, mag=20.0):
     """
     Find the time window when target is observable.
@@ -590,10 +597,11 @@ def find_observable_window(ra, dec, twilight, mag=20.0):
     am_limit = 2.5 if mag < 17 else 2.0
 
     # Sample every 10 minutes
-    n_samples = int(twilight['dark_hours'] * 6)
+    n_samples = int(twilight['dark_hours'] * 60 / WINDOW_SAMPLE_MIN)
 
     for i in range(n_samples):
-        sample_utc = twilight['evening_utc'] + timedelta(minutes=i*10)
+        sample_utc = twilight['evening_utc'] + timedelta(
+            minutes=i * WINDOW_SAMPLE_MIN)
         am, alt, az, ha = calculate_airmass(ra, dec, sample_utc)
 
         if am < am_limit and check_keck_limits(ra, dec, ha, alt, az)[0]:
@@ -614,6 +622,11 @@ def append_forced_targets(selected, results_df, twilight, forced, prev_dec,
                            current_time, failures=None):
     """
     Place explicitly-forced targets after the normal schedule, truncated.
+
+    Tried first because it disturbs nothing: everything the scheduler
+    placed keeps its slot. It can only work for a target still up at
+    the end of the night, though -- a fast-setting one shut hours
+    earlier, and that is what reserve_forced_targets() is for.
 
     The scheduler refuses a target whose full allocation doesn't fit its
     window -- correct by default, but it throws away cases where a partial
@@ -700,9 +713,132 @@ def append_forced_targets(selected, results_df, twilight, forced, prev_dec,
     return rows
 
 
+def reserve_forced_targets(results_df, twilight, forced, start_time, blocks,
+                            failures=None):
+    """
+    Place explicitly-forced targets inside their own windows, before the
+    normal scheduling pass runs.
+
+    The scheduler refuses a target whose full allocation doesn't fit its
+    window -- correct by default, but it throws away cases where a partial
+    exposure is clearly worth taking (e.g. a mag 25.6 host rising into the
+    best airmass of the night with 80 of its 125 nominal minutes left).
+    The author asserts the target and the time; what is checked here is
+    that the telescope can legally point there when it is placed.
+
+    Placement is as late inside the target's own window as the requested
+    time allows. That one rule covers both halves of the problem: a
+    fast-setting target can only be at the top of the night, so it lands
+    there, while a rising one lands at the end where it was going to be
+    observed anyway. Appending after the whole schedule, which is what
+    this used to do, only ever worked for the rising case -- for a setting
+    target the window had shut hours before the schedule ended, so the
+    rescue could not succeed.
+
+    Parameters
+    ----------
+    forced : list of (tns, minutes)
+    start_time : datetime
+        Earliest the night can schedule science (after manual start/blocks).
+    blocks : list of (start, end, reason)
+    failures : list, optional
+        Appended with {'TNS', 'reason'} for each target not placed.
+
+    Returns
+    -------
+    (rows, reservations)
+        Schedule rows, and (start, end, reason) tuples to add to `blocks`
+        so the normal pass schedules around the reservations.
+    """
+    rows, reservations = [], []
+    res = results_df.set_index('TNS')
+    # The reservation covers the base slew in, and nothing after: the next
+    # target's own fit already carries its slew inside its duration. Which
+    # pointing precedes a forced target isn't known until the normal pass
+    # runs, so a south->north crossing (KECK_SLEW_DEC_CROSS_MIN) would eat
+    # ~10 min off the front of the exposure -- noted in the row's info
+    # rather than reserved for, since reserving it costs a whole target.
+    pad = timedelta(minutes=KECK_SLEW_BASE_MIN)
+
+    def fail(tns, reason):
+        """Report a forced target that could not be placed.
+
+        Silence here is dangerous: the caller asked for this target
+        specifically, so an unplaceable one has to say so rather than
+        leave an apparently-unchanged plan.
+        """
+        if failures is not None:
+            failures.append({'TNS': tns, 'reason': reason})
+        print(f"  Forced {tns}: {reason}")
+
+    for tns, minutes in forced:
+        if tns not in res.index:
+            fail(tns, 'not in the target table')
+            continue
+        row = res.loc[tns]
+        window_start, window_end, _ = find_observable_window(
+            row['RA_deg'], row['Dec_deg'], twilight, row['mag_r'])
+        if window_start is None:
+            fail(tns, 'never pointable tonight (Keck limits / airmass)')
+            continue
+
+        taken = list(blocks) + reservations
+        earliest = push_past_blocks(max(start_time, window_start), taken)
+        if earliest >= window_end:
+            fail(tns, f"window closes {window_end.strftime('%H:%M')}, and the "
+                      f"earliest clear slot is {earliest.strftime('%H:%M')}")
+            continue
+
+        science_start = max(earliest, window_end - timedelta(minutes=minutes))
+        science_start = push_past_blocks(science_start, taken)
+        obs_end = min(science_start + timedelta(minutes=minutes), window_end)
+        hit = _overlapping_block(science_start, obs_end, taken)
+        if hit is not None:
+            obs_end = hit[0]
+        got = (obs_end - science_start).total_seconds() / 60.0
+        if got < 1:
+            fail(tns, f"no usable time at {science_start.strftime('%H:%M')} "
+                      f"before the next block or its "
+                      f"{window_end.strftime('%H:%M')} window close")
+            continue
+
+        am, alt, az, ha = calculate_airmass(
+            row['RA_deg'], row['Dec_deg'], science_start.astimezone(timezone.utc))
+        valid, reason = check_keck_limits(row['RA_deg'], row['Dec_deg'], ha, alt, az)
+        if not valid:
+            fail(tns, f"not pointable at {science_start.strftime('%H:%M')} "
+                      f"-- {reason}")
+            continue
+
+        exp = estimate_mos_exposure(row['mag_r']) if row['lris_mode'].startswith('MOS') \
+            else estimate_lris_exposure(row['mag_r'], airmass=am)
+        nominal = exp['science_min']
+        entry = row.to_dict()
+        entry.update(exp)
+        entry.update({
+            'TNS': tns,
+            'slew_min': KECK_SLEW_BASE_MIN,
+            'on_target_min': got,
+            'total_min': KECK_SLEW_BASE_MIN + got,
+            'scheduled_start': science_start - timedelta(minutes=KECK_SLEW_BASE_MIN),
+            'science_start': science_start,
+            'scheduled_end': obs_end,
+            'window_start': window_start,
+            'window_end': window_end,
+            'info': (f"FORCED truncated exposure: {got:.0f} of {nominal:g} min "
+                      f"nominal ({got / nominal:.0%}), AM {am:.2f}"),
+        })
+        rows.append(entry)
+        reservations.append((science_start - pad, obs_end, f'forced {tns}'))
+        print(f"  Forced {tns}: {science_start.strftime('%H:%M')}-"
+              f"{obs_end.strftime('%H:%M')} ({got:.0f} min of {nominal:g} nominal, "
+              f"AM {am:.2f})")
+    return rows, reservations
+
 def select_targets_for_night(results_df, twilight, max_targets=8,
                               start_override=None, blocks=None, skip_log=None,
-                              forced=None, forced_failures=None):
+                              forced=None, forced_failures=None,
+                              reserved=None, reservations=None):
     """
     Select targets for observation based on priority rules.
 
@@ -781,6 +917,16 @@ def select_targets_for_night(results_df, twilight, max_targets=8,
     selected = []
     default_start = twilight['evening_hst'] + timedelta(minutes=10)  # After standard + focus
     current_time = push_past_blocks(resolve_start(default_start, start_override), blocks)
+
+    # Second pass only: forced targets that could not be appended already
+    # hold a reserved slot, handed in as blocks so this pass fills the
+    # night around them rather than over them.
+    reserved = list(reserved or [])
+    if reservations:
+        blocks = list(blocks) + list(reservations)
+        current_time = push_past_blocks(current_time, blocks)
+        observable = observable[~observable['TNS'].isin(
+            {r['TNS'] for r in reserved})]
     available_time = twilight['dark_hours'] * 60 - 30  # Reserve 30 min for calibrations
     total_time = 0
     scheduled_targets = set()
@@ -824,9 +970,14 @@ def select_targets_for_night(results_df, twilight, max_targets=8,
         # Earliest the slew could start, ignoring blocks: slew done and the
         # target is in its window (or wait for the window to open).
         raw_slew_start = max(current_time, window_start - timedelta(minutes=slew_min))
+        # find_observable_window() samples every WINDOW_SAMPLE_MIN, so the
+        # true edge of the airmass window lies somewhere inside the step
+        # beyond the last good sample. One step of grace is the honest
+        # width of that uncertainty -- it is not spare observing time,
+        # and widening it would schedule above the airmass limit.
         obs_start, obs_end = fit_around_blocks(
             raw_slew_start, slew_min + on_target_min,
-            window_end + timedelta(minutes=10), blocks)
+            window_end + timedelta(minutes=WINDOW_SAMPLE_MIN), blocks)
 
         if obs_start is None:
             reason = blocking_reason(raw_slew_start, slew_min + on_target_min, blocks)
@@ -870,11 +1021,42 @@ def select_targets_for_night(results_df, twilight, max_targets=8,
         if len(selected) >= max_targets:
             break
 
-    # Explicitly-forced targets go after everything the scheduler placed.
+    # Forced targets: append after the schedule if they are still up, which
+    # costs nothing. Anything that cannot be appended -- the setting target
+    # whose window shut hours before the schedule ended -- gets a reserved
+    # slot inside its own window, and the whole night is scheduled again
+    # around it. Only then is a failure real.
     if forced:
-        selected += append_forced_targets(
+        append_failures = []
+        appended = append_forced_targets(
             selected, results_df, twilight, forced, prev_dec, current_time,
-            failures=forced_failures)
+            failures=append_failures)
+        selected += appended
+        placed = {r['TNS'] for r in appended}
+        unplaced = [(tns, minutes) for tns, minutes in forced
+                    if tns not in placed]
+        if unplaced and reservations is None:
+            print('  Retrying unplaceable forced targets with a reserved slot')
+            rows, slots = reserve_forced_targets(
+                results_df, twilight, unplaced,
+                push_past_blocks(resolve_start(default_start, start_override),
+                                  blocks),
+                blocks, failures=forced_failures)
+            if rows:
+                # Pass 1's skips described a night that no longer exists.
+                if skip_log is not None:
+                    skip_log.clear()
+                return select_targets_for_night(
+                    results_df, twilight, max_targets=max_targets,
+                    start_override=start_override, blocks=blocks,
+                    skip_log=skip_log,
+                    forced=[f for f in forced
+                            if f[0] not in {r['TNS'] for r in rows}],
+                    forced_failures=forced_failures,
+                    reserved=rows, reservations=slots)
+        elif unplaced and forced_failures is not None:
+            forced_failures.extend(append_failures)
+    selected += reserved
 
     # Sort selected by scheduled start time
     selected_df = pd.DataFrame(selected)

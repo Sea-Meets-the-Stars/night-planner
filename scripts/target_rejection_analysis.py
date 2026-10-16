@@ -11,7 +11,7 @@ order, and records the specific numeric reason a target was dropped (or
 scheduled) at each stage:
 
   1. Dec cut       (Shane polar limit, Dec <= 82 deg)
-  2. HA window     (-5.0h <= HA <= +3.75h, HA = LST - RA)
+  2. HA window     (-05:40 <= HA <= +03:45, HA = LST - RA)
   3. Scheduling    (does the target's Kast exposure time fit inside its
                     HA-legal window, given the greedy earliest-window-
                     close-first order used by schedule_night())

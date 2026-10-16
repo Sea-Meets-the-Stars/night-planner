@@ -52,6 +52,7 @@ const routes = {
   '/finders': renderFinders,
   '/starlist': renderStarlist,
   '/airmass': renderAirmass,
+  '/nightchart': renderNightChart,
 };
 
 function parseHash() {
@@ -66,6 +67,8 @@ async function route() {
   if (params.get('date')) state.date = params.get('date');
 
   renderNav(path);
+  closeLightbox();
+  lightboxSlots = [];
   const handler = routes[path] || renderHome;
   try {
     await handler(params);
@@ -80,7 +83,8 @@ function renderNav(current) {
   if (!state.outputDir) return;
   const d = encodeURIComponent(state.outputDir);
   [['Plan', '/plan'], ['Rejections', '/rejections'], ['Finders', '/finders'],
-   ['Starlist', '/starlist'], ['Airmass', '/airmass']].forEach(([label, p]) => {
+   ['Starlist', '/starlist'], ['Airmass', '/airmass'],
+   ['Night chart', '/nightchart']].forEach(([label, p]) => {
     const a = el('a', current === p ? 'active' : '', label);
     a.href = `#${p}?dir=${d}`;
     nav.append(a);
@@ -239,6 +243,7 @@ async function renderSetup(params) {
     } catch (err) {
       status.replaceChildren(notice(err.message, true));
     } finally {
+      stopPolling();
       button.disabled = false;
     }
   });
@@ -254,7 +259,28 @@ function renderInspection(data) {
       + Object.entries(m.columns).map(([k, v]) => `${k} ← ${v}`).join(', ')
       + (m.ra_unit === 'hour' ? ' (RA in hours)' : '')));
   }
+  // Where the table came from decides whether a two-candidate slit is
+  // even meaningful, so say so here rather than letting it surprise
+  // someone on the Finders page.
+  const fmt = data.source_format;
+  if (fmt) {
+    wrap.append(el('p', 'hint', fmt.format === 'ffff-pz'
+      ? (fmt.has_candidates
+        ? 'FFFF-PZ table with PATH candidates — the two-candidate slit is '
+          + 'available for these targets.'
+        : 'FFFF-PZ table, but no Sec_* candidate columns — finders will use '
+          + 'the parallactic angle.')
+      : 'Generic target list, not an FFFF-PZ pull. These are not localised '
+        + 'FRBs with ranked host candidates, so finders will use the '
+        + 'parallactic angle.'));
+  }
   if (data.preview.length) {
+    const shown = data.preview.length;
+    wrap.append(el('p', 'hint', data.preview_truncated
+      ? `Showing the first ${shown} of ${data.n_rows} targets `
+        + `(${data.preview_truncated} more not listed).`
+      : `All ${shown} targets:`));
+    const scroller = el('div', 'preview-scroll');
     const table = el('table', 'data');
     table.innerHTML = '<tr><th>name</th><th class="num">RA °</th>'
       + '<th class="num">Dec °</th><th class="num">mag</th></tr>'
@@ -262,7 +288,8 @@ function renderInspection(data) {
         + `<td class="num">${r.ra_deg.toFixed(4)}</td>`
         + `<td class="num">${r.dec_deg.toFixed(4)}</td>`
         + `<td class="num">${r.mag ?? '—'}</td></tr>`).join('');
-    wrap.append(table);
+    scroller.append(table);
+    wrap.append(scroller);
   }
   return wrap;
 }
@@ -451,8 +478,10 @@ async function renderPlan() {
    ['slew', 'slew'], ['overhead', 'standards, focus, calibs'],
    ['blocked', 'blocked'], ['idle', 'idle']].forEach(([cls, label]) => {
     const item = el('span');
-    const swatch = el('i');
-    swatch.style.background = `var(--${cls})`;
+    const swatch = el('i', cls);
+    // Idle's swatch is a hatch defined in CSS; an inline background would
+    // override it and show a flat block that doesn't match the timeline.
+    if (cls !== 'idle') swatch.style.background = `var(--${cls})`;
     item.append(swatch, document.createTextNode(label));
     legend.append(item);
   });
@@ -654,25 +683,32 @@ function renderRescue(plan) {
 
 /* --------------------------------------------------------------- finders */
 
+/* Survives the re-render that follows a generate, so the form still
+   shows what was actually asked for. */
+let lastSlitMode = 'parallactic';
+
 async function renderFinders() {
   const plan = await loadPlan();
   useTemplate('tpl-finders');
   renderNav('/finders');
+  const chosen = $(`input[name="fd-slit"][value="${lastSlitMode}"]`);
+  if (chosen) chosen.checked = true;
 
   $('#fd-generate').addEventListener('click', async () => {
     const status = $('#fd-status');
     const button = $('#fd-generate');
+    lastSlitMode = $('input[name="fd-slit"]:checked').value;
     button.disabled = true;
-    status.textContent = 'Fetching images and offset stars — this takes a '
-      + 'few seconds per target…';
+    status.textContent = 'Fetching images and offset stars…';
     $('#fd-notes').replaceChildren();
+    const stopPolling = startFinderProgress(plan.output_dir);
     try {
       const result = await api('/api/finders/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           output_dir: plan.output_dir,
-          use_ffffpz: $('#fd-ffffpz').checked,
+          slit_mode: lastSlitMode,
           overwrite: $('#fd-overwrite').checked,
         }),
       });
@@ -681,34 +717,187 @@ async function renderFinders() {
         + `${result.results.length} done (${result.mode})`;
       failed.forEach((r) => $('#fd-notes')
         .append(notice(`${r.name}: ${r.error}`, true)));
+      // Asking for both candidates and silently getting a parallactic slit
+      // would be the worst outcome: you'd set an angle you didn't choose.
+      if (result.fell_back && result.fell_back.length) {
+        $('#fd-notes').append(notice(
+          `${result.fell_back.length} target(s) are not from FFFF-PZ and have `
+          + `no second candidate — ${result.fell_back.join(', ')} stayed at `
+          + 'the parallactic angle.'));
+      }
+      const report = result.report;
       await renderFinders();   // reload the grid with what was just made
+      if (report) renderSlitReport(report);
     } catch (err) {
       $('#fd-notes').replaceChildren(notice(err.message, true));
       status.textContent = '';
     } finally {
+      stopPolling();
       button.disabled = false;
     }
   });
 
-  const names = await api(`/api/finders?output_dir=${encodeURIComponent(plan.output_dir)}`);
+  const files = await api(`/api/finders?output_dir=${encodeURIComponent(plan.output_dir)}`);
   const grid = $('#finder-grid');
-  if (!names.length) {
+  if (!files.length) {
     grid.append(el('p', 'hint',
       'No finder charts yet — generate them above.'));
     return;
   }
-  const scheduled = new Set(plan.schedule.map((t) => t.name));
-  names.forEach((name) => {
-    const target = name.replace('_finder.png', '');
+
+  // Schedule order, not alphabetical: at the telescope you work down the
+  // night, so the next chart you want is the next one along.
+  const order = new Map(plan.schedule.map((t, i) => [t.name, i]));
+  const named = files.map((f) => ({
+    file: f.name, mtime: f.mtime, target: f.name.replace('_finder.png', ''),
+  }));
+  named.sort((a, b) => (order.has(a.target) ? order.get(a.target) : 1e6)
+                        - (order.has(b.target) ? order.get(b.target) : 1e6)
+                        || a.target.localeCompare(b.target));
+
+  const slots = named.map(({ file, target, mtime }, i) => {
+    const block = plan.schedule.find((t) => t.name === target);
+    const caption = block
+      ? `${target} · ${hhmm(block.start)}–${hhmm(block.end)}`
+      : `${target} (not scheduled)`;
+    // The mtime versions the URL, so regenerating a chart busts the
+    // browser cache. Without it the old slit sits under the new report.
+    const src = `/api/image?output_dir=${encodeURIComponent(plan.output_dir)}`
+                + `&name=${file}&v=${mtime}`;
+
     const fig = el('figure');
+    fig.tabIndex = 0;
+    fig.setAttribute('role', 'button');
+    fig.title = 'Click to view full size';
     const img = el('img');
     img.loading = 'lazy';
     img.alt = target;
-    img.src = `/api/image?output_dir=${encodeURIComponent(plan.output_dir)}&name=${name}`;
-    const cap = el('figcaption', '', target
-      + (scheduled.has(target) ? '' : ' (not scheduled)'));
-    fig.append(img, cap);
+    img.src = src;
+    fig.append(img, el('figcaption', '', caption));
+    fig.addEventListener('click', () => openLightbox(i));
+    fig.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(i); }
+    });
     grid.append(fig);
+    return { src, caption };
+  });
+
+  lightboxSlots = slots;
+}
+
+/* Where every slit ended up, as a table. The observer sets this angle by
+   hand, so "what did I actually ask for" has to be answerable after the
+   fact and not only in the moment the charts were made. */
+function renderSlitReport(report) {
+  const host = $('#fd-report');
+  if (!host || !report.rows.length) return;
+  host.replaceChildren();
+
+  host.append(el('h3', '', `Slit angles (${report.requested} requested)`));
+
+  const table = el('table', 'slit-report');
+  const head = el('tr');
+  ['target', 'slit', 'PA', 'off parallactic', 'secondary', 'note']
+    .forEach((h) => head.append(el('th', '', h)));
+  table.append(head);
+
+  report.rows.forEach((r) => {
+    const tr = el('tr', r.slit_mode === 'candidates' ? '' : 'fallback');
+    const cells = [
+      r.name,
+      r.slit_mode,
+      r.slit_pa === null || r.slit_pa === undefined ? '—' : r.slit_pa.toFixed(2),
+      r.off_parallactic ? `${r.off_parallactic.toFixed(1)}°` : '—',
+      r.secondary_sep_arcsec ? `${r.secondary_sep_arcsec.toFixed(1)}″` : '—',
+      r.reason || r.skipped || '',
+    ];
+    cells.forEach((c) => tr.append(el('td', '', String(c))));
+    table.append(tr);
+  });
+  host.append(table);
+  host.append(el('p', 'hint',
+    'Also saved as finders/slit_report.txt, so the angle each chart was '
+    + 'drawn at can be checked later.'));
+}
+
+/* Poll the server while charts are being drawn. The generate request is
+   one long POST, so the only way to show movement is to ask a second
+   endpoint how far it has got. Returns a function that stops the poll
+   and hides the bar. */
+function startFinderProgress(outputDir) {
+  const wrap = $('#fd-progress');
+  const bar = $('#fd-bar');
+  const text = $('#fd-progress-text');
+  if (!wrap) return () => {};
+
+  bar.value = 0;
+  bar.removeAttribute('value');     // indeterminate until the first reply
+  text.textContent = 'starting…';
+  wrap.hidden = false;
+
+  const timer = setInterval(async () => {
+    try {
+      const p = await api(
+        `/api/finders/progress?output_dir=${encodeURIComponent(outputDir)}`);
+      if (!p.running || !p.total) return;
+      bar.max = p.total;
+      bar.value = p.done;
+      // p.done counts finished charts; the one named is the one in
+      // flight, so it reads as "3 of 8" while the third is being drawn.
+      text.textContent = p.current
+        ? `${p.done + 1} of ${p.total} — ${p.current}`
+        : `${p.done} of ${p.total}`;
+    } catch (err) {
+      /* A failed poll is not worth interrupting the run for. */
+    }
+  }, 700);
+
+  return () => {
+    clearInterval(timer);
+    wrap.hidden = true;
+  };
+}
+
+/* ------------------------------------------------------------- lightbox */
+
+/* The charts currently on screen, in the order they are displayed, so the
+   arrows walk the night rather than the filesystem. */
+let lightboxSlots = [];
+let lightboxAt = 0;
+
+function showLightboxSlot(index) {
+  if (!lightboxSlots.length) return;
+  lightboxAt = (index + lightboxSlots.length) % lightboxSlots.length;
+  const slot = lightboxSlots[lightboxAt];
+  $('#lb-img').src = slot.src;
+  $('#lb-img').alt = slot.caption;
+  $('#lb-caption').textContent = lightboxSlots.length > 1
+    ? `${slot.caption}  ·  ${lightboxAt + 1} of ${lightboxSlots.length}`
+    : slot.caption;
+}
+
+function openLightbox(index) {
+  showLightboxSlot(index);
+  $('#lightbox').hidden = false;
+  $('#lb-close').focus();
+}
+
+function closeLightbox() {
+  $('#lightbox').hidden = true;
+}
+
+function initLightbox() {
+  const box = $('#lightbox');
+  $('#lb-close').addEventListener('click', closeLightbox);
+  $('#lb-prev').addEventListener('click', () => showLightboxSlot(lightboxAt - 1));
+  $('#lb-next').addEventListener('click', () => showLightboxSlot(lightboxAt + 1));
+  // Clicking the backdrop closes; clicking the image itself must not.
+  box.addEventListener('click', (e) => { if (e.target === box) closeLightbox(); });
+  document.addEventListener('keydown', (e) => {
+    if (box.hidden) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') showLightboxSlot(lightboxAt - 1);
+    if (e.key === 'ArrowRight') showLightboxSlot(lightboxAt + 1);
   });
 }
 
@@ -763,6 +952,7 @@ async function renderStarlist() {
       $('#sl-notes').replaceChildren(notice(err.message, true));
       status.textContent = '';
     } finally {
+      stopPolling();
       button.disabled = false;
     }
   });
@@ -855,5 +1045,211 @@ async function renderAirmass(params) {
   await draw();
 }
 
+/* ----------------------------------------------------------- night chart */
+
+/* One qualitative colour per target. Eight hues, because a Lick night
+   rarely holds more than that and more than eight is unreadable anyway. */
+const NIGHT_COLORS = ['#2563eb', '#dc2626', '#059669', '#7c3aed',
+                      '#d97706', '#0891b2', '#db2777', '#4d7c0f'];
+
+/* Plotly reads an offset-bearing ISO string into the *browser's* zone.
+   Strip the offset so the chart plots the telescope's own clock. */
+const naiveTime = (iso) => (iso ? iso.slice(0, 19) : null);
+
+function lstLabel(hours) {
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return m === 60 ? `${(h + 1) % 24}:00` : `${h}:${String(m).padStart(2, '0')}`;
+}
+
+/* Ticks on whole local hours, labelled with local and UT on two lines,
+   and the same positions reused for the sidereal axis on top.
+
+   Built from the clock rather than from the samples: the grid starts at
+   sunset, so with a 5-minute step its minutes never land on :00 and
+   selecting samples would yield no ticks at all. */
+function nightTicks(times, lst) {
+  const first = new Date(times[0]);
+  const last = new Date(times[times.length - 1]);
+  const span = last - first;
+
+  // Sidereal time advances steadily across the night; interpolating it
+  // between the end samples is accurate to well under a tick label.
+  const lstAt = (when) => {
+    const f = (when - first) / span;
+    const turns = (lst[lst.length - 1] - lst[0] + 24) % 24;
+    return (lst[0] + f * turns) % 24;
+  };
+
+  const vals = [], local = [], sidereal = [];
+  const tick = new Date(first);
+  tick.setMinutes(0, 0, 0);
+  if (tick < first) tick.setHours(tick.getHours() + 1);
+  for (; tick <= last; tick.setHours(tick.getHours() + 1)) {
+    // times[] carries the telescope's own offset; reuse it so the tick
+    // string sits in the same naive frame as the plotted points.
+    const offset = times[0].slice(19);
+    const localIso = new Date(tick - tick.getTimezoneOffset() * 60000)
+      .toISOString().slice(0, 19);
+    vals.push(localIso);
+    local.push(`${localIso.slice(11, 16)}<br>`
+               + `${new Date(localIso + offset).toISOString().slice(11, 16)} UT`);
+    sidereal.push(lstLabel(lstAt(tick)));
+  }
+  return { vals, local, sidereal };
+}
+
+/* Twilight drawn as nested bands rather than one flat wash: sunset to
+   12 deg is where you can still only take standards, 12 to 18 is usable
+   for bright targets, and the difference is worth seeing at a glance. */
+function twilightShapes(sun) {
+  const band = (a, b, opacity) => ({
+    type: 'rect', xref: 'x', yref: 'paper',
+    x0: naiveTime(sun[a]), x1: naiveTime(sun[b]),
+    y0: 0, y1: 1, fillcolor: '#1e293b', opacity, line: { width: 0 },
+    layer: 'below',
+  });
+  const mark = (key, color) => ({
+    type: 'line', xref: 'x', yref: 'paper',
+    x0: naiveTime(sun[key]), x1: naiveTime(sun[key]), y0: 0, y1: 1,
+    line: { color, width: 1, dash: 'dash' }, layer: 'below',
+  });
+  return [
+    band('sunset', 'dusk_nautical', 0.14),
+    band('dusk_nautical', 'dusk_astronomical', 0.07),
+    band('dawn_astronomical', 'dawn_nautical', 0.07),
+    band('dawn_nautical', 'sunrise', 0.14),
+    mark('sunset', '#f59e0b'), mark('sunrise', '#f59e0b'),
+    mark('dusk_nautical', '#60a5fa'), mark('dawn_nautical', '#60a5fa'),
+    mark('dusk_astronomical', '#7c3aed'), mark('dawn_astronomical', '#7c3aed'),
+  ];
+}
+
+function twilightLabels(sun) {
+  return [['sunset', 'sunset'], ['dusk_nautical', '12°'],
+          ['dusk_astronomical', '18°'], ['dawn_astronomical', '18°'],
+          ['dawn_nautical', '12°'], ['sunrise', 'sunrise']]
+    .filter(([k]) => sun[k])
+    .map(([k, text]) => ({
+      x: naiveTime(sun[k]), y: 0.995, xref: 'x', yref: 'paper',
+      text, showarrow: false, yanchor: 'top',
+      font: { size: 9, color: '#64748b' },
+    }));
+}
+
+async function renderNightChart() {
+  const plan = await loadPlan();
+  useTemplate('tpl-nightchart');
+  renderNav('/nightchart');
+
+  const draw = async () => {
+    const q = new URLSearchParams({
+      output_dir: plan.output_dir,
+      include_rejected: $('#nc-rejected').checked,
+    });
+    const data = await api(`/api/airmass/all?${q}`);
+    const x = data.times.map(naiveTime);
+    const ticks = nightTicks(data.times, data.lst);
+
+    // Plotly only draws an overlaying axis that something sits on, so the
+    // sidereal scale needs a carrier trace even though it shows nothing.
+    const traces = [{
+      x: [x[0], x[x.length - 1]], y: [1, 1], xaxis: 'x2',
+      mode: 'markers', marker: { opacity: 0 },
+      hoverinfo: 'skip', showlegend: false,
+    }];
+
+    if ($('#nc-moon').checked && data.moon.airmass.some((a) => a !== null)) {
+      traces.push({
+        x, y: data.moon.airmass, mode: 'lines', name: 'moon',
+        line: { color: '#94a3b8', width: 2.5 }, connectgaps: false,
+        hovertemplate: 'moon · airmass %{y:.2f}<extra></extra>',
+      });
+    }
+
+    let colorIdx = 0;
+    data.targets.forEach((t) => {
+      // Rejected targets stay grey. They are context -- "this is what was
+      // up and you didn't take it" -- and giving them a hue of their own
+      // would make the chart look like twice as much got observed.
+      const color = t.scheduled
+        ? NIGHT_COLORS[colorIdx++ % NIGHT_COLORS.length] : '#94a3b8';
+
+      // The whole night, faint: context for where the thick bit sits.
+      traces.push({
+        x, y: t.airmass, mode: 'lines', name: t.name,
+        legendgroup: t.name, showlegend: false, connectgaps: false,
+        line: { color, width: 1.2, dash: 'dot' },
+        opacity: t.scheduled ? 0.45 : 0.6,
+        // Named on hover only when nothing else identifies it.
+        hoverinfo: t.scheduled ? 'skip' : undefined,
+        hovertemplate: t.scheduled ? undefined
+          : `${t.name} (not scheduled)<br>airmass %{y:.2f} at %{x|%H:%M}`
+            + '<extra></extra>',
+      });
+
+      if (!t.scheduled) return;
+      // The exposure itself, heavy: nulled outside the block so one
+      // trace carries both the timing and the airmass actually got.
+      const start = naiveTime(t.scheduled.start);
+      const end = naiveTime(t.scheduled.end);
+      traces.push({
+        x,
+        y: t.airmass.map((a, j) => (x[j] >= start && x[j] <= end ? a : null)),
+        mode: 'lines', name: t.name, legendgroup: t.name,
+        line: { color, width: 7 }, connectgaps: false,
+        hovertemplate: `${t.name}<br>airmass %{y:.2f} at %{x|%H:%M}`
+                       + '<extra></extra>',
+      });
+    });
+
+    // Low airmass at the top, and only as deep as the night actually
+    // goes -- a fixed axis to 3 would squash everything readable.
+    const used = data.targets.flatMap((t) => (t.scheduled
+      ? t.airmass.filter((a, j) => a !== null
+          && x[j] >= naiveTime(t.scheduled.start)
+          && x[j] <= naiveTime(t.scheduled.end))
+      : []));
+    const worst = Math.max(2.0, ...used) + 0.1;
+
+    Plotly.newPlot('nightchart-plot', traces, {
+      margin: { t: 48, r: 20, b: 64, l: 60 },
+      height: 520,
+      hovermode: 'closest',
+      xaxis: {
+        title: 'local time at the telescope · UT',
+        tickmode: 'array', tickvals: ticks.vals, ticktext: ticks.local,
+        range: [x[0], x[x.length - 1]],
+      },
+      xaxis2: {
+        overlaying: 'x', side: 'top', showgrid: false, zeroline: false,
+        range: [x[0], x[x.length - 1]],
+        title: { text: 'LST', font: { size: 11, color: '#7c3aed' } },
+        tickmode: 'array', tickvals: ticks.vals, ticktext: ticks.sidereal,
+        tickfont: { size: 10, color: '#7c3aed' },
+      },
+      yaxis: { title: 'airmass', range: [worst, 1.0] },
+      shapes: twilightShapes(data.sun),
+      annotations: twilightLabels(data.sun),
+      legend: { orientation: 'h', y: -0.22 },
+    }, { responsive: true, displayModeBar: false });
+
+    const rejected = data.targets.filter((t) => !t.scheduled).length;
+    const lit = Math.round(data.moon.illumination * 100);
+    const up = data.moon.airmass.filter((a) => a !== null).length;
+    $('#nightchart-note').textContent =
+      `${data.targets.filter((t) => t.scheduled).length} scheduled targets, `
+      + `${data.date} at ${data.telescope}. Moon ${lit}% lit and `
+      + (up ? `above the horizon for part of the night.`
+            : `below the horizon all night.`)
+      + ' Shaded bands are twilight; dashed lines mark sunset, 12° and 18°.'
+      + (rejected ? ` ${rejected} rejected targets are drawn grey.` : '');
+  };
+
+  $('#nc-rejected').addEventListener('change', draw);
+  $('#nc-moon').addEventListener('change', draw);
+  await draw();
+}
+
 window.addEventListener('hashchange', route);
-window.addEventListener('DOMContentLoaded', route);
+window.addEventListener('DOMContentLoaded', () => { initLightbox(); route(); });

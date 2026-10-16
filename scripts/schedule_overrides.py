@@ -9,6 +9,9 @@ Created by JXP and Claude
 
 from datetime import timedelta
 
+# One implementation, in the library: the adapters need it too.
+from night_planner.sky import advance  # noqa: F401
+
 
 def resolve_start(default_start, override_start=None):
     """
@@ -71,7 +74,7 @@ def fit_around_blocks(start, duration_min, window_end, blocks):
     candidate_start = start
     # A block can be adjacent to another; loop until genuinely clear.
     for _ in range(len(blocks) + 1):
-        candidate_end = candidate_start + timedelta(minutes=duration_min)
+        candidate_end = advance(candidate_start, duration_min)
         hit = _overlapping_block(candidate_start, candidate_end, blocks)
         if hit is None:
             if candidate_end <= window_end:
@@ -85,7 +88,7 @@ def fit_around_blocks(start, duration_min, window_end, blocks):
 
 def blocking_reason(start, duration_min, blocks):
     """Human-readable reason string if [start, start+duration) hits a block."""
-    end = start + timedelta(minutes=duration_min)
+    end = advance(start, duration_min)
     hit = _overlapping_block(start, end, blocks)
     if hit is None:
         return None

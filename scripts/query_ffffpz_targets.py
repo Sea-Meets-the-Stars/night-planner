@@ -18,8 +18,10 @@ night_date = PST.localize(datetime(2026, 8, 13, 20, 38))
 
 # Shane constraints
 DEC_MAX = 82.0  # degrees
-HA_MIN = -5.0   # hours
-HA_MAX = 3.75   # hours
+# Canonical values live in lick_2026b02_calculations; kept as
+# literals here because this script is a standalone one-off.
+HA_MIN = -(5 + 40 / 60)   # -05:40, adopted 2026-10-14
+HA_MAX = 3 + 45 / 60      # +03:45
 
 # Get evening/morning LST (from fix_ha_limits.py output)
 EVENING_LST = 17.03  # hours

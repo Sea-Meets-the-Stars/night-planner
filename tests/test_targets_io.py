@@ -133,3 +133,25 @@ def test_unreadable_coordinates_are_reported_with_names():
     with pytest.raises(TargetTableError) as excinfo:
         load_targets(df)
     assert 'BAD' in str(excinfo.value)
+
+
+def test_duplicate_target_names_are_refused():
+    """A repeated name would be scheduled twice, costing a whole block.
+
+    Merging two sources is how this happens in practice -- the baseband
+    targets merged into Lick-2026B-03 are exactly that shape -- and the
+    scheduler has no way to notice on its own.
+    """
+    import pandas as pd
+    import pytest
+
+    from night_planner.targets_io import TargetTableError, load_targets
+
+    frame = pd.DataFrame({
+        'name': ['FRB20260101A', 'FRB20260102B', 'FRB20260101A'],
+        'ra_deg': [10.0, 20.0, 10.0],
+        'dec_deg': [40.0, 41.0, 40.0],
+        'mag': [18.0, 19.0, 18.0],
+    })
+    with pytest.raises(TargetTableError, match='more than once'):
+        load_targets(frame)

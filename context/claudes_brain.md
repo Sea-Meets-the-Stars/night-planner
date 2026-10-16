@@ -1212,3 +1212,255 @@ uninteresting ones -- log the reason at every skip point.
   (4) For MOS targets, the finder's `rotdest` is a longslit default; the
   mask PA wins.
 
+- **v0.42 — 2026-10-13 (UTC):** Forcing a rejected target in only ever worked
+  for a *rising* one. Both schedulers appended forced targets after the whole
+  night, so a fast-setting host -- the main reason to force anything, since
+  the scheduler drops it precisely because its full exposure won't fit the
+  window sliver left -- could never be placed: its window shut hours before
+  the schedule ended. Durable points:
+  (1) **Lick (`kast_calculations.reserve_forced()`):** forced targets are
+  placed *before* the greedy pass, inside their own HA window, and the slot
+  (padded one `SLEW_MINUTES` either side) is passed to `schedule_greedy()` as
+  a block, so the night schedules around them. Both pads are needed at Lick:
+  the greedy loop models slew as a cursor advance, not a row, so neither the
+  incoming nor the outgoing slew is otherwise accounted for across a block.
+  (2) **Placement rule: as late inside the target's own window as the
+  requested time allows.** One rule, both cases -- a setting target lands at
+  the top of the night because that is all it has, a rising one lands at the
+  end where it was going anyway -- and it reserves the least of everyone
+  else's time.
+  (3) **Keck tries append first, reservation second.** Appending disturbs
+  nothing, and the delivered 2026-10-06 plan depends on it: reserving
+  FRB20250411A's slot (even padded by only the 10-min base slew) lands five
+  minutes earlier than the append did and costs FRB20240106A. So
+  `select_targets_for_night()` appends, and recurses *once* with
+  `reserved`/`reservations` only for the targets append couldn't place,
+  clearing `skip_log` because pass 1 described a night that no longer
+  exists. Keck-2026B-02 reproduces timestamp for timestamp.
+  (4) The old Keck append deliberately let a forced target overrun its AM<2.0
+  window and morning twilight "per the explicit request"; the reservation
+  path truncates at window close instead. Keep that difference in mind when
+  comparing an appended plan with a re-run one.
+  (5) **A forced target that cannot be placed must surface as a decision.**
+  `adapters.lick_kast()` was ignoring `out['forced_failures']`, so the
+  scheduler printed "window closed" to stdout and the browser saw an
+  unchanged plan -- which reads as "it worked". Both adapters now emit a
+  `4. Forced` rejection.
+- **v0.43 — 2026-10-13 (UTC):** Finder charts now draw the PATH **secondary**
+  candidate, read from the plan's own target table (`Sec_RA`/`Sec_Dec`/...)
+  by `finder.load_secondaries()`. Durable points:
+  (1) **Colours follow `chime_ffff_pz/finder.py`:** red primary, orange
+  secondary, cyan offset star. Keep that, so our charts and the FFFF-PZ ones
+  read the same at the telescope.
+  (2) **Never size a candidate marker in points.** A PATH primary and its
+  runner-up are routinely 3" apart (FRB20260702C 2.8", FRB20260623C 2.9"),
+  which is ~7 px at a 4' field -- a 260-pt circle swallows both exactly where
+  the chart has to tell them apart. Use `SphericalCircle` at a fixed sky
+  radius (2" for candidates, 4" for the offset star).
+  (3) **Under ~12" separation, even that fails**, so the chart gets a
+  `Cutout2D` zoom inset (box = 6x the separation). Inside the inset, label
+  offsets must be vertical: the main chart's radial offsets are in points,
+  and the inset is small in figure units, so they land on its frame.
+  (4) **P(O|x) needs `:.3g`, not `:.3f`** -- these run to 1e-279.
+  (5) `backend.app._plan_targets_csv()` recovers the table a saved plan was
+  built from, via `request.argv` (`--targets-csv`, or `targets_csv` inside a
+  `--config` JSON). Any later feature needing the original table should use
+  it rather than guessing from the plan directory.
+- **v0.44 — 2026-10-13 (UTC):** Finder slit angle is now a choice, and the
+  parallactic angle's exposure dependence is documented. Durable points:
+  (1) **`slit_mode`** on `finder.generate_for_plan()` and
+  `/api/finders/generate`: `'parallactic'` (default) or `'candidates'`, the
+  latter setting the slit to `primary.position_angle(secondary)` so both PATH
+  candidates land in one exposure. Read from the plan's own target table --
+  no FFFF-PZ needed. The older `use_ffffpz` path still exists and differs in
+  using FFFF-PZ's candidate list.
+  (2) **Never let that choice be silent.** Candidates mode prints its
+  dispersion cost on the chart (subtitle + caption) and records `slit_mode`,
+  `parallactic_pa`, `pa_vs_parallactic` in the sidecar; a target with no
+  secondary falls back to parallactic and the browser names it. The cost is
+  wildly per-target: 0.4 deg for FRB20260702C, 43.6 for FRB20230805A, 59.5
+  for FRB20260623C.
+  (3) **The parallactic angle is a function of the exposure, not the
+  target.** `average_parallactic()` integrates over `science_start`..`end`,
+  5-min samples, tan(z)-weighted. For FRB20230805A from 00:10 the angle runs
+  59.8 deg (20 min) -> 51.9 (60) -> 45.2 (90) -> 38.1 (120), weighted
+  misalignment 2.3 -> 7.2 -> 11.9 -> 17.6 deg. **Past ~90 min near transit a
+  single slit setting stops being defensible; split the block.** And because
+  the angle is tied to the scheduled duration, changing an exposure means
+  regenerating the finders.
+  (4) `scripts/analyze_slit_pa.py` reports, per target, the chosen angle, the
+  swing, the weighted offset, and whether the secondary falls in the slit
+  (perpendicular distance vs half the slit width).
+- **v0.45 — 2026-10-14 (UTC):** Checked our slit angles against Lick's own
+  tools in `helpful_scripts/` (Burrous 1990 `pa.c`, `calcint.c`). Durable
+  points:
+  (1) **Our parallactic angle is exact.** 441 HA/Dec points, 0.000000 deg
+  disagreement with `pa.c`. We use four-quadrant `atan2(sin HA, tan lat cos
+  dec - sin dec cos HA)`; pa.c uses `asin` plus a quadrant patch
+  (`acos(tan lat / tan dec)` for Dec > lat). Don't "fix" ours toward theirs.
+  (2) **pa.c quotes the angle at the exposure midpoint**, we quote a
+  tan(z)-weighted average. Difference on real targets: 0.1-0.6 deg. Expect an
+  observer cross-checking with pa.c to see the midpoint number.
+  (3) **THE SHANE DOES NOT TAKE A SKY PA.** It takes a Cassegrain tub Nixie
+  readout, `readout = 0.87 x PA + 0.05` (table in `calcint.c`, ported to
+  `night_planner/lick_tub.py`). PA 108.92 -> tub **94.81**. Dialling the PA
+  puts the slit ~16 deg off. Lick finders, sidecars and starlist rows now
+  carry `#TUB = x or y`; always quote **both** settings, 180 deg apart, since
+  which is reachable depends on where the tub already sits.
+  (4) The calcint table runs 20..380 and its last 20 deg deliberately repeat
+  the first 20 -- never normalise with a plain `% 360`, or 380 reads 17.45
+  instead of 330.64.
+  (5) Keck/LRIS is unaffected: it takes `rotdest=` in sky PA. The `rotator`
+  key on the SITES entry is what distinguishes them.
+- **v0.46 — 2026-10-14 (UTC):** Synthetic target tables in `test_targs/`,
+  built by `scripts/make_test_target_tables.py` (seeded, regenerable).
+  Durable points:
+  (1) **Everything is `SIM`-prefixed and drawn from a seed.** Never put
+  realistic-looking fake targets in this repo without an unmistakable marker
+  -- a table that escapes its directory could get observed.
+  (2) **Three tables exist to be refused** (`bad_ambiguous_ra_units`,
+  `bad_burst_position_only`, `bad_odd_headers`). If a change makes them load,
+  the change is wrong: reading an RA as hours instead of degrees moves the
+  telescope by 15x. `tests/test_test_targs.py` asserts the refusals.
+  (3) Seasonal tables cluster on the RA transiting at local midnight: Oct 1h,
+  Jan 7h, Apr 13h, Jul 19h. Run one against the wrong date and nearly
+  everything should reject -- that is a test, not a bug.
+  (4) **Lick applies no airmass cut.** `target_window()` is pure hour-angle
+  against the mount limits, so a Dec -30 target (culminates at alt 22.7 deg,
+  airmass 2.6 from Lick) schedules happily where Keck would drop it at AM 2.0.
+  Worth raising with the author before a run with southern fillers.
+  (5) Fixed on the way: `load_targets()` now accepts a `Path` (it tested only
+  `isinstance(source, str)`), and `adapters.lick_kast()` no longer discards
+  `limit_reason` -- "Dec +86 > +82, above the Shane mechanical limit" reads
+  very differently from "never HA-legal tonight".
+- **v0.47 — 2026-10-14 (UTC):** Diagnosed an observer's PA discrepancy on
+  Keck-2026B-02/FRB20260418B (requested 170.8, set 195.2 by eye, both traces
+  recovered). Durable points:
+  (1) **Beware the tub coincidence.** tub(195.2) = 169.87, within 0.94 of
+  170.8 -- a near-perfect false match. But this was **Keck/LRIS, which has no
+  Cassegrain tub**. Always establish which telescope a number came from
+  before reaching for the 0.87 scaling.
+  (2) Our angle was correct: recomputing the PATH candidate-to-candidate axis
+  from the targets CSV gives 170.82 vs the requested 170.81.
+  (3) **The slit-tolerance formula settles these arguments:** both objects
+  are in the slit only while `sep * sin(delta) <= width/2`. For a pair 21.8"
+  apart that is **+/-1.3 deg at 1" slit width**. At 24.4 deg off, the
+  secondary is 9.0" off the centreline. So a reported angle differing by tens
+  of degrees *while both spectra came out* cannot be a sky PA -- it is an
+  instrument/rotator angle. Nobody's intuition gets this tolerance right.
+  (4) Open question for the observer: which field read 195.2? If it is
+  ROTPOSN, the LRIS rotator-to-sky offset (~24.4 deg here) belongs in the
+  SITES registry beside `rotator: 'cass_tub'`, and Keck charts should quote
+  it the way Lick charts now quote the tub.
+  (5) `scripts/diagnose_pa_discrepancy.py` reruns the whole analysis for any
+  plan/target/pair of angles.
+- **v0.48 — 2026-10-14 (UTC):** Corrects v0.47, which named the wrong
+  telescope. FRB20260418B was observed at **Lick**, not Keck -- it has
+  finders in both `Keck-2026B-02/finders/` and
+  `Lick-2026B-02/finder_charts/`. **A value matching in one plan is not
+  identification** when a target appears in several. Durable points:
+  (1) **The Shane tub zero point is probably NOT zero.** The slit that put
+  both candidates on it was sky PA 170.81 (catalogue-verified); the reported
+  readout was 195.2, i.e. **+24.4 deg**. If that is the zero point, every
+  `night_planner.lick_tub` number is low by a constant **21.22 Nixie**. Not
+  applied -- one data point. Get a second readout from a Lick night.
+  (2) **The coincidence that nearly fooled me twice:** tub(195.2) = 169.87,
+  within 0.94 of 170.81, which looks like a clean PA/tub swap. A +24.4 deg
+  offset and the 13% shrink cancel near PA 164 and diverge elsewhere (10 deg
+  apart at PA 240). Check a coincidence at a second angle before believing it.
+  (3) **Kast's 2" slit holds a 21.8" pair only within +/-2.63 deg.** Since
+  both traces were recovered, the by-eye alignment was right and the number
+  was in another frame. The slit-tolerance formula is the fastest way to tell
+  a units problem from a pointing problem.
+  (4) The Lick finder centres the slit *between* the two candidates
+  (`center_lick_kast_slits`), so its "Target" J-name differs from the
+  primary's. That is not an error.
+- **v0.49 — 2026-10-14 (UTC):** **Fixed a real scheduling bug in
+  `target_window()` (scripts/lick_2026b02_calculations.py).** It unwrapped the
+  morning HA to be >= the evening HA, then tested the overlap against only
+  the k=0 copy of [HA_MIN, HA_MAX]. A target 10.5h past the meridian at dusk
+  is the same target rising back into HA -5 before dawn, so **every late
+  riser was reported "never inside the Shane HA window"**. Now tests
+  k = -1, 0, +1; at most one can overlap, since the night is shorter than 24h
+  minus the window. Regression on Lick-2026B-03: the eight scheduled targets
+  keep identical slots and FRB20260407A is added at 04:29-05:34. The planner
+  had been discarding an hour at the end of such nights.
+- **v0.50 — 2026-10-14 (UTC):** Finder slit modes reworked, and a serious
+  twilight bug fixed. Durable points:
+  (1) **An existence check must consider the mode.** `generate_for_plan()`
+  skipped any target whose PNG existed, so switching parallactic ->
+  candidates silently kept the old chart while the starlist quoted the new
+  angle. Decide the effective mode first (candidates only where a secondary
+  exists), then treat a differing sidecar `slit_mode` as stale.
+  (2) **FFFF-PZ is no longer a separate option.** Candidates mode *is* the
+  FFFF-PZ path, reading Sec_RA/Sec_Dec from the plan's own target table --
+  nothing fetched, no live Resource. `_ffffpz_finders()` (the
+  `chime_ffff_pz_finder` shell-out) is deleted; recover from git if ever
+  wanted. Targets with no secondary fall back to parallactic, are named in
+  the browser and carry `fallback_reason`.
+  (3) `finder.slit_report()` + `finders/slit_report.txt` record what angle
+  every chart was drawn at. Keep writing it -- the question resurfaces days
+  later when a spectrum looks wrong.
+  (4) **`find_twilight()` could not handle summer.** It stepped 1 min with a
+  600-iteration cap from local noon, reaching only 22:00, so **every Lick
+  night from late May to early August raised "Could not find evening
+  twilight"** -- no summer plan was possible. Now one vectorised 24 h scan.
+  21 June reads 22:25-03:53; already-planned dates are unchanged.
+  (5) When a generate re-renders the page, the form must be restored from
+  remembered state or it lies about what was asked for.
+- **v0.51 — 2026-10-14 (UTC):** PATH candidates are an FFFF-PZ property,
+  recognised by format. Durable points:
+  (1) **`targets_io.detect_format()`** returns 'ffff-pz' vs 'generic' from
+  the combination only FFFF-PZ produces: burst position + DM
+  (FRB_RA/FRB_Dec/FRB_DM) *alongside* ranked candidates with probabilities
+  (Pri_POx/Sec_POx). Surfaced by `/api/targets/inspect` and shown in the
+  Inspect panel. `load_secondaries()` returns {} for a generic table even
+  when it has Sec_RA.
+  (2) **Do not use a per-row name/DM heuristic for this.** The real
+  Lick-2026B-03 pull carries a DM for only 15 of 19 rows (baseband-merged
+  ones have none), so a DM test rejects four genuine FRBs.
+  (3) **The root cause was fabricated test data.** `write_ffffpz()` gave
+  Sec_* to supernovae and DLAs, so the planner fitted slits through
+  candidates those objects cannot have. It now asserts FRB-only, which
+  immediately caught a second bad table. `allsky_mixed.csv` is generic;
+  `allsky_frb_ffffpz.csv` is the FFFF-PZ all-sky table.
+  (4) When writing synthetic data, give each format only the rows that
+  format can legitimately describe -- otherwise the fake table teaches the
+  code a false rule and the bug looks like a code bug.
+- **v0.52 — 2026-10-14 (UTC):** **Shane HA limits are -05:40 east, +03:45
+  west** (author's decision, adopting the published values; east was -5.0
+  until now). Durable points:
+  (1) Written as `-(5 + 40/60)` / `3 + 45/60` in
+  `scripts/lick_2026b02_calculations.py` so the published figures are legible
+  in the source, and pinned by a test -- a silent revert costs 40 min of
+  window on every rising target and nothing else would complain.
+  (2) Worth, on the Lick-2026B-03 table: 11 of 19 targets gain window, ten
+  the full 39.9 min, one newly observable, **387 min total**. A target
+  already up at dusk gains nothing -- the east limit never clipped it.
+  `scripts/compare_ha_limits.py` recomputes this for any table and date.
+  (3) The constant was duplicated in five scripts. Live ones updated;
+  `build_lick_2026b02_night_plan.py` and `lick_2026b02_sep15_revision.py`
+  keep their -5.0 *text* because they record delivered nights, so their
+  printed limits now differ from their imported behaviour.
+- **v0.53 — 2026-10-15 (UTC):** Swept every synthetic table across the year
+  (`scripts/sweep_test_plans.py`) and found four bugs. Durable points:
+  (1) **`datetime + timedelta` on a DST-aware datetime is wall-clock
+  arithmetic.** Across the spring-forward gap 01:30 + 90 min lands on 03:00,
+  30 minutes later in real time -- time runs *backwards*. Use
+  `night_planner.sky.advance()` (to UTC, add, back) for every scheduling
+  addition. Lick only: Pacific/Honolulu has no DST, so Keck was never
+  exposed. Always assert schedule invariants in UTC; local labels
+  legitimately jump an hour.
+  (2) A frame built from per-row dicts can be missing columns entirely when
+  no row took the branch that sets them -- "nothing observable tonight"
+  crashed on `sort_values('start_pst')`. Guarantee the schema after
+  building, not at each use.
+  (3) **Duplicate target names are scheduled twice.** `load_targets()` now
+  refuses them. Merged tables (the baseband merge into Lick-2026B-03) are
+  where this arises. All 15 existing Night_plans tables pass.
+  (4) `--start` after morning twilight produced a negative-length night and
+  a silent empty plan; now refused.
+  (5) The sweep's value is the invariant checker, not the runs: overlaps,
+  blocks outside the night, exposures outside their own HA window, targets
+  scheduled twice or missing from decisions. Keep DST dates and the
+  manual-start/block variants in `DATES`.

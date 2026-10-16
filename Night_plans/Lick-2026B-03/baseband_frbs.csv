@@ -1,0 +1,212 @@
+made plot,,"We've had Initial Vetting, yes. But what about Second Vetting?",,,,,,,,,,Original formula for copying values from Initial Vetting:,,,"FILTER({Initial_Vetting!A$11:A$3000, Initial_Vetting!B$11:B$3000, Initial_Vetting!R$11:R$3000, Initial_Vetting!F$11:F$3000, Initial_Vetting!K$11:K$3000}, ((Initial_Vetting!K$11:K$3000>0.8)+(ISNUMBER(SEARCH(""re-run"",Initial_Vetting!R$11:R$3000)))>0)*(Initial_Vetting!R$11:R$3000<>""STAR"")*(Initial_Vetting!R$11:R$3000<>""michilli+23 repeater""))", ,,,,,,,
+high DM,,"In this spreadsheet, I (Bridget) consolidate all of the hosts with P(O1|x) > 80% (in ""Initial Vetting"" and in 
+the basecat2_host_analysis spreadsheet), and those marked as needing a PATH re-run",,,,,,,,,,Updated number of possible hosts:,,,75,41,,,,,,,
+error,,"Then I determine what their P(O1|x) is from the official PATH dashboard run, and whether or not they still need a re-run",,,,,,,,,,Needs re-run:,,,60,,,,,,,,
+good target,,"Then, if a re-run is needed, I do it through Bridget's fancy new custom vetting tool (with PATH bug fixes), and output the results here",,,,,,,,,,Updated number of possible hosts after re-run:,,,48,,,,,,,,
+same error,,"These results will finally be uploaded to FFFF-PZ (see ""PATH Values in FFFF-PZ"" column)",,,,,,,,,,,,,,,,,,,,,
+,,Bridget and Michele are responsible for this analysis.,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,Primary Candidate,,,,,, Secondary Candidate,,,,,,,
+"CHIME/FRB
+Event ID",TNS Name,"Initial Vetting
+Notes",PATH Survey,"Bridget Messy
+P(O1|x)","Dashboard 
+P(O1|x)","Should custom 
+PATH be run?","Re-run 
+Notes","PATH Values
+Finalized?","PATH
+Diagnostic",RA1 (deg),DEC1 (deg),Magnitude1 (m_r),Angular Size1 (''),Cand-Loc Sep1 (''),P(O1|x),RA2 (deg),DEC2 (deg),Magnitude2 (m_r),Angular Size2 (''),Cand-Loc Sep2 (''),P(O2|x),P(U|x),"PATH Values 
+in FFFF-PZ?"
+23613379,FRB20181223C,,DECaL,0.8271,0.8284,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,180.92080,27.54764,16.72,3.54,36.26,0.7899,180.93559,27.54892,20.10,0.99,12.18,0.0534,0.0583,FALSE
+24365582,FRB20181231B,,DECaL,0.8137,0.7401,YES,"Faint candidate, likely will not be able to associate, but worth a try",TRUE,Diagnostic,130.79445,56.02677,18.48,1.50,19.73,0.8696,130.78970,56.02371,22.49,0.72,26.37,0.0155,0.0647,FALSE
+26804245,FRB20190116A,,DECaL,0.8113,0.7396,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,192.25616,27.17886,15.23,7.49,69.48,0.7550,192.25163,27.14666,18.21,2.20,85.80,0.0156,0.1007,FALSE
+26938845,FRB20190117E,,DECaL,0.9400,0.9198,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,357.95801,28.00962,15.75,3.90,19.63,0.9755,357.95787,28.01566,20.91,1.73,17.51,0.0039,0.0110,FALSE
+26938845,FRB20190117E,"Primary split, but caught in DECaLs",Pan-STARRS,0.8556,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+31938812,FRB20190227A,,DECaL,0.9634,0.9618,NO,Dashboard PATH looks good,TRUE,Diagnostic,108.12895,56.27804,17.02,3.99,15.17,0.9643,108.13475,56.28123,19.96,1.88,31.47,0.0055,0.0138,FALSE
+31938812,FRB20190227A,,Pan-STARRS,0.8748,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+32328347,FRB20190303B,,DECaL,0.9649,0.9508,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,128.68502,66.00737,15.69,7.28,6.59,0.9643,128.69321,66.00089,17.69,1.78,19.75,0.0248,0.0030,FALSE
+32328347,FRB20190303B,,Pan-STARRS,0.9463,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+36234050,FRB20190411B,,DECaL,0.8483,0.7758,NO,"Huge star, will be hard to get reliable photometry",TRUE,Diagnostic,154.14232,29.32056,15.47,3.51,127.21,0.1716,154.07837,29.27202,18.55,1.72,178.09,0.0164,0.4395,FALSE
+36370989,FRB20190411C,,DECaL,0.9640,0.9432,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,10.68424,20.48155,17.82,2.63,10.27,0.9567,10.68588,20.47999,22.83,0.48,3.68,0.0093,0.0180,FALSE
+36370989,FRB20190411C,,Pan-STARRS,0.9459,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+37637444,FRB20190423A,,DECaL,0.9914,0.9173,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,179.47040,55.31287,15.26,6.97,19.00,0.9919,179.46545,55.31941,23.90,0.70,7.59,0.0004,0.0071,FALSE
+37637444,FRB20190423A,,Pan-STARRS,0.9921,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+37888771,FRB20190425A,,DECaL,0.9702,0.9691,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,255.66248,21.57671,14.62,11.44,24.88,0.9858,255.66926,21.57557,23.13,0.70,8.57,0.0005,0.0120,FALSE
+37888771,FRB20190425A,,Pan-STARRS,0.8729,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+40608623,FRB20190605C,,DECaL,0.9166,0.9097,NO,Dashboard PATH looks good,TRUE,Diagnostic,170.10827,-5.15792,17.13,5.96,13.37,0.9056,170.11207,-5.15418,19.72,1.47,13.02,0.0673,0.0175,FALSE
+40608623,FRB20190605C,,Pan-STARRS,0.8820,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+41643446,FRB20190617A,,DECaL,0.9800,0.9454,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,177.74881,83.80763,17.27,3.92,7.25,0.9814,177.74662,83.79809,19.26,1.17,28.68,0.0047,0.0063,FALSE
+41643446,FRB20190617A,,Pan-STARRS,0.9583,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+44390343,FRB20190716B,,DECaL,0.8222,0.8341,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,267.28604,79.72097,16.38,5.86,20.61,0.8777,267.28370,79.71121,19.92,1.00,17.82,0.0171,0.0305,FALSE
+59797725,FRB20191025B,,DECaL,0.8457,0.5745,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,111.59523,23.10770,18.20,4.48,6.20,0.8211,111.58535,23.10783,20.12,1.11,35.48,0.0338,0.0506,FALSE
+59794378,FRB20191025D,,Pan-STARRS,0.8439,0.8481,NO,Dashboard PATH looks good,TRUE,Diagnostic,89.28873,62.44128,17.56,6.17,21.38,0.8354,89.26941,62.44519,21.26,3.03,17.36,0.0268,0.1149,FALSE
+60100515,FRB20191030C,,DECaL,0.8855,0.7562,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,181.04947,61.61535,17.29,2.54,14.41,0.8555,181.05156,61.61870,19.85,0.40,18.28,0.0421,0.0653,FALSE
+60100515,FRB20191030C,,Pan-STARRS,0.8395,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+60520791,FRB20191104E,,Pan-STARRS,0.8671,0.8244,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,287.49539,60.42499,19.09,1.53,25.36,0.5893,287.49595,60.42163,22.64,0.31,14.37,0.0677,0.1580,FALSE
+60955229,FRB20191107C,,DECaL,0.8734,0.8177,NO,"Faint candidate, will not be able to associate",TRUE,Diagnostic,249.31848,41.44341,17.99,3.38,14.13,0.8732,249.32426,41.44281,22.30,0.66,2.58,0.0163,0.0433,FALSE
+60955229,FRB20191107C,,Pan-STARRS,0.8264,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+64549878,FRB20191212C,"BIG primary categorized as star, definite association, needs PATH re-run",DECaL,0.5492,0.5983,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,105.27105,51.26967,13.72,16.46,34.50,0.9737,105.24562,51.26360,18.54,2.21,26.87,0.0037,0.0224,FALSE
+64549878,FRB20191212C,"Big galaxy split into multiple sources, definite association, needs PATH re-run",Pan-STARRS,0.4084,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+65605013,FRB20191220E,,Pan-STARRS,0.9066,,YES,"Artifacts could be causing issues, check dashboard",TRUE,Diagnostic,34.27213,46.04979,16.16,9.89,17.02,0.9175,34.28139,46.04902,20.38,1.94,28.61,0.0020,0.0750,FALSE
+65995637,FRB20191223D,,DECaL,0.9779,0.9804,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,11.63146,14.98497,14.95,5.72,9.38,0.9626,11.63878,14.97315,18.96,1.72,42.34,0.0043,0.0163,FALSE
+65995637,FRB20191223D,,Pan-STARRS,0.9705,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+69841193,FRB20200122A,"BIG galaxy split into multiple ""stars,"" definite association, needs PATH re-run",DECaL,0.2218,0.9883,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,158.59642,73.76497,11.51,112.20,32.96,0.9315,158.53893,73.76187,19.43,1.77,34.23,0.0001,0.0682,FALSE
+69841193,FRB20200122A,"BIG galaxy split into multiple ""stars,"" definite association, needs PATH re-run",Pan-STARRS,0.5278,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+69848452,FRB20200122B,"BIG galaxy split into multiple ""stars,"" definite association, needs PATH re-run",Pan-STARRS,0.4184,N/A,N/A,Repeater of FRB20181030A (first event 69841193),FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+69975256,FRB20200122D,"BIG galaxy split into multiple ""stars,"" definite association, needs PATH re-run",DECaL,0.0470,N/A,N/A,Repeater of FRB20181030A (first event 69841193),FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+69975256,FRB20200122D,"BIG galaxy split into multiple ""stars,"" definite association, needs PATH re-run",Pan-STARRS,0.4635,N/A,N/A,Repeater of FRB20181030A (first event 69841193),FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+69975309,FRB20200122E,"BIG galaxy split into multiple ""stars,"" definite association, needs PATH re-run",DECaL,0.2722,N/A,N/A,Repeater of FRB20181030A (first event 69841193),FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+69975309,FRB20200122E,"BIG galaxy split into multiple ""stars,"" definite association, needs PATH re-run",Pan-STARRS,0.2076,N/A,N/A,Repeater of FRB20181030A (first event 69841193),FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+69978377,FRB20200122G,"BIG galaxy split into multiple ""stars,"" definite association, needs PATH re-run",DECaL,0.0863,N/A,N/A,Repeater of FRB20181030A (first event 69841193),FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+69978377,FRB20200122G,"BIG galaxy split into multiple ""stars,"" definite association, needs PATH re-run",Pan-STARRS,0.4907,N/A,N/A,Repeater of FRB20181030A (first event 69841193),FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+70472283,FRB20200125B,,DECaL,0.8151,0.8091,NO,Dashboard PATH looks good,TRUE,Diagnostic,251.68745,53.15098,18.50,0.92,14.79,0.8131,251.67955,53.14947,19.83,0.94,32.43,0.0300,0.0411,FALSE
+70472283,FRB20200125B,,Pan-STARRS,0.8021,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+71703974,FRB20200203D,,DECaL,0.9935,0.993,NO,Dashboard PATH looks good,TRUE,Diagnostic,165.75207,41.32589,15.85,6.98,4.39,0.9899,165.76033,41.31793,20.92,1.34,39.87,0.0005,0.0074,FALSE
+71820052,FRB20200204I,"Galaxy center is a star, definite association, needs PATH re-run",DECaL,0.8800,0.908,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,103.93758,47.03506,14.69,5.70,41.84,0.8841,103.95214,47.05536,17.86,3.40,50.15,0.0160,0.0509,FALSE
+71820052,FRB20200204I,,Pan-STARRS,0.8633,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+73033908,FRB20200215A,,DECaL,0.8202,0.8839,NO,Dashboard PATH looks good,TRUE,Diagnostic,199.58013,42.99971,17.26,1.60,29.44,0.8398,199.59507,43.00340,20.53,0.82,32.29,0.0219,0.0714,FALSE
+73033908,FRB20200215A,,Pan-STARRS,0.8108,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+73459876,FRB20200218D,,DECaL,0.9288,0.8892,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,206.51746,22.49163,15.83,5.22,40.87,0.8864,206.52391,22.47025,19.50,0.68,72.86,0.0061,0.0641,FALSE
+73459876,FRB20200218D,,Pan-STARRS,0.9134,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+94588634,FRB20200621B,,DECaL,0.9669,0.9334,NO,Dashboard PATH looks good,TRUE,Diagnostic,231.78145,58.72197,16.87,4.51,12.48,0.9737,231.78117,58.73123,21.54,0.48,23.04,0.0047,0.0137,FALSE
+94588634,FRB20200621B,,Pan-STARRS,0.9302,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+95822946,FRB20200702C,,DECaL,0.9961,0.9904,NO,Dashboard PATH looks good,TRUE,Diagnostic,8.26953,28.83127,15.98,5.81,9.59,0.9901,8.27168,28.83533,22.50,0.46,6.86,0.0012,0.0052,FALSE
+95822946,FRB20200702C,,Pan-STARRS,0.9830,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+104235227,FRB20200723B,"BIG galaxy split into multiple sources, definite association, needs PATH re-run",Pan-STARRS,0.6776,,YES,Dashboard results not in spreadsheet...,TRUE,Diagnostic,190.15354,-5.13300,11.75,77.40,12.81,0.9468,190.16956,-5.09215,15.80,7.49,161.14,0.0001,0.0529,FALSE
+104727248,FRB20200726F,,DECaL,0.9921,,YES,Dashboard results not in spreadsheet...,TRUE,Diagnostic,229.30457,55.44466,16.08,7.38,11.07,0.9634,229.32790,55.45535,16.54,2.42,58.69,0.0096,0.0206,FALSE
+104727248,FRB20200726F,,Pan-STARRS,0.9021,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+135775092,FRB20200920A,,DECaL,0.9389,0.6593,NO,Dashboard PATH looks good,TRUE,Diagnostic,155.64701,26.35855,16.81,9.22,56.53,0.7429,155.64860,26.34167,21.68,1.20,9.25,0.0153,0.0833,FALSE
+137628984,FRB20201008A,"Galaxy split into multiple sources, needs re-run",DECaL,0.7827,,YES,Dashboard results not in spreadsheet...,TRUE,Diagnostic,99.91746,35.45140,15.68,8.25,32.60,0.9364,99.93042,35.44712,18.87,1.22,29.91,0.0161,0.0360,FALSE
+137628984,FRB20201008A,,Pan-STARRS,0.8682,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+137751593,FRB20201010B,,DECaL,0.9427,0.7244,YES,"Primary candidate split into multiple sources, check dashboard",TRUE,Diagnostic,130.07665,42.30926,15.21,5.48,39.08,0.8685,130.08654,42.32307,20.80,0.51,28.36,0.0049,0.1087,FALSE
+137751593,FRB20201010B,,Pan-STARRS,0.8299,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+140553344,FRB20201101B,,DECaL,0.9796,0.9791,NO,Dashboard PATH looks good,TRUE,Diagnostic,127.09039,29.08680,16.14,3.96,13.47,0.9751,127.10034,29.09267,21.18,0.60,24.73,0.0023,0.0103,FALSE
+140553344,FRB20201101B,,Pan-STARRS,0.9664,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+145108126,FRB20201128B,,DECaL,0.9542,,YES,Dashboard results not in spreadsheet...,TRUE,Diagnostic,261.81364,52.16393,17.04,4.14,5.74,0.9574,261.81023,52.17927,15.78,6.28,50.40,0.0039,0.0307,FALSE
+145108126,FRB20201128B,,Pan-STARRS,0.9021,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+145086396,FRB20201128D,,DECaL,0.9815,,YES,Dashboard results not in spreadsheet...,TRUE,Diagnostic,183.12444,73.29524,16.32,5.46,18.24,0.9749,183.12972,73.29236,20.76,0.50,19.93,0.0065,0.0087,FALSE
+145086396,FRB20201128D,,Pan-STARRS,0.9796,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+148992668,FRB20201225A,,DECaL,0.9848,0.9917,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,294.34742,62.38364,12.52,39.60,23.23,0.9813,294.33850,62.38269,16.34,15.60,32.15,0.0039,0.0146,FALSE
+152062271,FRB20210113C,,DECaL,0.9142,,YES,Dashboard results not in spreadsheet...,TRUE,Diagnostic,107.91983,64.93513,16.59,4.09,28.47,0.9248,107.90572,64.93144,20.15,1.59,25.55,0.0200,0.0397,FALSE
+152062271,FRB20210113C,,Pan-STARRS,0.8353,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+152308061,FRB20210115C,,DECaL,0.9194,0.7531,NO,Dashboard PATH looks good,TRUE,Diagnostic,8.26953,28.83127,15.98,5.81,50.00,0.7036,8.24919,28.82457,19.38,2.73,24.64,0.0694,0.0623,FALSE
+155008744,FRB20210130D,,DECaL,0.9819,0.9874,NO,Dashboard PATH looks good,TRUE,Diagnostic,279.35699,72.68260,16.14,1.80,19.29,0.9838,279.32031,72.68318,20.64,1.45,20.18,0.0058,0.0079,FALSE
+155008744,FRB20210130D,,Pan-STARRS,0.9771,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+162830616,FRB20210301C,,DECaL,0.8194,0.8349,NO,"Faint candidate, will not be able to associate",TRUE,Diagnostic,257.32667,45.73824,18.63,2.57,9.12,0.8280,257.32889,45.73741,22.04,0.45,13.93,0.0223,0.0356,FALSE
+164240257,FRB20210309D,,DECaL,0.9369,0.9493,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,214.34505,58.75043,14.49,5.18,33.99,0.9476,214.32142,58.75486,22.25,0.81,12.97,0.0018,0.0499,FALSE
+168836781,FRB20210422B,,DECaL,0.9622,,YES,Dashboard results not in spreadsheet...,TRUE,Diagnostic,145.77642,42.86717,16.29,6.72,9.21,0.9859,145.77203,42.86485,20.81,0.39,23.38,0.0020,0.0056,FALSE
+168836781,FRB20210422B,,Pan-STARRS,0.9710,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+171970372,FRB20210525B,,DECaL,0.9470,0.6788,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,136.15042,18.38785,16.93,2.82,15.99,0.9462,136.15360,18.38405,20.32,1.33,18.24,0.0174,0.0211,FALSE
+171970372,FRB20210525B,,Pan-STARRS,0.9365,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+172617745,FRB20210531A,,DECaL,0.8468,0.7233,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,223.68127,31.46183,17.96,1.17,13.76,0.8347,223.67873,31.46471,20.50,0.76,16.62,0.0472,0.0203,FALSE
+172924963,FRB20210603A,,DECaL,0.9033,0.897,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,10.27427,21.22554,17.62,5.95,7.06,0.9237,10.26916,21.22785,21.40,0.97,18.40,0.0097,0.0198,FALSE
+172924963,FRB20210603A,,Pan-STARRS,0.8629,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+173502205,FRB20210609D,,DECaL,0.9250,,YES,Dashboard results not in spreadsheet...,TRUE,Diagnostic,237.26842,37.53950,17.58,3.01,22.54,0.9246,237.27749,37.53536,22.75,0.59,7.48,0.0159,0.0323,FALSE
+173502205,FRB20210609D,,Pan-STARRS,0.8861,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+178502543,FRB20210803A,Double-check the DECaL PATH run for this one. P(O|x) disagrees,DECaL,0.9126,,YES,"Dashboard results not in spreadsheet... Re-run with Pan-STARRS, DECaL values for radius are too small",TRUE,Diagnostic,125.75285,54.87662,16.89,3.93,28.27,0.9469,125.73153,54.88073,23.41,0.34,18.76,0.0040,0.0431,FALSE
+179348777,FRB20210807C,,DECaL,0.9187,0.909,NO,Dashboard PATH looks good,TRUE,Diagnostic,154.97791,44.46178,18.34,1.62,3.52,0.9011,154.96908,44.46378,22.29,0.84,24.15,0.0063,0.0457,FALSE
+179348777,FRB20210807C,,Pan-STARRS,0.8937,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+179406983,FRB20210808E,,DECaL,0.8935,,YES,Dashboard results not in spreadsheet... ,TRUE,Diagnostic,329.88790,19.93012,16.53,2.64,22.33,0.9269,329.87576,19.93066,19.82,0.86,23.65,0.0204,0.0208,FALSE
+182446743,FRB20210826B,,DECaL,0.8252,0.7844,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,240.37031,27.07744,15.42,4.26,48.70,0.7628,240.35903,27.07580,17.87,1.60,30.36,0.0554,0.0653,FALSE
+184671018,FRB20210907A,,DECaL,0.8662,0.8742,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,122.54794,54.66491,15.70,4.06,56.93,0.8700,122.50328,54.66215,20.21,1.06,39.27,0.0088,0.0564,FALSE
+184671018,FRB20210907A,,Pan-STARRS,0.8252,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+184816734,FRB20210908B,,Pan-STARRS,0.8828,0.8926,NO,Dashboard PATH looks good,TRUE,Diagnostic,25.61905,52.71105,16.72,8.35,23.74,0.8468,25.61362,52.71539,21.39,2.51,6.51,0.0251,0.0820,FALSE
+187555600,FRB20210923B,"BIG primary categorized as star, definite association, needs PATH re-run",Pan-STARRS,0.7255,,YES,"Primary marked as star, dashboard results not in spreadsheet... ",TRUE,Diagnostic,36.12260,40.87042,14.04,18.38,28.04,0.9606,36.11737,40.87560,20.61,3.18,4.86,0.0018,0.0362,FALSE
+188760930,FRB20210930F,"BIG BIG BIG HOST GALAXY marked as stars!!! Definitive association, needs PATH re-run",Pan-STARRS,0.4520,,YES,"Primary marked as star, dashboard results not in spreadsheet... ",TRUE,Diagnostic,31.71486,44.57108,10.75,65.50,35.35,0.9151,31.72225,44.57647,20.07,2.15,14.58,0.0000,0.0848,FALSE
+189398641,FRB20211003G,,DECaL,0.9844,0.9605,NO,Dashboard PATH looks good,TRUE,Diagnostic,269.74204,72.95284,16.11,4.51,19.33,0.9730,269.71085,72.94920,19.51,0.35,30.62,0.0074,0.0088,FALSE
+189398641,FRB20211003G,,Pan-STARRS,0.9572,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+189845329,FRB20211005A,,DECaL,0.8585,0.8592,NO,Dashboard PATH looks good,TRUE,Diagnostic,236.01251,20.71834,18.68,1.54,17.84,0.7953,236.00524,20.71846,20.83,1.94,24.71,0.0417,0.0734,FALSE
+189985825,FRB20211006A,,DECaL,0.9112,0.8343,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,165.07887,41.82184,19.82,1.50,5.66,0.9014,165.08376,41.82051,23.76,0.70,19.61,0.0084,0.0825,FALSE
+189962502,FRB20211006B,,DECaL,0.9319,0.8306,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,133.88536,73.24095,17.31,5.92,6.91,0.9122,133.90521,73.23546,19.13,1.40,34.77,0.0169,0.0213,FALSE
+189962502,FRB20211006B,,Pan-STARRS,0.8292,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+195521408,FRB20211104D,,DECaL,0.9373,0.887,YES,Double-check radius and magnitude for primary,TRUE,Diagnostic,7.75551,-7.72657,16.89,4.15,13.99,0.9246,7.75823,-7.72793,20.25,0.89,10.14,0.0292,0.0159,FALSE
+195521408,FRB20211104D,,Pan-STARRS,0.9170,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+195718715,FRB20211105A,,DECaL,0.9459,0.9347,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,156.79622,24.04402,15.79,7.46,22.79,0.9497,156.78879,24.03859,20.25,0.59,12.57,0.0152,0.0311,FALSE
+195718715,FRB20211105A,,Pan-STARRS,0.9091,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+198287814,FRB20211119E,"BIG galaxy marked as star, definitive association, needs PATH re-run",DECaL,0.3756,,YES,"Primary candidate marked as a star, dashboard results not in spreadsheet... ",TRUE,Diagnostic,241.39821,44.20612,13.51,13.00,44.82,0.9462,241.39690,44.19658,20.18,0.75,10.47,0.0027,0.0450,FALSE
+198287814,FRB20211119E,"BIG galaxy marked as star, definitive association, needs PATH re-run",Pan-STARRS,0.4853,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+198595370,FRB20211122A,"Star-looking galaxy, but pretty sure it's a galaxy. Check PATH, half-light radius seems small...",DECaL,0.8923,,YES,"Primary candidate split into multiple candidates, dashboard results not in spreadsheet... ",TRUE,Diagnostic,27.41353,28.81803,16.66,1.38,23.30,0.9262,27.41757,28.81178,21.69,0.81,12.58,0.0114,0.0208,FALSE
+198595370,FRB20211122A,"Same as above, Pan-STARRS does a better job measuring the radius, high PATH association!",Pan-STARRS,0.9260,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+212468978,FRB20220220C,"Note from low-DM work: Galactic DM contribution is likely incorrect. Galactic DM should be more like ~60-70 pc/cc, leaving excess DM ~ 97 pc/cc. Still low-DM, just not *that* low. Check against z of potential host.",Pan-STARRS,0.9135,,YES,Dashboard results not in spreadsheet,TRUE,Diagnostic,65.06147,82.58795,15.05,16.13,63.58,0.8157,64.94711,82.60650,19.26,4.08,22.07,0.0155,0.1499,FALSE
+213049980,FRB20220225D,"Bright galaxy separated into multiple stars, needs PATH re-run",DECaL,0.2514,,YES,"Primary candidate split into multiple candidates, dashboard results not in spreadsheet... ",TRUE,Diagnostic,111.24968,49.49254,12.59,34.21,91.07,0.8518,111.18989,49.49077,19.59,1.51,58.84,0.0002,0.1454,FALSE
+213049980,FRB20220225D,"Bright galaxy separated into multiple stars, needs PATH re-run",Pan-STARRS,0.1586,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+213564631,FRB20220301E,Large galaxy possibly missing from catalog? re-run,DECaL,0.0162,,YES,"Large galaxy at edge of FOV, both DECaL and Pan-STARRS ang_size seems off, dashboard results not in spreadsheet... ",TRUE,Diagnostic,258.15879,80.18197,14.00,11.23,96.50,0.0050,258.31823,80.17033,22.58,0.61,27.23,0.0049,0.9567,FALSE
+213564631,FRB20220301E,Large galaxy possibly missing from catalog? re-run,Pan-STARRS,0.2553,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+216226798,FRB20220317C,"Primary split into two sources, needs re-run",Pan-STARRS,0.7495,,YES,"Primary candidate split into multiple candidates, dashboard results not in spreadsheet... ",TRUE,Diagnostic,326.82158,34.08741,16.39,11.35,20.90,0.9477,326.81487,34.09559,21.93,2.13,17.85,0.0032,0.0460,FALSE
+222752988,FRB20220428C,"BIG galaxy marked as stars, definitive association, needs PATH re-run",DECaL,0.2714,0.9926,NO,Dashboard PATH looks good,TRUE,Diagnostic,130.90867,50.20556,11.76,96.60,70.74,0.9025,130.94403,50.20497,17.54,9.29,63.05,0.0004,0.0969,FALSE
+222752988,FRB20220428C,"BIG galaxy marked as star, definitive association, needs PATH re-run",Pan-STARRS,0.7047,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+231132247,FRB20220618A,,DECaL,0.8147,0.7958,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,353.68218,19.80996,17.39,2.61,12.97,0.8089,353.68000,19.81147,19.11,0.68,6.59,0.1483,0.0152,FALSE
+236723947,FRB20220719A,"BIG galaxy at the edge of localization marked as star. Not definitive association, but could use a PATH re-run.",DECaL,0.2086,,YES,"Primary candidate marked as a star, dashboard results not in spreadsheet... ",TRUE,Diagnostic,235.73105,70.82811,13.99,7.19,75.93,0.1263,235.66882,70.83388,21.20,0.87,22.86,0.0187,0.7274,FALSE
+237183788,FRB20220723A,,Pan-STARRS,0.8771,,YES,Dashboard results not in spreadsheet... ,TRUE,Diagnostic,38.56872,89.34624,14.35,11.79,30.87,0.9520,37.51090,89.34705,19.80,3.72,69.28,0.0000,0.0480,FALSE
+251263719,FRB20221108D,"BIG galaxy marked as star, definitive association, needs PATH re-run",DECaL,0.2196,,YES,"Primary candidate marked as a star, dashboard results not in spreadsheet... ",TRUE,Diagnostic,119.34501,62.41176,13.31,11.68,47.55,0.9228,119.32279,62.41691,20.57,1.47,6.96,0.0021,0.0690,FALSE
+251263719,FRB20221108D,"BIG galaxy marked as star, definitive association, needs PATH re-run",Pan-STARRS,0.6278,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+255585369,FRB20221215F,,Pan-STARRS,0.9673,0.9904,NO,Dashboard PATH looks good,TRUE,Diagnostic,18.42273,31.04904,15.13,4.46,24.53,0.9795,18.41847,31.04560,20.16,0.34,34.41,0.0014,0.0114,FALSE
+267417074,FRB20230125B,"Galaxy center marked as star, not definitive association, needs PATH re-run",DECaL,0.8500,0.7841,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,233.50927,27.34070,14.75,6.43,53.28,0.8017,233.52919,27.33574,20.96,1.38,20.02,0.0107,0.1392,FALSE
+267417074,FRB20230125B,"Galaxy gmarked as star, not definitive association, needs PATH re-run",Pan-STARRS,0.0865,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+271685485,FRB20230217A,,DECaL,0.8110,0.7986,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,174.72271,42.45750,17.47,3.47,12.40,0.8162,174.71899,42.45385,20.35,1.24,9.69,0.0387,0.0694,FALSE
+272367619,FRB20230222B,,DECaL,0.9121,,YES,Dashboard results not in spreadsheet,TRUE,Diagnostic,238.73795,30.89987,17.35,2.37,18.50,0.8769,238.73084,30.89592,21.98,0.38,10.95,0.0102,0.0958,FALSE
+272367619,FRB20230222B,,Pan-STARRS,0.8767,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+285290408,FRB20230423A,,DECaL,0.9277,0.9123,NO,Dashboard PATH looks good,TRUE,Diagnostic,113.73987,61.61587,16.70,3.45,5.87,0.9375,113.72136,61.61170,19.59,0.87,40.88,0.0108,0.0162,FALSE
+285290408,FRB20230423A,,Pan-STARRS,0.8536,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+300072789,FRB20230629A,,DECaL,0.8463,0.7793,YES,Primary candidate split into multiple sources,TRUE,Diagnostic,339.55999,30.68403,16.94,2.76,29.17,0.7304,339.59779,30.66897,16.86,1.78,113.64,0.0143,0.1168,FALSE
+300895079,FRB20230702A,,DECaL,0.8413,,YES,Dashboard results not in spreadsheet,TRUE,Diagnostic,132.11991,26.40083,17.16,5.33,32.80,0.7953,132.12343,26.39236,21.15,1.13,5.84,0.0456,0.0662,FALSE
+60011586,FRB20191029C,,DECaL,0.7758,0.8172,NO,"Not in offline analysis, but Dashboard PATH looks good",TRUE,Diagnostic,223.63685,34.92176,16.57,5.68,29.98,0.8065,223.64920,34.89920,18.41,2.23,106.22,0.0099,0.0513,FALSE
+60011586,FRB20191029C,,Pan-STARRS,0.7363,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+60792403,FRB20191106C,,DECaL,0.7788,0.8244,NO,"Not in offline analysis, but Dashboard PATH looks good",TRUE,Diagnostic,199.58013,42.99971,17.26,1.60,9.85,0.8241,199.55423,43.00355,18.49,1.89,65.25,0.0262,0.0589,FALSE
+60792403,FRB20191106C,,Pan-STARRS,0.7655,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+232376485,FRB20220625B,,DECaL,0.3526,0.9153,NO,"Not in offline analysis, but Dashboard PATH looks good",TRUE,Diagnostic,255.81396,60.33775,12.34,58.80,136.46,0.6222,255.82779,60.36698,17.24,7.00,34.29,0.0206,0.3450,FALSE
+232376485,FRB20220625B,,Pan-STARRS,0.3022,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+180974591,FRB20210817A,,Pan-STARRS,,0.8041,NO,"Not in offline analysis, but Dashboard PATH looks good",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+221910985,FRB20220423B,,DECaL,0.7587,0.8182,NO,"Not in offline analysis, but Dashboard PATH looks good",TRUE,Diagnostic,199.58013,42.99971,17.26,1.60,22.25,0.7729,199.59507,43.00340,20.53,0.82,24.49,0.0216,0.0814,FALSE
+221910985,FRB20220423B,,Pan-STARRS,0.7363,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+220477942,FRB20220413B,,DECaL,0.7264,0.8459,YES,"Not in offline analysis, but needs re-run because primary split into multiple sources",TRUE,Diagnostic,252.26923,66.97885,18.56,6.57,16.75,0.8841,252.26628,66.97700,22.05,0.26,21.07,0.0200,0.0348,FALSE
+220477942,FRB20220413B,,Pan-STARRS,0.7825,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+207566461,FRB20220118A,,DECaL,,0.8576,NO,"Not in offline analysis, but Dashboard PATH looks good",TRUE,Diagnostic,280.49755,55.44944,18.76,2.98,17.95,0.7699,280.50474,55.44602,23.11,0.70,1.34,0.0192,0.1291,FALSE
+207531813,FRB20220118B,,DECaL,,0.8131,NO,"Not in offline analysis, but Dashboard PATH looks good",TRUE,Diagnostic,199.58013,42.99971,17.26,1.60,30.32,0.7761,199.55423,43.00355,18.49,1.89,41.09,0.0860,0.0604,FALSE
+195584658,FRB20211104B,,DECaL,0.7744,0.832,NO,"Not in offline analysis, but Dashboard PATH looks good",TRUE,Diagnostic,199.58013,42.99971,17.26,1.60,23.43,0.7948,199.59507,43.00340,20.53,0.82,31.24,0.0198,0.0683,FALSE
+195584658,FRB20211104B,,Pan-STARRS,0.7532,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+167636888,FRB20210410B,,DECaL,0.7718,0.8125,YES,"Not in offline analysis, but needs re-run because primary split into multiple sources",TRUE,Diagnostic,268.09828,54.69697,18.05,1.42,17.21,0.8121,268.08499,54.69323,21.34,0.84,13.60,0.0306,0.0959,TRUE
+167636888,FRB20210410B,,Pan-STARRS,0.5999,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+145980644,FRB20201206C,,DECaL,0.7432,0.8309,NO,"Not in offline analysis, but Dashboard PATH looks good",TRUE,Diagnostic,214.25211,25.48264,18.01,1.97,10.04,0.7824,214.25467,25.48939,21.19,0.83,31.04,0.0178,0.0666,FALSE
+145980644,FRB20201206C,,Pan-STARRS,0.6159,N/A,N/A,"Have DECaLs results for this FRB, don't need Pan-STARRS",FALSE,Diagnostic,,,,,,,,,,,,,,FALSE
+253212510,FRB20221201E,,Pan-STARRS,0.7792,0.8683,NO,"Not in offline analysis, but Dashboard PATH looks good",TRUE,Diagnostic,28.49014,34.03324,17.05,7.81,26.00,0.7730,28.46996,34.03553,17.77,6.68,70.17,0.0535,0.1133,FALSE
+23232723,FRB20181220A,N/A,N/A,N/A,N/A,N/A,N/A,TRUE,Diagnostic,348.69823,48.34214,15.34,13.30,27.72,0.9467,348.72014,48.35096,20.47,2.06,33.68,0.0019,0.0394,FALSE
+60094474,FRB20191030D,N/A,N/A,N/A,N/A,N/A,N/A,TRUE,Diagnostic,108.14076,68.89170,16.22,4.25,36.23,0.8948,108.18048,68.88334,17.52,3.75,46.86,0.0219,0.0605,FALSE
+29866131,FRB20190208C,N/A,N/A,N/A,N/A,N/A,N/A,TRUE,Diagnostic,126.03503,83.40500,18.57,2.02,17.66,0.6110,125.98623,83.40095,20.44,1.17,19.76,0.0652,0.1075,FALSE
+58957555,FRB20191018D,N/A,N/A,N/A,N/A,N/A,N/A,TRUE,Diagnostic,100.77157,34.96317,19.01,1.89,27.41,0.4241,100.77100,34.96860,20.49,0.62,25.49,0.1091,0.1259,FALSE
+164948465,FRB20210314B,N/A,N/A,N/A,N/A,N/A,N/A,TRUE,Diagnostic,102.56163,75.78668,20.71,1.19,30.49,0.0754,102.60501,75.79644,21.71,0.53,24.06,0.0540,0.6043,FALSE
+25677682,FRB20190110C,N/A,N/A,N/A,N/A,N/A,N/A,TRUE,Diagnostic,249.31848,41.44341,17.99,3.38,25.14,0.7380,249.31374,41.42902,18.74,0.75,64.18,0.0233,0.0733,FALSE
+37253504,FRB20190418A,N/A,N/A,N/A,N/A,N/A,N/A,TRUE,Diagnostic,65.81233,16.07379,16.75,7.41,21.80,0.7441,65.80995,16.08964,18.73,2.11,37.99,0.0514,0.0914,FALSE
+,,,,,,,,,,,,,,,,,,,,,,,
+,,"Last few with the ""N/A"" are added previously-identified CHIME/FRB hosts (from Bhardwaj, Ibik) or some that
+were accidentally missed in my (Bridget's) first pass-through.",,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 
+,,,,,,,,,,,,,,,,,,,,,,, 

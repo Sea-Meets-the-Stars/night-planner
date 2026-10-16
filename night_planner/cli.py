@@ -40,9 +40,10 @@ INSTRUMENTS = {
                      'forced', 'max_targets', 'assume_masks'},
     },
     'kast': {
-        'calc': 'lick_2026b02_night2_calculations',
-        'build': None,  # not yet migrated off its own hardcoded start time
-        'supports': {'start', 'blocks'},
+        'calc': 'kast_calculations',
+        'build': None,  # no Excel builder for the general Lick path yet
+        'supports': {'targets_csv', 'output_dir', 'date', 'start', 'blocks',
+                     'forced', 'max_targets'},
     },
 }
 

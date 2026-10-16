@@ -1,0 +1,16 @@
+{
+    "instrument": "KAST",
+    "name": "Lick-2026B-03",
+    "valid_start": "2026-10-12T02:30:01Z",
+    "valid_stop": "2026-10-13T16:31:08Z",
+    "num_targ_img": 0,
+    "num_targ_mask": 0,
+    "num_targ_longslit": 30,
+    "max_AM": 2.0,
+    "frb_surveys": "all",
+    "obs_type": null,
+    "Period": null,
+    "frb_tags": null,
+    "frb_statuses": null,
+    "max_mag": 20.5
+}

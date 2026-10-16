@@ -16,7 +16,7 @@ LICK = EarthLocation(lat=37.3414*u.deg, lon=-121.6429*u.deg, height=1283*u.m)
 PST = timezone(timedelta(hours=-8))
 
 # Shane 3m HA limits
-HA_MIN = -5.0  # hours (east limit)
+HA_MIN = -(5 + 40 / 60)  # hours, -05:40 east limit (adopted 2026-10-14)
 HA_MAX = 3.75  # hours (west limit)
 
 def find_twilight_lst(date_str, twilight_alt=-18*u.deg):

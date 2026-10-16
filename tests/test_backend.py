@@ -7,6 +7,7 @@ Created by JXP and Claude.
 """
 
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -56,12 +57,19 @@ def test_plan_round_trips_through_the_api():
 
 
 @needs_plan
-def test_airmass_is_null_below_the_horizon():
-    """Below-horizon samples are null, not the 99.9 sentinel.
+def test_airmass_is_null_where_it_is_not_usable():
+    """Null below the horizon and past the plot limit, never a sentinel.
+
+    A sentinel value (the old 99.9) plots as a spike and silently wins a
+    min(), so the endpoint emits null instead -- both below the horizon
+    and above MAX_USEFUL_AIRMASS, where the plane-parallel formula stops
+    meaning anything anyway.
 
     Inputs: none.
     Outputs: none (asserts on success).
     """
+    from night_planner.sky import MAX_USEFUL_AIRMASS
+
     plan = client.get('/api/plan', params={'output_dir': PLAN_DIR}).json()
     target = plan['schedule'][0]['name']
     points = client.get('/api/airmass',
@@ -69,10 +77,32 @@ def test_airmass_is_null_below_the_horizon():
                                 'step_min': 30}).json()['points']
     assert points
     for point in points:
-        if point['alt'] <= 0:
-            assert point['airmass'] is None
+        if point['airmass'] is None:
+            assert point['alt'] <= 0 or 1.0 / math.sin(
+                math.radians(point['alt'])) > MAX_USEFUL_AIRMASS
         else:
-            assert 1.0 <= point['airmass'] < 99
+            assert point['alt'] > 0
+            assert 1.0 <= point['airmass'] <= MAX_USEFUL_AIRMASS
+
+
+@needs_plan
+def test_airmass_all_shares_one_sample_grid():
+    """Every curve lands on the same x values, with LST and the moon.
+
+    The night chart overlays all of them, so a per-target grid would put
+    the curves on subtly different time axes.
+
+    Inputs: none.
+    Outputs: none (asserts on success).
+    """
+    data = client.get('/api/airmass/all',
+                      params={'output_dir': PLAN_DIR, 'step_min': 30}).json()
+    assert data['times'] and data['targets']
+    assert len(data['lst']) == len(data['times'])
+    assert len(data['moon']['airmass']) == len(data['times'])
+    assert 0.0 <= data['moon']['illumination'] <= 1.0
+    for target in data['targets']:
+        assert len(target['airmass']) == len(data['times'])
 
 
 def test_plan_directory_outside_night_plans_is_refused():

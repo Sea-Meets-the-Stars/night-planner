@@ -1,0 +1,32 @@
+{
+  "name": "FRB20230805A",
+  "slit_pa": 8.331849440133873,
+  "slit_mode": "candidates",
+  "parallactic_pa": 51.884479933475376,
+  "pa_vs_parallactic": 43.5526304933415,
+  "slit_length_arcmin": 2.42,
+  "slit_width_arcsec": 2.0,
+  "pa_swing": 15.563316732832902,
+  "pa_weighted_offset": 7.156863187991392,
+  "primary_ra": 36.01659469,
+  "primary_dec": 52.69333013,
+  "cass_tub": {
+    "pa": 8.331849440133873,
+    "alt_pa": 188.33184944013388,
+    "tub": 320.48870901291644,
+    "alt_tub": 163.89870901291647
+  },
+  "secondary_name": "J022404.62+524215.30",
+  "secondary_ra": 36.01923412,
+  "secondary_dec": 52.70425046,
+  "secondary_mag": 19.77,
+  "secondary_pox": 0.0452145973,
+  "secondary_sep_arcsec": 39.732656104763116,
+  "offset_star_ra": 36.02039674003,
+  "offset_star_dec": 52.69549649088,
+  "offset_star_mag": 18.391214,
+  "offset_star_offset": 11.385842295184489,
+  "offset_ra": -8.295661000431142,
+  "offset_dec": -7.79868023264079,
+  "png": "/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-03/finders/FRB20230805A_finder.png"
+}

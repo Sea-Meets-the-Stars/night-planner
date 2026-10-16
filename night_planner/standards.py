@@ -133,13 +133,23 @@ def pick_bracketing_standards(plan, location, library=None, max_airmass=2.0):
     }
 
 
-def starlist_row(name, coord, comment=''):
+def starlist_row(name, coord, comment='', style='keck'):
     """
-    One Keck-format starlist row.
+    One starlist row, in the requested observatory's dialect.
 
-    Format: name  HH MM SS.ss  +DD MM SS.s  2000.0  [# comment]
+    The two differ in more than cosmetics, so the style is explicit:
+
+    - keck: Dec carries an explicit '+', and rows may take trailing
+      keywords (rotdest/raoffset) and '#' comments.
+    - lick: Dec is unsigned when positive and rows are bare -- the Mt
+      Hamilton format takes no keywords, and the schedule annotations
+      live in the target list rather than the starlist.
+      (mthamilton.ucolick.org/techdocs/telescopes/starlistFormat.html)
     """
     ra = coord.ra.to_string(unit=u.hour, sep=' ', precision=2, pad=True)
-    dec = coord.dec.to_string(sep=' ', precision=1, alwayssign=True, pad=True)
+    dec = coord.dec.to_string(sep=' ', precision=1, pad=True,
+                               alwayssign=(style == 'keck'))
+    if style == 'lick':
+        return f'{name:<16} {ra} {dec} 2000.0 '
     row = f'{name:<16}{ra} {dec} 2000.0'
     return f'{row}  # {comment}' if comment else row

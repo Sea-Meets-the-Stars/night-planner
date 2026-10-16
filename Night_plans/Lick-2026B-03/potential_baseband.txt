@@ -1,0 +1,6 @@
+Okay, for the 6 targets needing Lick:
+FRB20190617A and FRB20220723A are observable now but are dec > 80, so we have to ask Lordrick about the dec limits. I can't remember if Lick can't observe these or we just need special permission in advance
+
+FRB20191220E, FRB20210908B, and FRB20191025D are observable in October and November
+
+FRB20211006A is observable in NovemberThe most probable hosts for these FRBs are listed in this spreadsheet: link under the Observing tab (positions given by RA1 (deg) and DEC1 (deg)). 

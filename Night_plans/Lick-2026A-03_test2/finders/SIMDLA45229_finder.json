@@ -1,0 +1,32 @@
+{
+  "name": "SIMDLA45229",
+  "slit_pa": 0.8453978575880967,
+  "slit_mode": "candidates",
+  "parallactic_pa": 70.34599524068841,
+  "pa_vs_parallactic": 69.50059738310031,
+  "slit_length_arcmin": 2.42,
+  "slit_width_arcsec": 2.0,
+  "pa_swing": 0.9722174924573892,
+  "pa_weighted_offset": 0.49667272663644224,
+  "primary_ra": 284.11160209368416,
+  "primary_dec": 32.83925748318669,
+  "cass_tub": {
+    "pa": 0.8453978575880967,
+    "alt_pa": 180.8453978575881,
+    "tub": 313.97549613610164,
+    "alt_tub": 157.38549613610164
+  },
+  "secondary_name": "J185626.77+325012.13",
+  "secondary_ra": 284.1115572106714,
+  "secondary_dec": 32.83670181365978,
+  "secondary_mag": 22.83144081605784,
+  "secondary_pox": 0.0388708672184826,
+  "secondary_sep_arcsec": 9.201411866439642,
+  "offset_star_ra": 284.11094208866,
+  "offset_star_dec": 32.83902047028,
+  "offset_star_mag": 18.14475,
+  "offset_star_offset": 2.1710205183392093,
+  "offset_ra": 1.9963190932213013,
+  "offset_dec": 0.8532526992843071,
+  "png": "/home/lordrick/Projects/night-planner/Night_plans/Lick-2026A-03_test2/finders/SIMDLA45229_finder.png"
+}

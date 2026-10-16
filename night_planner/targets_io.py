@@ -21,6 +21,7 @@ help when it would otherwise have to guess -- see detect_mapping().
 Created by JXP and Claude
 """
 
+import os
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -150,6 +151,57 @@ def detect_mapping(df):
     return mapping
 
 
+# An FFFF-PZ pull is recognisable by what only it carries: the *burst*
+# position and DM alongside PATH's ranked host candidates with their
+# probabilities. No hand-made observing list has that combination, and
+# no other source produces Pri_POx/Sec_POx at all.
+FFFFPZ_SIGNATURE = {
+    'burst': ('frb_ra', 'frb_dec', 'frb_dm'),
+    'primary': ('pri_ra', 'pri_dec', 'pri_pox'),
+    'secondary': ('sec_ra', 'sec_dec', 'sec_pox'),
+}
+
+
+def detect_format(df):
+    """
+    Decide whether a table is an FFFF-PZ pull or a generic target list.
+
+    This matters because PATH ranks the host candidates of a *burst*. A
+    second candidate is meaningful for a localised FRB and meaningless
+    for a supernova or a DLA sightline, so "may I fit the slit through
+    two candidates?" is a question about where the table came from, not
+    about any individual row. Deciding it once, at inspection, beats
+    guessing per row from object names.
+
+    Parameters
+    ----------
+    df : DataFrame
+
+    Returns
+    -------
+    dict with
+        format   : 'ffff-pz' or 'generic'
+        groups   : which signature groups were found
+        missing  : which were not
+        has_candidates : True when a second candidate can be used for a
+                         slit angle
+    """
+    present = {_norm(c) for c in df.columns}
+    found = {group: all(col in present for col in cols)
+             for group, cols in FFFFPZ_SIGNATURE.items()}
+
+    # Burst position plus ranked primary is the minimum that identifies
+    # the format; the secondary group is what makes candidates mode
+    # possible, and an FFFF-PZ table can legitimately lack it.
+    is_ffffpz = found['burst'] and found['primary']
+    return {
+        'format': 'ffff-pz' if is_ffffpz else 'generic',
+        'groups': sorted(g for g, ok in found.items() if ok),
+        'missing': sorted(g for g, ok in found.items() if not ok),
+        'has_candidates': bool(is_ffffpz and found['secondary']),
+    }
+
+
 def _angle_to_deg(series, unit, is_ra):
     """Convert a coordinate column to degrees, sexagesimal or numeric."""
     if _looks_sexagesimal(series):
@@ -167,7 +219,7 @@ def load_targets(source, mapping=None):
 
     Parameters
     ----------
-    source : str or DataFrame
+    source : str, Path or DataFrame
         CSV path, or an already-loaded frame.
     mapping : ColumnMapping, optional
         Supply this to override/complete auto-detection (what the GUI
@@ -186,7 +238,10 @@ def load_targets(source, mapping=None):
         If the table can't be read without guessing. The partial mapping
         is attached to the exception.
     """
-    df = pd.read_csv(source) if isinstance(source, str) else source.copy()
+    # A Path is the natural thing for a caller to hold, so accept it
+    # alongside str rather than failing on .copy() deep inside pandas.
+    df = (pd.read_csv(source) if isinstance(source, (str, os.PathLike))
+          else source.copy())
 
     if mapping is None:
         mapping = detect_mapping(df)
@@ -213,4 +268,17 @@ def load_targets(source, mapping=None):
         raise TargetTableError(
             f'{int(bad.sum())} row(s) have unreadable coordinates: {names}',
             mapping)
+
+    # A repeated name is almost always a merge that went wrong, and the
+    # scheduler has no way to know: it happily books the same object
+    # twice and spends the night observing it. Tables built by merging
+    # two sources -- which is how the baseband targets reached
+    # Lick-2026B-03 -- are exactly where this happens.
+    duplicated = out['name'][out['name'].duplicated(keep=False)]
+    if len(duplicated):
+        names = ', '.join(sorted(set(duplicated))[:5])
+        raise TargetTableError(
+            f'{duplicated.nunique()} target name(s) appear more than once: '
+            f'{names} -- each target must be one row, or it will be '
+            f'scheduled twice', mapping)
     return out

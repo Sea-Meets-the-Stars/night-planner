@@ -32,12 +32,25 @@ SITES = {
         'location': EarthLocation(lat=19.828333 * u.deg, lon=-155.478333 * u.deg,
                                    height=4160 * u.m),
         'tz': ZoneInfo('Pacific/Honolulu'),
+        # Longslit footprint drawn on finder charts, matching what
+        # chime_ffff_pz_finder draws for LRIS.
+        'slit_length_arcmin': 2.9,      # 175 arcsec, per chime_ffff_pz
+        'slit_width_arcsec': 1.0,
+        'starlist_style': 'keck',
     },
     'kast': {
         'telescope': 'Shane 3m (Lick)',
         'location': EarthLocation(lat=37.3414 * u.deg, lon=-121.6429 * u.deg,
                                    height=1283 * u.m),
         'tz': ZoneInfo('America/Los_Angeles'),
+        # Kast's longslit is ~145 arcsec, and this programme's standard
+        # setup uses the 2 arcsec slit (see Lick-2026B-01 HOWTO).
+        'slit_length_arcmin': 2.42,     # 145 arcsec, per chime_ffff_pz
+        'slit_width_arcsec': 2.0,
+        'starlist_style': 'lick',
+        # The Shane sets a Cassegrain tub readout, not a sky PA
+        # (helpful_scripts/calcint.c); see night_planner.lick_tub.
+        'rotator': 'cass_tub',
     },
 }
 
@@ -238,10 +251,15 @@ def _attribute_kast_slews(schedule, night_start):
     """
     from lick_2026b02_night2_calculations import SLEW_MINUTES
 
-    slew = pd.Timedelta(minutes=SLEW_MINUTES)
+    from .sky import advance
+
     prev_end = night_start
     for target in schedule:
-        slew_start = target.science_start - slew
+        # Elapsed time, not wall clock: subtracting a timedelta across a
+        # spring-forward gap lands the slew *after* the exposure it
+        # precedes, which is how a 60-minute block came out spanning
+        # five minutes of UTC.
+        slew_start = advance(target.science_start, -SLEW_MINUTES)
         if slew_start >= prev_end:
             target.start = slew_start
             target.slew_min = float(SLEW_MINUTES)
@@ -301,12 +319,32 @@ def lick_kast(out):
             if r['TNS'] in scheduled_or_skipped or r.get('observable'):
                 continue
             ra_deg = _f(r.get('RA_hours'))
+            # analyze_targets() already worked out *why* -- above the +82
+            # mechanical limit reads very differently from never entering
+            # the HA window, and collapsing both to one sentence throws
+            # away the only thing the observer can act on.
+            reason = str(r.get('limit_reason') or '').strip()
             decisions.append(TargetDecision(
                 name=r['TNS'],
                 ra_deg=ra_deg * 15.0 if ra_deg is not None else None,
                 dec_deg=_f(r.get('Dec_deg')), mag=_f(r.get('mag_r')),
                 status='rejected', stage='2. Sky',
-                reason='never HA-legal tonight (Shane mount limit)'))
+                reason=reason or 'never HA-legal tonight (Shane mount limit)'))
+
+    # A forced target the scheduler could not place must not vanish --
+    # the caller asked for it by name, and silence reads as "it worked".
+    res = out['repeat_analysis'].set_index('TNS')
+    for failure in out.get('forced_failures') or []:
+        decisions = [d for d in decisions if d.name != failure['TNS']]
+        row = res.loc[failure['TNS']] if failure['TNS'] in res.index else None
+        ra_deg = _f(row['RA_hours']) if row is not None else None
+        decisions.append(TargetDecision(
+            name=failure['TNS'],
+            ra_deg=ra_deg * 15.0 if ra_deg is not None else None,
+            dec_deg=_f(row['Dec_deg']) if row is not None else None,
+            mag=_f(row['mag_r']) if row is not None else None,
+            status='rejected', stage='4. Forced',
+            reason=f"forced but not placed -- {failure['reason']}"))
 
     schedule.sort(key=lambda t: t.start)
     _attribute_kast_slews(schedule, out['start_local'])

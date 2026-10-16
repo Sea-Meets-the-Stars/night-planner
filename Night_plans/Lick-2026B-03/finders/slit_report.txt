@@ -1,0 +1,12 @@
+Slit angles for 2026-10-12 (Lick-2026B-03)
+Requested: candidates
+Created by JXP and Claude -- night-planner
+
+FRB20260708D: both candidates, PA 108.61 deg (8.0 deg off parallactic; secondary 9.4" away)
+FRB20260623C: both candidates, PA 49.40 deg (59.5 deg off parallactic; secondary 2.9" away)
+FRB20210908B: both candidates, PA 142.84 deg (70.5 deg off parallactic; secondary 19.6" away)
+FRB20191220E: both candidates, PA 96.83 deg (14.6 deg off parallactic; secondary 23.3" away)
+FRB20230805A: both candidates, PA 8.33 deg (43.6 deg off parallactic; secondary 39.7" away)
+FRB20191025D: both candidates, PA 113.64 deg (31.5 deg off parallactic; secondary 35.1" away)
+FRB20260702C: both candidates, PA 84.70 deg (0.4 deg off parallactic; secondary 2.8" away)
+FRB20260305A: both candidates, PA 37.82 deg (70.4 deg off parallactic; secondary 4.4" away)
