@@ -12,6 +12,8 @@ Created by JXP and Claude
 
 - **[Shane Telescope Constraints](Shane_telescope_constraints.md)** - Shane 3m pointing limits, HA ranges, observable RA windows
 - **[Testing Guide](Testing_guide.md)** - How to use the test suite and edge case datasets
+- **[Priority System](priority_system.md)** - How target priority is actually set: pool draw, feasibility gates, greedy urgency ordering, and hand overrides
+- **[Priority: night-planner vs AstroScheduler](priority_comparison_astroscheduler.md)** - Comparison with the UCSC AstroScheduler priority-sequential Branch and Bound solver
 
 ### Run-Specific Documentation
 

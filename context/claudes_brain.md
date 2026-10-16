@@ -1502,3 +1502,60 @@ uninteresting ones -- log the reason at every skip point.
   supplied position differs from the pointing by more than the slit width.
   (4) A geometry check and a position check are different questions. The
   slit was centred on its given coordinate to 0.0000" the whole time.
+- **v0.56 — 2026-10-16 (UTC):** Audited and documented how target priority is
+  set (`docs/priority_system.md`, prompt `claude_prompts/development/priorities.md`).
+  Durable points:
+  (1) **There is no priority field in this pipeline.** `targets_io.ALIASES`
+  recognises `name/ra/dec/mag` + `pox/tags/dm` and nothing else;
+  `make_test_target_tables.py` emits a `priority` A/B column
+  (`test_targs/spring_ra_hours.csv`) that `load_targets()` silently drops.
+  Claim that column name first when building a real system.
+  (2) Apparent priority decomposes into four layers: the FFFF-PZ tag-weighted
+  stochastic draw (the only numerical encoding of science value — and it acts
+  on *membership in the pool*, not on rank inside it); hard feasibility gates
+  (HA/Dec/mag, which reject but never rank); the greedy
+  earliest-window-close-first scheduler (pure urgency, value-blind); and hand
+  overrides (`--force`/`reserve_forced`, `FORCED_FIRST_TNS`, separate pools,
+  author statements in prose).
+  (3) **`setting_priority` is not a science rank** — it is a binary
+  evening/morning class on the superseded Lick-2026B-01 path, consumed by
+  `fix_ha_limits.py` only to pick the HA sign convention. Do not extend it.
+  (4) The clearest real two-tier priority in the repo is expressed as
+  *architecture, not data*: `lick_2026b02_extras.py` builds a separate
+  lower-priority pool (`AmbiguousHost`/`TooDusty`, POx>=0.6) via a different
+  FFFF-PZ call and writes it to its own `Extras (Gap-Fill)` sheet.
+  (5) P(O|x), tags and magnitude are all non-inputs to ordering: POx and tags
+  reach the plan as a Comments string, magnitude sets exposure time only.
+- **v0.57 — 2026-10-16 (UTC):** Read and compared the UCSC AstroScheduler
+  (`/home/lordrick/Projects/fun_side_projects/ryan_scheduler/AstroScheduler`,
+  UCSC-Transients) against our priority handling →
+  `docs/priority_comparison_astroscheduler.md`. Durable points:
+  (1) **It schedules the same telescope with the same HA limits**
+  (-5.6667/+3.75), so it is directly comparable. But its `ShaneTelescope` sets
+  `dec_min=-35.0, dec_max=72.0` against our `DEC_LIMIT = 82.0` with no southern
+  limit, and its slew is a flat 7 min against our `SLEW_MINUTES = 5`. **Both
+  Dec conventions cannot be right — ask the author.**
+  (2) **The design worth copying is the tier loop**, not the solver:
+  `_solve_internal()` partitions targets by float priority (1 = highest,
+  `0.0` = standard-star sentinel), solves tiers best-first, and re-enters
+  already-placed targets as *mandatory* (`S_active`) in every later tier. A
+  low-priority target can then never displace a high one, yet a high one can
+  still be *re-positioned* to let a lower one fit — which a one-pass greedy
+  cannot do, and which is exactly our FRB20250408A failure mode (v0.37/v0.38).
+  This wraps `schedule_greedy` rather than replacing it.
+  (3) Inside a tier: Branch and Bound minimising
+  `median_airmass + 1000*twilight_dist`, with `100000` per dropped target.
+  That penalty is ~5 orders above airmass, so the objective is
+  **lexicographic in practice** (count first, then quality) — and **priority
+  is not in the cost function at all**, only in the tier loop. Greedy warm
+  start, suffix-min pruning, 1-min chunks, hard 20000-iteration cap → good,
+  **not provably optimal**.
+  (4) Three channels outrank priority there: `manual_start_time` (pre-reserved
+  before tier 1), `schedule_before` precedence via topo sort, and
+  `previous_start_chunks` tried first so a mid-night re-solve does not churn —
+  the last has no night-planner equivalent and we re-run plans constantly.
+  (5) Priority there is **hand-authored** (`priority = X` in the target file,
+  default 3.0 in the JS parser / 1.0 in the API) with no catalog behind it, and
+  their rejections are a bare `conflicts` list with no reason. **The two repos
+  are missing opposite halves of the same system: they have a consumer with no
+  principled source, we have a source with no consumer.**
