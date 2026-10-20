@@ -43,7 +43,7 @@ INSTRUMENTS = {
         'calc': 'kast_calculations',
         'build': None,  # no Excel builder for the general Lick path yet
         'supports': {'targets_csv', 'output_dir', 'date', 'start', 'blocks',
-                     'forced', 'max_targets'},
+                     'forced', 'max_targets', 'no_partials'},
     },
 }
 

@@ -15,7 +15,16 @@ list and copies both staged outputs to their final names.
 
 import shutil
 
-OUT_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-02'
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
+OUT_DIR = f'{_PLANS}/Lick-2026B-02'
 STAGING_MAIN = f'{OUT_DIR}/.starlist_main/lick.starlist'
 STAGING_EXTRAS = f'{OUT_DIR}/.starlist_extras/lick.starlist'
 

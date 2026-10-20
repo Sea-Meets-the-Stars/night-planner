@@ -34,9 +34,17 @@ from chime_ffff_pz.utils import coords as coord_utils
 from chime_ffff_pz.path import plotting, catalogs
 from chime_ffff_pz import finder, io
 
-OUT_DIR = ('/home/lordrick/Projects/chime-ffff-pz/chime_ffff_pz/data/'
-           'Observing/Lick-2026B-02')
-COPY_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-02/finder_charts'
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import ffffpz_data, plans_dir
+
+_PLANS = plans_dir()
+
+OUT_DIR = str(ffffpz_data('Observing', 'Lick-2026B-02'))
+COPY_DIR = f'{_PLANS}/Lick-2026B-02/finder_charts'
 
 MAX_STAR_SEP_ARCMIN = 2.
 MIN_STAR_MAG = 12.

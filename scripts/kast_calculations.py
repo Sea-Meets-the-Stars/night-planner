@@ -16,12 +16,14 @@ Created by JXP and Claude
 
 import os
 import sys
+from pathlib import Path
 from datetime import timedelta
 
 import pandas as pd
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
-sys.path.insert(0, '/home/lordrick/Projects/night-planner/scripts')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+sys.path.insert(0, str(_REPO_ROOT / 'scripts'))
 
 from scripts.lick_2026b02_calculations import (
     DEC_LIMIT, HA_MAX, HA_MIN, LICK, PST, SLEW_MINUTES,
@@ -33,7 +35,8 @@ from scripts.lick_2026b02_night2_calculations import schedule_greedy
 # _overlapping_block is the one place that knows how a slot and a block
 # collide; a forced slot has to truncate on the same rule the scheduler
 # fits around, so it is borrowed rather than reimplemented here.
-from schedule_overrides import advance, _overlapping_block, push_past_blocks
+from schedule_overrides import (advance, _overlapping_block, fit_around_blocks,
+                                push_past_blocks)
 from night_planner.targets_io import load_targets
 from night_plan_io import (
     OBSERVATORY_TZ, load_config, resolve_blocks, resolve_local_dt,
@@ -44,6 +47,11 @@ from night_planner.estimate_kast_exposures import estimate_exposure
 # Opening overheads, matching the Lick Excel builders.
 FOCUS_MINUTES = 10
 STD_STAR_MINUTES = 10
+
+# Shortest partial exposure worth pointing the telescope at. A target the
+# scheduler dropped for want of time is put in anyway for whatever is left,
+# but a two-minute slot buys nothing and costs a slew either side.
+MIN_PARTIAL_MINUTES = 10
 
 
 def analyze_targets(targets_csv, date_str, mapping=None):
@@ -77,6 +85,7 @@ def analyze_targets(targets_csv, date_str, mapping=None):
             'TNS': row['name'], 'RA_deg': row['ra_deg'], 'Dec_deg': dec_deg,
             'RA_hours': ra_hours, 'mag_r': row['mag'], 'POx': row['pox'],
             'tags': row['tags'], 'DM': row['dm'],
+            'priority': row['priority'],
         }
 
         if dec_deg > DEC_LIMIT:
@@ -214,6 +223,12 @@ def parse_args(argv=None):
     p.add_argument('--output-dir')
     p.add_argument('--date')
     p.add_argument('--max-targets', type=int)
+    p.add_argument('--no-partials', action='store_true',
+                   help='Do not backfill idle time with truncated exposures '
+                        'of targets that were dropped for want of time.')
+    p.add_argument('--min-partial', type=float, default=MIN_PARTIAL_MINUTES,
+                   help=f'Shortest partial exposure worth scheduling, in '
+                        f'minutes (default {MIN_PARTIAL_MINUTES}).')
     return p.parse_args(argv)
 
 
@@ -221,6 +236,259 @@ def _parse_block_flag(spec):
     window, _, reason = spec.partition('@')
     start, end = window.split('-')
     return {'start': start, 'end': end, 'reason': reason or 'blocked'}
+
+
+def free_gaps(placements, window_start, window_end, slew_min=SLEW_MINUTES):
+    """
+    Idle intervals left over between a set of placements.
+
+    Created by JXP and Claude
+
+    Written here rather than reused because nothing existing fits: the
+    well-formed one, PlanResult.idle_gaps(), needs an assembled PlanResult
+    and so runs a layer after the scheduler, while free_intervals() in
+    lick_2026b02_extras.py is bound to one run's CSV paths and date. This
+    is the same sweep as the inline one in lick_2026b02_night2_calculations,
+    kept as a function so the tier loop and its tests can both call it.
+
+    Each gap is shrunk by a slew at both ends, because the mount has to get
+    there and then get back to whatever was already booked.
+
+    Inputs
+    ------
+    placements : iterable of mapping
+        Rows with 'start_pst' and 'end_pst'; anything else is ignored.
+    window_start, window_end : datetime
+        Bounds of the night being filled.
+    slew_min : float
+        Minutes reserved either side of every existing placement.
+
+    Outputs
+    -------
+    list of (start, end) datetime pairs, in time order, each strictly
+    positive in length. Includes the leading and trailing edges -- time
+    before the first target and after the last is just as fillable as a
+    hole in the middle.
+    """
+    busy = sorted((p['start_pst'], p['end_pst']) for p in placements)
+
+    gaps, cursor = [], window_start
+    for start, end in busy:
+        gap_end = advance(start, -slew_min)
+        if gap_end > cursor:
+            gaps.append((cursor, gap_end))
+        # max(): placements can abut or overlap (a forced reservation sits
+        # across one), and a cursor that walked backwards would invent a gap.
+        cursor = max(cursor, advance(end, slew_min))
+    if window_end > cursor:
+        gaps.append((cursor, window_end))
+    return gaps
+
+
+def backfill_partials(schedule_rows, science_start, night_end, blocks,
+                      min_minutes=MIN_PARTIAL_MINUTES):
+    """
+    Put dropped targets into the leftover gaps, truncated to fit.
+
+    Created by JXP and Claude
+
+    The scheduler is all-or-nothing: a target needing 90 minutes with 60
+    left in its window is dropped, and those 60 minutes are then spent on
+    nothing at all. A short spectrum is usually worth more than an empty
+    telescope -- it can still classify, and it is data where otherwise
+    there was none -- so anything dropped for want of time is placed anyway
+    for however long is actually available.
+
+    These are marked, not hidden. Every row this adds carries a skip_reason
+    beginning 'PARTIAL', which the viewer turns into its own colour and a
+    note saying how much of the needed exposure it got, so the observer can
+    drop it at the telescope if they would rather have the idle time.
+
+    Targets that were never observable are untouched -- no amount of
+    truncation fixes a target below the horizon.
+
+    Inputs
+    ------
+    schedule_rows : DataFrame
+        The schedule so far, scheduled and rejected rows together.
+    science_start, night_end : datetime
+        Bounds of the schedulable night.
+    blocks : list of (start, end, reason)
+        Blocked windows, which partials must dodge like anything else.
+    min_minutes : float
+        Shortest partial worth placing.
+
+    Outputs
+    -------
+    DataFrame with the same rows, except that any target this pass could
+    place is replaced by its scheduled, truncated row.
+    """
+    # On a night where nothing is up, schedule_greedy returns a frame with no
+    # columns at all -- see the schema guarantee in run(). Nothing to backfill
+    # into, and asking for 'scheduled' would raise.
+    if not len(schedule_rows) or 'scheduled' not in schedule_rows.columns:
+        return schedule_rows
+
+    scheduled_mask = schedule_rows['scheduled'].fillna(False).astype(bool)
+    placed = schedule_rows[scheduled_mask].to_dict('records')
+    dropped = schedule_rows[~scheduled_mask]
+    if not len(dropped):
+        return schedule_rows
+
+    # Only targets that have a real window tonight and simply ran out of
+    # room in it. A missing entry/exit means it was never up.
+    candidates = [r for _, r in dropped.iterrows()
+                  if r.get('observable') and pd.notna(r.get('entry_pst'))
+                  and pd.notna(r.get('exit_pst'))]
+    if not candidates:
+        return schedule_rows
+
+    # Best targets first: a partial of a P1 host beats a partial of a P3
+    # filler when both want the same gap.
+    candidates.sort(key=lambda r: (r.get('priority', 1.0), r['exit_pst']))
+
+    filled = {}
+    for row in candidates:
+        for gap_start, gap_end in free_gaps(placed, science_start, night_end):
+            # The usable slice is the overlap of the gap with the target's
+            # own HA window -- truncating does not excuse pointing the
+            # mount somewhere it cannot go.
+            start = max(gap_start, row['entry_pst'])
+            close = min(gap_end, row['exit_pst'])
+            if (close - start).total_seconds() / 60.0 < min_minutes:
+                continue
+            start, end = fit_around_blocks(
+                start, (close - start).total_seconds() / 60.0, close, blocks)
+            if start is None:
+                continue
+
+            got = (end - start).total_seconds() / 60.0
+            if got < min_minutes:
+                continue
+
+            red, blue, dur_s = estimate_exposure(row['mag_r'])
+            needed = dur_s / 60.0
+            new_row = dict(
+                row, scheduled=True, start_pst=start, end_pst=end,
+                duration_min=got, red_side=red, blue_side=blue,
+                skip_reason=(
+                    f'PARTIAL: {got:.0f} of the {needed:.0f} min this target '
+                    f'needs ({got / needed * 100:.0f}%). Scheduled into idle '
+                    f'time rather than left out -- expect low S/N, and drop '
+                    f'it if you would rather have the gap.'))
+            filled[row['TNS']] = new_row
+            placed.append(new_row)
+            break
+
+    if not filled:
+        return schedule_rows
+
+    total = sum(r['duration_min'] for r in filled.values())
+    print(f'\nBackfilled {len(filled)} partial exposure(s) into idle time '
+          f'({total:.0f} min): ' + ', '.join(sorted(filled)))
+
+    # Rebuild from records throughout: mixing Series and dicts in the list
+    # makes pandas try to align them and fail on the dtype.
+    rows = [filled.get(r['TNS'], r) for r in schedule_rows.to_dict('records')]
+    return pd.DataFrame(rows).reset_index(drop=True)
+
+
+def schedule_by_priority(observable, science_start, night_end, blocks):
+    """
+    Schedule in priority tiers, best first, lower tiers filling the gaps.
+
+    Created by JXP and Claude
+
+    The model is the UCSC AstroScheduler's priority-sequential solve (see
+    docs/priority_comparison_astroscheduler.md): tiers are scheduled in
+    order and everything already placed is immovable, so a lower-priority
+    target can never displace a higher-priority one.
+
+    Lower tiers are scheduled gap by gap rather than by one more pass over
+    the whole night with the earlier placements passed as blocks. That is
+    forced by the machinery, not a preference: fit_around_blocks() can only
+    ever push a target *later* (schedule_overrides.py), and schedule_greedy
+    walks a cursor that never rewinds -- so a single later pass would sail
+    past every gap it had already crossed. Restarting inside each gap is
+    what the night-2 module does, and it works.
+
+    With one tier this makes exactly one schedule_greedy call over the whole
+    night, which is the call this function replaced -- an un-prioritised
+    table therefore schedules precisely as it did before tiers existed.
+
+    Inputs
+    ------
+    observable : DataFrame
+        Observable targets from analyze_targets(), carrying 'priority'.
+    science_start, night_end : datetime
+        Bounds of the schedulable night.
+    blocks : list of (start, end, reason)
+        Blocked windows, honoured by every tier.
+
+    Outputs
+    -------
+    DataFrame of schedule rows, one per target: the scheduled rows from
+    every tier, plus one rejected row for each target no tier could place.
+    """
+    tiers = sorted(observable['priority'].dropna().unique())
+    if len(tiers) <= 1:
+        # The single-tier path is the old behaviour, preserved exactly.
+        sched, _ = schedule_greedy(observable, science_start, night_end,
+                                   blocks=blocks)
+        return sched
+
+    print(f'\nScheduling in {len(tiers)} priority tiers: '
+          + ', '.join(f'P{t:g}' for t in tiers))
+
+    frames = []
+    placed = []     # every row placed so far, across all tiers
+
+    for position, tier in enumerate(tiers):
+        pool = observable[observable['priority'] == tier]
+        if not len(pool):
+            continue
+
+        if position == 0:
+            sched, _ = schedule_greedy(pool, science_start, night_end,
+                                       blocks=blocks)
+            frames.append(sched)
+            got = sched[sched['scheduled']] if len(sched) else sched
+            placed.extend(got.to_dict('records'))
+            print(f'  P{tier:g}: {len(got)}/{len(pool)} scheduled '
+                  f'(first pass, whole night)')
+            continue
+
+        # Lower tiers: one pass per idle interval the tiers above left.
+        gaps = free_gaps(placed, science_start, night_end)
+        remaining = pool
+        for gap_start, gap_end in gaps:
+            if not len(remaining):
+                break
+            sched, _ = schedule_greedy(remaining, gap_start, gap_end,
+                                       blocks=blocks)
+            got = sched[sched['scheduled']] if len(sched) else sched
+            if not len(got):
+                continue
+            frames.append(got)
+            placed.extend(got.to_dict('records'))
+            remaining = remaining[~remaining['TNS'].isin(got['TNS'])]
+
+        # One rejection per target, not one per gap it failed in: a target
+        # that missed four gaps is still a single target the observer has
+        # to decide about, and four identical rows only bury that.
+        for _, row in remaining.iterrows():
+            _, _, dur_s = estimate_exposure(row['mag_r'])
+            frames.append(pd.DataFrame([dict(
+                row, scheduled=False,
+                skip_reason=(f'priority P{tier:g}: needs '
+                             f'{dur_s / 60.0:.0f} min, and no idle interval '
+                             f'left by the {position} higher-priority '
+                             f'tier(s) was long enough inside its HA window'))]))
+
+        print(f'  P{tier:g}: {len(pool) - len(remaining)}/{len(pool)} '
+              f'scheduled into {len(gaps)} gap(s)')
+
+    return pd.concat(frames, ignore_index=True)
 
 
 def run(args):
@@ -284,8 +552,13 @@ def run(args):
         # Already slotted above; leaving it in would schedule it twice.
         observable = observable[~observable['TNS'].isin(placed)]
 
-    sched, _ = schedule_greedy(observable, science_start, night_end,
-                                blocks=list(blocks) + reservations)
+    sched = schedule_by_priority(observable, science_start, night_end,
+                                  list(blocks) + reservations)
+    if not getattr(args, 'no_partials', False):
+        sched = backfill_partials(sched, science_start, night_end,
+                                   list(blocks) + reservations,
+                                   min_minutes=getattr(args, 'min_partial',
+                                                       MIN_PARTIAL_MINUTES))
     if forced_rows:
         sched = pd.concat([sched, pd.DataFrame(forced_rows)], ignore_index=True)
 
@@ -302,7 +575,13 @@ def run(args):
             sched[column] = False if column == 'scheduled' else pd.NA
 
     if args.max_targets:
-        keep = sched[sched['scheduled']].nsmallest(args.max_targets, 'start_pst')
+        # Trim by priority first, then by time. Trimming by start time alone
+        # -- which is what this did before tiers existed -- would throw away
+        # a top-priority target late in the night to keep a filler that
+        # happened to start early, quietly undoing the tier loop above.
+        keep = (sched[sched['scheduled']]
+                .sort_values(['priority', 'start_pst'])
+                .head(args.max_targets))
         sched = pd.concat([keep, sched[~sched['scheduled']]], ignore_index=True)
 
     done = sched[sched['scheduled'].fillna(False).astype(bool)]

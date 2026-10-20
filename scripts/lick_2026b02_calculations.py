@@ -21,6 +21,7 @@ to respect the HA limits by construction.
 """
 
 import sys
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -34,7 +35,11 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, get_sun
 from astropy.time import Time
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
 from night_planner.estimate_kast_exposures import estimate_exposure
 
 # Lick Observatory coordinates (same as Lick-2026B-01 scripts)
@@ -354,7 +359,7 @@ FORCED_FIRST_TNS = 'FRB20260627D'
 
 
 def main():
-    targets_csv = ('/home/lordrick/Projects/night-planner/Night_plans/'
+    targets_csv = (f'{_PLANS}/'
                     'Lick-2026B-02/Lick-2026B-02_targets.csv')
     date = '2026-09-14'
 
@@ -394,7 +399,7 @@ def main():
           f"{sci_min:.0f} min science / {night_min:.0f} min night "
           f"({100 * sci_min / night_min:.0f}% utilization)")
 
-    out_dir = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-02'
+    out_dir = f'{_PLANS}/Lick-2026B-02'
     results_df.to_csv(f'{out_dir}/target_analysis.csv', index=False)
     sched_df.to_csv(f'{out_dir}/selected_targets_night1.csv', index=False)
     print(f"\nWrote {out_dir}/target_analysis.csv and selected_targets_night1.csv")

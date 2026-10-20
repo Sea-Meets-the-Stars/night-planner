@@ -18,6 +18,7 @@ from astropy.coordinates import EarthLocation
 from zoneinfo import ZoneInfo
 
 from .plan_result import PlanResult, ScheduledTarget, TargetDecision
+from .targets_io import DEFAULT_PRIORITY
 from .sun_events import find_sun_events
 
 # Site constants, matching what each instrument script already uses.
@@ -63,6 +64,21 @@ def _f(value, default=None):
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _with_priority(value, reason):
+    """Prefix a decision's reason with its priority tier, when it has one.
+
+    The rejection page's whole job is explaining a judgement, and after
+    tiered scheduling "ran out of window" is only half the story -- which
+    tier the target was competing in is the other half. A plan where
+    everything sits in the default tier gains nothing from the label, so
+    it is left off entirely rather than stamping P1 on every row.
+    """
+    prio = _f(value)
+    if prio is None or prio == DEFAULT_PRIORITY:
+        return reason
+    return f'P{prio:g} -- {reason}'
 
 
 def _dt(value):
@@ -304,13 +320,19 @@ def lick_kast(out):
             decisions.append(TargetDecision(
                 name=name, ra_deg=ra_deg, dec_deg=dec_deg, mag=mag,
                 status='scheduled', stage='3. Scheduling',
-                reason=(f"{start:%H:%M}-{end:%H:%M} "
-                        f"({_f(r.get('duration_min'), 0):.0f} min)")))
+                priority=_f(r.get('priority')),
+                reason=_with_priority(
+                    r.get('priority'),
+                    f"{start:%H:%M}-{end:%H:%M} "
+                    f"({_f(r.get('duration_min'), 0):.0f} min)")))
         else:
             decisions.append(TargetDecision(
                 name=name, ra_deg=ra_deg, dec_deg=dec_deg, mag=mag,
                 status='rejected', stage='3. Scheduling',
-                reason=str(r.get('skip_reason') or 'not scheduled')))
+                priority=_f(r.get('priority')),
+                reason=_with_priority(
+                    r.get('priority'),
+                    str(r.get('skip_reason') or 'not scheduled'))))
 
     # Targets that never reached the scheduler: no HA-legal window tonight.
     scheduled_or_skipped = {d.name for d in decisions}
@@ -329,7 +351,10 @@ def lick_kast(out):
                 ra_deg=ra_deg * 15.0 if ra_deg is not None else None,
                 dec_deg=_f(r.get('Dec_deg')), mag=_f(r.get('mag_r')),
                 status='rejected', stage='2. Sky',
-                reason=reason or 'never HA-legal tonight (Shane mount limit)'))
+                priority=_f(r.get('priority')),
+                reason=_with_priority(
+                    r.get('priority'),
+                    reason or 'never HA-legal tonight (Shane mount limit)')))
 
     # A forced target the scheduler could not place must not vanish --
     # the caller asked for it by name, and silence reads as "it worked".
@@ -344,7 +369,10 @@ def lick_kast(out):
             dec_deg=_f(row['Dec_deg']) if row is not None else None,
             mag=_f(row['mag_r']) if row is not None else None,
             status='rejected', stage='4. Forced',
-            reason=f"forced but not placed -- {failure['reason']}"))
+            priority=_f(row['priority']) if row is not None else None,
+            reason=_with_priority(
+                row['priority'] if row is not None else None,
+                f"forced but not placed -- {failure['reason']}")))
 
     schedule.sort(key=lambda t: t.start)
     _attribute_kast_slews(schedule, out['start_local'])

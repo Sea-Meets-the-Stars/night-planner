@@ -5,7 +5,8 @@ Created by JXP and Claude
 """
 
 import sys
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
 
 import pandas as pd
 import numpy as np

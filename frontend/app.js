@@ -1,7 +1,14 @@
 /* night-planner viewer — hash-routed, no framework.
    Created by JXP and Claude */
 
-const state = { plan: null, outputDir: null, instrument: null, date: null };
+/* `setup`, `inspection` and `priorities` carry the pre-plan steps across a
+   route change. They have to live here because useTemplate() clones a fresh
+   template on every navigation, so the setup form's DOM -- and the closure
+   holding the inspected path -- are gone the moment we leave #/setup. Unlike
+   a plan, there is no `dir=` to re-fetch from: nothing has been written to
+   disk yet, so if this is lost the only honest move is to send the user back. */
+const state = { plan: null, outputDir: null, instrument: null, date: null,
+                setup: null, inspection: null, priorities: null };
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const el = (tag, cls, text) => {
@@ -47,6 +54,7 @@ function useTemplate(id) {
 const routes = {
   '/': renderHome,
   '/setup': renderSetup,
+  '/priorities': renderPriorities,
   '/plan': renderPlan,
   '/rejections': renderRejections,
   '/finders': renderFinders,
@@ -178,9 +186,16 @@ async function renderSetup(params) {
     { placeholder: 'to HH:MM', key: 'end' },
     { placeholder: 'reason', key: 'reason', size: 22 }]));
 
+  /* Reads the table and moves on. This is the page's one forward action, so
+     a table we cannot read unambiguously must stop here rather than landing
+     the user on a priorities page it could not populate. */
   $('#inspect-btn').addEventListener('click', async () => {
+    const button = $('#inspect-btn');
     const box = $('#inspect-result');
-    box.replaceChildren(el('p', 'hint', 'Inspecting…'));
+    const foot = $('#inspect-result-foot');
+    button.disabled = true;
+    foot.replaceChildren(el('p', 'hint', 'Reading the target table…'));
+    box.replaceChildren();
     try {
       const file = $('#targets-file').files[0];
       let data;
@@ -194,30 +209,131 @@ async function renderSetup(params) {
         data = await api(`/api/targets/inspect?path=${encodeURIComponent(path)}`,
                          { method: 'POST' });
       }
-      targetsPath = data.path;
-      box.replaceChildren(renderInspection(data));
+      if (!data.mapping.ok) {
+        // Priorities on a table whose columns are still ambiguous would be
+        // priorities on rows we cannot identify. Report it in place.
+        foot.replaceChildren();
+        box.replaceChildren(renderInspection(data));
+        return;
+      }
+
+      state.inspection = data;
+      state.setup = {
+        instrument,
+        date,
+        targetsPath: data.path,
+        start: $('#start').value.trim(),
+        maxTargets: $('#max-targets').value,
+        outputDir: $('#output-dir').value.trim(),
+        assumeMasks: $('#assume-masks').checked,
+        noPartials: $('#no-partials').checked,
+        blocks: collectRows($('#blocks')).filter((b) => b.start && b.end),
+      };
+      // Seed every target at the default, so an untouched page generates
+      // precisely the night the planner produced before priorities existed.
+      state.priorities = Object.fromEntries(
+        data.preview.map((r) => [r.name, r.priority ?? data.default_priority]));
+      location.hash = '#/priorities';
     } catch (err) {
+      foot.replaceChildren();
       box.replaceChildren(notice(err.message, true));
+    } finally {
+      button.disabled = false;
     }
   });
+}
 
-  $('#generate-btn').addEventListener('click', async () => {
+/* ------------------------------------------------------------ priorities */
+
+async function renderPriorities() {
+  // No server round-trip can rescue this page: nothing is on disk yet, so
+  // there is no output_dir to re-read. A reload therefore lands here empty,
+  // and saying so beats rendering a page with no targets in it.
+  if (!state.inspection || !state.setup) {
+    useTemplate('tpl-priorities');
+    const back = el('a', '', 'Start again from the targets page');
+    back.href = '#/setup';
+    $('#prio-notes').replaceChildren(
+      notice('This page is built from the target table you just read, and '
+             + 'that is lost on a reload.', true), back);
+    $('#prio-list').remove();
+    return;
+  }
+
+  const data = state.inspection;
+  const setup = state.setup;
+  useTemplate('tpl-priorities');
+  $('#prio-lede').textContent =
+    `${setup.instrument} · ${setup.date || 'no date set'} · `
+    + `${data.n_rows} targets → ${setup.outputDir || 'no output directory set'}`;
+
+  // The mapping summary and the source-format caveat were shown on the setup
+  // page before; they still have to be seen, so they lead this page instead.
+  $('#prio-notes').replaceChildren(renderInspection(data, { preview: false }));
+
+  const list = $('#prio-list');
+  const rows = [...data.preview].sort(
+    (a, b) => (state.priorities[a.name] ?? 1) - (state.priorities[b.name] ?? 1)
+      || String(a.name).localeCompare(String(b.name)));
+
+  const tierNote = () => {
+    const values = [...new Set(Object.values(state.priorities))].sort((a, b) => a - b);
+    $('#prio-tiers').textContent = values.length === 1
+      ? 'One tier — scheduled exactly as before.'
+      : `${values.length} tiers: ${values.map((v) => 'P' + v).join(', ')}`;
+  };
+
+  list.replaceChildren(...rows.map((r) => {
+    const row = el('div', 'prio-row');
+    row.dataset.target = r.name;
+    const input = el('input', 'prio');
+    input.type = 'number';
+    input.step = '0.5';
+    input.min = '0';
+    input.value = state.priorities[r.name] ?? data.default_priority;
+    input.addEventListener('change', () => {
+      state.priorities[r.name] = Number(input.value) || data.default_priority;
+      tierNote();
+    });
+    row.append(input);
+    const label = el('div', 'prio-label');
+    label.append(el('b', '', String(r.name)));
+    label.append(el('span', 'hint',
+      ` mag ${r.mag ?? '—'} · RA ${r.ra_deg.toFixed(3)}° · Dec ${r.dec_deg.toFixed(3)}°`));
+    row.append(label);
+    return row;
+  }));
+  tierNote();
+
+  if (data.preview_truncated) {
+    $('#prio-notes').append(el('p', 'hint',
+      `${data.preview_truncated} further targets are not listed here; `
+      + `they keep the priority their table already carried.`));
+  }
+
+  $('#prio-bulk-apply').onclick = () => {
+    const value = Number($('#prio-bulk').value);
+    if (!value && value !== 0) return;
+    list.querySelectorAll('.prio-row').forEach((row) => {
+      row.querySelector('input.prio').value = value;
+      state.priorities[row.dataset.target] = value;
+    });
+    tierNote();
+  };
+
+  $('#prio-back').onclick = () => { location.hash = '#/setup'; };
+
+  $('#generate-btn').onclick = async () => {
     const status = $('#generate-status');
     const button = $('#generate-btn');
     button.disabled = true;
     status.replaceChildren(notice('Generating… the exposure-time calculator is '
       + 'queried live per target, so this takes a minute or two.'));
     try {
-      // Fall back to whatever is typed in the path box: requiring a click on
-      // Inspect first is exactly the kind of invisible prerequisite that
-      // sends a null and gets a surprising plan back.
-      const typedPath = $('#targets-path').value.trim();
-      const chosenTargets = targetsPath || typedPath || null;
-      if (!chosenTargets) {
-        throw new Error('choose a target table first — upload one, or type its path');
+      if (!setup.targetsPath) {
+        throw new Error('no target table — start again from the targets page');
       }
-      const outputDir = $('#output-dir').value.trim();
-      if (!outputDir) {
+      if (!setup.outputDir) {
         throw new Error('set an output directory, so the plan does not land '
           + 'in another run\'s folder');
       }
@@ -226,15 +342,17 @@ async function renderSetup(params) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          instrument,
-          date: date || null,
-          targets_csv: chosenTargets,
-          output_dir: outputDir,
-          start: $('#start').value.trim() || null,
-          max_targets: Number($('#max-targets').value) || null,
-          assume_masks: $('#assume-masks').checked,
-          blocks: collectRows($('#blocks')).filter((b) => b.start && b.end),
+          instrument: setup.instrument,
+          date: setup.date || null,
+          targets_csv: setup.targetsPath,
+          output_dir: setup.outputDir,
+          start: setup.start || null,
+          max_targets: Number(setup.maxTargets) || null,
+          assume_masks: setup.assumeMasks,
+          no_partials: setup.noPartials,
+          blocks: setup.blocks,
           forced: [],
+          priorities: state.priorities,
         }),
       });
       state.plan = plan;
@@ -243,13 +361,16 @@ async function renderSetup(params) {
     } catch (err) {
       status.replaceChildren(notice(err.message, true));
     } finally {
-      stopPolling();
+      // No stopPolling() here: nothing on this page starts a poll, and
+      // the call this replaced was a ReferenceError that left the button
+      // stuck disabled after any failed generate.
       button.disabled = false;
     }
-  });
+  };
 }
 
-function renderInspection(data) {
+function renderInspection(data, opts = {}) {
+  const showPreview = opts.preview !== false;
   const wrap = el('div');
   const m = data.mapping;
   if (!m.ok) {
@@ -274,7 +395,17 @@ function renderInspection(data) {
         + 'FRBs with ranked host candidates, so finders will use the '
         + 'parallactic angle.'));
   }
-  if (data.preview.length) {
+  // Priority values the table carried but we could not read as numbers. The
+  // targets are still perfectly usable; they just have no ranking, and that
+  // has to be said rather than silently defaulted.
+  const coerced = data.priority_coercions;
+  if (coerced && coerced.n_coerced) {
+    wrap.append(notice(
+      `The '${coerced.column}' column has ${coerced.n_coerced} value(s) that `
+      + `are not numbers (${coerced.examples.join(', ')}) — those targets `
+      + `start at the default priority of ${data.default_priority}.`));
+  }
+  if (showPreview && data.preview.length) {
     const shown = data.preview.length;
     wrap.append(el('p', 'hint', data.preview_truncated
       ? `Showing the first ${shown} of ${data.n_rows} targets `
@@ -305,7 +436,12 @@ async function loadPlan() {
 }
 
 function targetClass(t) {
-  if ((t.notes || '').startsWith('FORCED')) return 'forced';
+  const notes = t.notes || '';
+  // PARTIAL is the planner's own doing -- a truncated exposure dropped into
+  // idle time -- so it reads differently from FORCED, which the observer
+  // asked for by name.
+  if (notes.startsWith('PARTIAL')) return 'partial';
+  if (notes.startsWith('FORCED')) return 'forced';
   return t.mode.startsWith('MOS') ? 'mos' : 'science';
 }
 
@@ -475,6 +611,7 @@ async function renderPlan() {
 
   const legend = $('#legend');
   [['science', 'longslit'], ['mos', 'MOS'], ['forced', 'forced/truncated'],
+   ['partial', 'partial (backfilled)'],
    ['slew', 'slew'], ['overhead', 'standards, focus, calibs'],
    ['blocked', 'blocked'], ['idle', 'idle']].forEach(([cls, label]) => {
     const item = el('span');
@@ -508,6 +645,7 @@ async function renderPlan() {
     + '<th class="num">slew</th><th class="num">on target</th><th>Notes</th></tr>'
     + plan.schedule.map((t) => {
       const pill = t.mode.startsWith('MOS') ? '<span class="pill mos">MOS</span>'
+        : (t.notes || '').startsWith('PARTIAL') ? '<span class="pill partial">partial</span>'
         : (t.notes || '').startsWith('FORCED') ? '<span class="pill forced">forced</span>' : '';
       return `<tr><td>${hhmm(t.science_start)}–${hhmm(t.end)}</td>`
         + `<td><a href="#/airmass?dir=${encodeURIComponent(plan.output_dir)}&target=${t.name}">${t.name}</a></td>`

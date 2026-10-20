@@ -32,13 +32,15 @@ consistent.
 """
 
 import sys
+from pathlib import Path
 from datetime import timedelta
 
 import pandas as pd
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
 from scripts.lick_2026b02_calculations import find_twilight, target_window
 from scripts.lick_2026b02_night2_calculations import (
     OUT_DIR, DATE, SLEW_MINUTES, SPARE_TARGETS, analyze, schedule_greedy,

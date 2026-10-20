@@ -17,6 +17,15 @@ from keck_overheads import keck_slew_minutes
 from keck_2026oct06_calculations import MORNING_STANDARD_DEC
 from night_plan_io import load_night_meta, resolve_local_dt, OBSERVATORY_TZ
 
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
 # Constants
 # Verified against astropy's EarthLocation.of_site('keck') (IRAF Observatory
 # Database), 2026-09-11: lat 19.828333 deg, lon -155.478333 deg, height 4160 m.
@@ -406,7 +415,7 @@ def parse_args(argv=None):
 def run(args):
     """Execute the Excel build for an already-parsed args namespace (see
     keck_2026oct06_calculations.run() for why this is split from main())."""
-    output_dir = args.output_dir or '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02'
+    output_dir = args.output_dir or f'{_PLANS}/Keck-2026B-02'
     selected_csv = args.selected_csv or f'{output_dir}/selected_targets.csv'
     output_path = args.output_path or f'{output_dir}/Keck_LRIS_2026Oct06_Night_plan.xlsx'
     date = args.date or '2026-10-06'

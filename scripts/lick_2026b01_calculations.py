@@ -13,6 +13,15 @@ from astropy.time import Time
 from datetime import datetime, timedelta, timezone
 import pytz
 
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
 # Lick Observatory coordinates
 LICK = EarthLocation(lat=37.3414*u.deg, lon=-121.6429*u.deg, height=1283*u.m)
 
@@ -385,7 +394,7 @@ def estimate_exposure_time(mag_r):
 
 def main():
     """Main execution."""
-    targets_csv = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-01/Lick-2026B-01_targets.csv'
+    targets_csv = f'{_PLANS}/Lick-2026B-01/Lick-2026B-01_targets.csv'
     date = '2026-08-13'
 
     # Analyze all targets
@@ -408,7 +417,7 @@ def main():
               f"total ~{exp['total_min']} min")
 
     # Save results
-    output_dir = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-01'
+    output_dir = f'{_PLANS}/Lick-2026B-01'
     results_df.to_csv(f'{output_dir}/target_analysis.csv', index=False)
     selected.to_csv(f'{output_dir}/selected_targets_night1.csv', index=False)
 

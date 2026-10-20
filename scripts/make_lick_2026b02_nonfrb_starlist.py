@@ -26,9 +26,17 @@ import os
 
 from astropy.coordinates import SkyCoord
 
-FINDER_DIR = ('/home/lordrick/Projects/chime-ffff-pz/chime_ffff_pz/data/'
-              'Observing/Lick-2026B-02')
-OUTFILE = ('/home/lordrick/Projects/night-planner/Night_plans/'
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import ffffpz_data, plans_dir
+
+_PLANS = plans_dir()
+
+FINDER_DIR = str(ffffpz_data('Observing', 'Lick-2026B-02'))
+OUTFILE = (f'{_PLANS}/'
            'Lick-2026B-02/lick_nonfrb.starlist')
 
 # Non-FRB spare/filler target names (must match the *_finder.json stems

@@ -24,6 +24,15 @@ from schedule_overrides import (resolve_start, fit_around_blocks, blocking_reaso
                                  push_past_blocks, _overlapping_block)
 from night_planner.targets_io import load_targets
 
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
 # Flux standards (Dec in deg): telescope starts the science sequence at the
 # evening standard and slews to the morning standard after the last target.
 EVENING_STANDARD_DEC = 28.8640   # BD+28 4211
@@ -1293,10 +1302,10 @@ def run(args):
         cfg = None
 
     targets_csv = (args.targets_csv or (cfg.targets_csv if cfg else None)
-                   or '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02/Keck-2026B-02_targets.csv')
+                   or f'{_PLANS}/Keck-2026B-02/Keck-2026B-02_targets.csv')
     date = args.date or (cfg.date if cfg else None) or '2026-10-06'
     output_dir = (args.output_dir or (cfg.output_dir if cfg else None)
-                  or '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02')
+                  or f'{_PLANS}/Keck-2026B-02')
     max_targets = args.max_targets or (cfg.max_targets if cfg else None) or 20
 
     start_spec = args.start or (cfg.start_override if cfg else None)

@@ -169,3 +169,81 @@ def test_inspect_maps_a_foreign_spreadsheet(tmp_path):
     assert data['mapping']['ok'] is True
     assert data['mapping']['columns']['name'] == 'object'
     assert data['preview'][0]['ra_deg'] == pytest.approx(266.7018, abs=1e-3)
+
+
+def test_inspect_reports_priority_and_its_default(tmp_path):
+    """The preview carries a priority per row, defaulted when absent.
+
+    Inputs: none (writes a temp CSV).
+    Outputs: none (asserts on success).
+    """
+    csv = tmp_path / 'plain.csv'
+    csv.write_text('name,ra_deg,dec_deg,mag\nA,10.0,40.0,18.0\n'
+                   'B,20.0,41.0,19.0\n')
+    data = client.post('/api/targets/inspect',
+                       params={'path': str(csv)}).json()
+    assert data['mapping']['ok'] is True
+    assert [r['priority'] for r in data['preview']] == [
+        data['default_priority']] * 2
+    assert data['priority_coercions']['n_coerced'] == 0
+
+
+def test_inspect_flags_an_unreadable_priority_column(tmp_path):
+    """An 'A'/'B' priority column is defaulted, and the user is told.
+
+    Inputs: none (writes a temp CSV).
+    Outputs: none (asserts on success).
+    """
+    csv = tmp_path / 'lettered.csv'
+    csv.write_text('name,ra_deg,dec_deg,mag,priority\nA,10.0,40.0,18.0,A\n'
+                   'B,20.0,41.0,19.0,B\n')
+    report = client.post('/api/targets/inspect',
+                         params={'path': str(csv)}).json()['priority_coercions']
+    assert report['column'] == 'priority'
+    assert report['n_coerced'] == 2
+
+
+def test_generate_writes_a_prioritized_table(tmp_path):
+    """The chosen priorities land in a CSV beside the plan.
+
+    Writing them to disk rather than keeping them in the request is what
+    makes a GUI plan reproducible from the command line, so this asserts
+    on the file rather than on the response.
+
+    Inputs: none (writes a temp CSV).
+    Outputs: none (asserts on success).
+    """
+    import pandas as pd
+
+    from backend.app import _write_prioritized_targets
+
+    csv = tmp_path / 'targets.csv'
+    csv.write_text('name,ra_deg,dec_deg,mag\nA,10.0,40.0,18.0\n'
+                   'B,20.0,41.0,19.0\nC,30.0,42.0,20.0\n')
+
+    out = _write_prioritized_targets(str(csv), {'A': 1, 'C': 2.5}, tmp_path)
+    written = pd.read_csv(out)
+
+    assert Path(out).name == 'targets_with_priority.csv'
+    assert dict(zip(written['name'], written['priority'])) == {
+        'A': 1.0, 'B': 1.0, 'C': 2.5}
+    # The source table is left exactly as the user supplied it.
+    assert 'priority' not in pd.read_csv(csv).columns
+
+
+def test_prioritized_table_preserves_an_existing_column(tmp_path):
+    """Targets the user did not touch keep the table's own priority.
+
+    Inputs: none (writes a temp CSV).
+    Outputs: none (asserts on success).
+    """
+    import pandas as pd
+
+    from backend.app import _write_prioritized_targets
+
+    csv = tmp_path / 'targets.csv'
+    csv.write_text('name,ra_deg,dec_deg,mag,priority\nA,10.0,40.0,18.0,3\n'
+                   'B,20.0,41.0,19.0,4\n')
+
+    written = pd.read_csv(_write_prioritized_targets(str(csv), {'A': 1}, tmp_path))
+    assert dict(zip(written['name'], written['priority'])) == {'A': 1.0, 'B': 4.0}

@@ -5,7 +5,11 @@ Created by JXP and Claude.
 """
 
 import sys
-sys.path.insert(0, '/home/lordrick/Projects/chime-ffff-pz')
+from pathlib import Path
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from night_planner.paths import ffffpz_root
+sys.path.insert(0, str(ffffpz_root()))
 
 from chime_ffff_pz.utils import ffff_pz_utils
 import pandas as pd

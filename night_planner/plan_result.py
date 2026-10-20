@@ -96,6 +96,10 @@ class TargetDecision:
     # "set hours ago", which decides whether forcing it can work at all.
     window_start: Optional[datetime] = None
     window_end: Optional[datetime] = None
+    # Defaulted, not required: from_dict() splats a saved row straight into
+    # this constructor, so a plan_result.json written before priority existed
+    # must still load.
+    priority: Optional[float] = None
 
     def to_dict(self):
         d = asdict(self)

@@ -18,9 +18,14 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 from datetime import timezone
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
 from night_planner.adapters import SITES
 from night_planner.sun_events import find_sun_events
 
@@ -129,7 +134,7 @@ def main(argv=None):
     args = parse_args(argv)
     resource = build_resource(args)
 
-    out = args.out or (f'/home/lordrick/Projects/night-planner/Night_plans/'
+    out = args.out or (f'{_PLANS}/'
                        f'{args.name}/{args.name}.json')
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, 'w') as f:

@@ -23,6 +23,7 @@ recorded in claudes_brain.md.
 """
 
 import sys
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
@@ -31,14 +32,18 @@ from openpyxl.styles import Font, PatternFill
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
 from scripts.lick_2026b02_calculations import (
     LICK, PST, find_twilight, calculate_lst, ha_at, FORCED_FIRST_TNS,
 )
 
 DATE = '2026-09-14'
 SHEET_NAME = 'September 14th'
-OUT_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-02'
+OUT_DIR = f'{_PLANS}/Lick-2026B-02'
 
 KAST_SETUP_NOTE = ('Kast setup: d57 dichroic | red 600/7500 | '
                     'blue 600/4310 | 2" slit')

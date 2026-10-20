@@ -33,7 +33,16 @@ from keck_overheads import (
 )
 from night_planner.targets_io import load_targets
 
-RUN_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02'
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
+RUN_DIR = f'{_PLANS}/Keck-2026B-02'
 TARGETS_CSV = f'{RUN_DIR}/Keck-2026B-02_targets.csv'
 DATE = '2026-10-06'
 OUTFILE = f'{RUN_DIR}/target_rejection_analysis.md'

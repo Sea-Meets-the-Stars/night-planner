@@ -265,8 +265,8 @@ See [`Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md`](Night_plans/Lick-
 ## Installation
 
 ```bash
-# Clone repo
-cd /home/lordrick/Projects/night-planner
+git clone <this repo>
+cd night-planner
 
 # Install dependencies (minimal - uses astropy)
 pip install -r requirements.txt
@@ -281,6 +281,37 @@ pip install -e .
 - astropy
 - matplotlib
 - openpyxl (for Excel generation)
+
+### Environment variables
+
+Nothing inside the repo needs configuring: the repo root, `Night_plans/` and
+`scripts/` are all worked out from the code's own location, so a fresh clone
+runs wherever you put it. Only paths *outside* the checkout need telling.
+
+| Variable | Needed for | Default |
+|----------|-----------|---------|
+| `FFFF_PZ_REPO` | The `chime-ffff-pz` checkout: standard-star library, finder charts, Observing data | A sibling directory next to this repo |
+| `NIGHT_PLANNER_PLANS` | Writing plans somewhere other than the repo | `<repo>/Night_plans` |
+| `LICK_NIGHT_PLAN_TEMPLATE` | `make_lick_night_plan.py` only — the template .xlsx it copies its checklist sheet from | None; the builder asks for it |
+| `FFFF_PZ_URL` / `FFFF_PZ_USER` / `FFFF_PZ_PASS` | Talking to the FFFF-PZ server | None |
+
+If you keep the two repos side by side, nothing above needs setting:
+
+```
+Projects/
+├── night-planner/
+└── chime-ffff-pz/
+```
+
+Otherwise:
+
+```bash
+export FFFF_PZ_REPO=/path/to/chime-ffff-pz
+```
+
+Every one of these fails with a message naming the variable to set, rather
+than a missing-file error from somewhere deep in a data read. See
+[`night_planner/paths.py`](night_planner/paths.py).
 
 ---
 

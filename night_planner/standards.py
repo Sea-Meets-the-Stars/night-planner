@@ -20,17 +20,37 @@ from astropy import units as u
 from astropy.coordinates import AltAz, SkyCoord
 from astropy.time import Time
 
-LIBRARY_PATH = Path('/home/lordrick/Projects/chime-ffff-pz/chime_ffff_pz/'
-                    'pypeit_reduce/standard_star_library.py')
+from .paths import ffffpz_module
 
 
-def load_library(path=LIBRARY_PATH):
+# Resolved lazily rather than at import: a machine without the FFFF-PZ
+# checkout must still be able to import this module -- only the callers that
+# actually read the library should fail, and then with a message naming the
+# variable to set.
+def library_path():
+    """Path to the PypeIt standard-star library in the FFFF-PZ checkout.
+
+    Created by JXP and Claude
+
+    Inputs
+    ------
+    none (reads FFFF_PZ_REPO via night_planner.paths).
+
+    Outputs
+    -------
+    Path to standard_star_library.py.
+    """
+    return ffffpz_module('pypeit_reduce', 'standard_star_library.py')
+
+
+def load_library(path=None):
     """
     Load the PypeIt standard-star library.
 
     Parameters
     ----------
-    path : Path
+    path : Path, optional
+        Defaults to library_path(), i.e. wherever FFFF_PZ_REPO points.
 
     Returns
     -------
@@ -41,7 +61,7 @@ def load_library(path=LIBRARY_PATH):
     FileNotFoundError
         If the chime-ffff-pz checkout isn't where it's expected.
     """
-    path = Path(path)
+    path = Path(path) if path else library_path()
     if not path.exists():
         raise FileNotFoundError(
             f'standard-star library not found at {path} -- it lives in the '

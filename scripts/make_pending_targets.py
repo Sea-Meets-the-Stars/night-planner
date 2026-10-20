@@ -18,10 +18,12 @@ Created by JXP and Claude
 
 import argparse
 import sys
+from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
 from night_planner.plan_store import load_plan
 from night_planner.targets_io import detect_mapping
 

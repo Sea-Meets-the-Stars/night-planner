@@ -40,8 +40,17 @@ from requests.auth import HTTPBasicAuth
 import keck_2026oct06_calculations as kc
 from keck_overheads import keck_slew_minutes, KECK_SLEW_BASE_MIN
 
-OBS_DIR = '/home/lordrick/Projects/chime-ffff-pz/chime_ffff_pz/data/Observing'
-RUN_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02'
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import ffffpz_data, plans_dir
+
+_PLANS = plans_dir()
+
+OBS_DIR = str(ffffpz_data('Observing'))
+RUN_DIR = f'{_PLANS}/Keck-2026B-02'
 DATE = '2026-10-06'
 FILLER_MAG_MIN = 18.0
 MIN_SLOT_MIN = 20          # ignore idle slots shorter than this

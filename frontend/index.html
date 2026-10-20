@@ -47,7 +47,6 @@
       <input type="file" id="targets-file" accept=".csv">
       <span class="or">or</span>
       <input type="text" id="targets-path" placeholder="path to a CSV on disk" size="46">
-      <button id="inspect-btn" type="button">Inspect</button>
     </div>
     <div id="inspect-result"></div>
   </section>
@@ -67,6 +66,14 @@
     </div>
 
     <label class="check">
+      <input type="checkbox" id="no-partials">
+      <span>Leave idle time idle
+        <span class="hint">by default a target dropped for want of time is
+          scheduled anyway for whatever is left, marked as a partial so you
+          can drop it at the telescope &mdash; tick this to stop that</span></span>
+    </label>
+
+    <label class="check">
       <input type="checkbox" id="assume-masks">
       <span>Schedule MOS targets without a mask yet
         <span class="hint">allocates their time on the commitment that we'll do our
@@ -79,11 +86,41 @@
 
   </section>
 
-  <p class="hint">To rescue a target the scheduler drops for want of time, generate
-    first &mdash; the Rejections page lets you force one in once you can see why
-    it was dropped.</p>
+  <p class="hint">Next you'll set each target's priority &mdash; the scheduler
+    fills the night from the top priority down, and nothing lower ever pushes
+    out something higher. Leave them all equal and the night is scheduled
+    exactly as it always was.</p>
 
-  <button id="generate-btn" class="primary">Generate plan</button>
+  <button id="inspect-btn" class="primary" type="button">Read targets &amp; set priorities &rarr;</button>
+  <div id="inspect-result-foot"></div>
+</template>
+
+<template id="tpl-priorities">
+  <h1>Set priorities</h1>
+  <p class="lede" id="prio-lede"></p>
+  <div id="prio-notes"></div>
+
+  <section class="card">
+    <h2>Priority</h2>
+    <p class="hint">Lower is more important &mdash; 1 is scheduled first.
+      Fractions are allowed, so something can sit between two tiers without
+      renumbering everything below it. Targets sharing a number compete with
+      each other exactly as they do today; a lower tier only ever gets the
+      time the tiers above it left behind.</p>
+    <div class="row">
+      <label style="margin:0">Set every target to
+        <input type="number" id="prio-bulk" step="0.5" min="0">
+      </label>
+      <button type="button" class="ghost" id="prio-bulk-apply">Apply to all</button>
+      <span id="prio-tiers" class="hint"></span>
+    </div>
+    <div id="prio-list" class="preview-scroll"></div>
+  </section>
+
+  <div class="row">
+    <button type="button" class="ghost" id="prio-back">&larr; Back to targets</button>
+    <button id="generate-btn" class="primary">Generate plan</button>
+  </div>
   <div id="generate-status"></div>
 </template>
 

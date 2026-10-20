@@ -29,9 +29,17 @@ import pandas as pd
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
-OBS_DIR = ('/home/lordrick/Projects/chime-ffff-pz/chime_ffff_pz/data/'
-           'Observing/Keck-2026B-02')
-RUN_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02'
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import ffffpz_data, plans_dir
+
+_PLANS = plans_dir()
+
+OBS_DIR = str(ffffpz_data('Observing', 'Keck-2026B-02'))
+RUN_DIR = f'{_PLANS}/Keck-2026B-02'
 STARLIST_OUT = f'{RUN_DIR}/Keck-2026B-02.starlist'
 TARGETLIST_OUT = f'{RUN_DIR}/Keck-2026B-02_target_list.md'
 

@@ -11,6 +11,7 @@ Created by JXP and Claude
 ### General Documentation
 
 - **[Shane Telescope Constraints](Shane_telescope_constraints.md)** - Shane 3m pointing limits, HA ranges, observable RA windows
+- **[Target CSV Guide](target_csv_guide.md)** - How to build a target table that loads cleanly and makes a good night: columns, units, magnitudes, priorities
 - **[Testing Guide](Testing_guide.md)** - How to use the test suite and edge case datasets
 - **[Priority System](priority_system.md)** - How target priority is actually set: pool draw, feasibility gates, greedy urgency ordering, and hand overrides
 - **[Priority: night-planner vs AstroScheduler](priority_comparison_astroscheduler.md)** - Comparison with the UCSC AstroScheduler priority-sequential Branch and Bound solver
@@ -136,6 +137,7 @@ Window shifts ~2h/month as Earth orbits sun.
 | `build_night_plan.py` | Generate Excel night plan from selected targets |
 | `observable_ra_calculator.py` | Calculate observable RAs for any date, generate year plot |
 | `check_deadtime_lick_2026b01.py` | Analyze timeline for deadtime gaps |
+| `check_target_csv.py` | Validate a target table and report airmass, exposure and total hours |
 | `generate_test_frbs.py` | Generate 17 synthetic test cases |
 | `run_all_tests.py` | Run observability analysis on all test cases |
 
@@ -175,6 +177,7 @@ Targets aren't "observable" or "not" universally - they're observable at **speci
 
 ## Getting Help
 
+- Building a target list? Start with the [Target CSV Guide](target_csv_guide.md)
 - Read the [Lick-2026B-01 HOWTO](../Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md) for a complete worked example
 - Check [Testing Guide](Testing_guide.md) for edge case scenarios
 - Review [Shane constraints](Shane_telescope_constraints.md) for telescope limits

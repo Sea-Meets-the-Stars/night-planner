@@ -31,7 +31,13 @@ from astropy.coordinates import Angle
 from astropy import units as u
 
 REQUIRED_FIELDS = ('name', 'ra', 'dec', 'mag')
-OPTIONAL_FIELDS = ('pox', 'tags', 'dm')
+OPTIONAL_FIELDS = ('pox', 'tags', 'dm', 'priority')
+
+# Priority convention, shared with the UCSC AstroScheduler so the two stay
+# comparable: a float, lower = more important. Every target defaults to the
+# same value, which puts them all in one tier -- and one tier schedules
+# exactly as the pipeline did before priority existed.
+DEFAULT_PRIORITY = 1.0
 
 # Candidate source-column spellings per field, highest priority first.
 #
@@ -50,6 +56,7 @@ ALIASES = {
     'pox': ['pri_pox', 'pox', 'p_ox'],
     'tags': ['frb_tags', 'tags', 'tag'],
     'dm': ['frb_dm', 'dm'],
+    'priority': ['priority', 'prio', 'rank'],
 }
 
 # Source columns whose name already settles the unit question. Anything
@@ -262,6 +269,17 @@ def load_targets(source, mapping=None):
         source_col = mapping.columns.get(fieldname)
         out[fieldname] = df[source_col] if source_col else empty
 
+    # Priority is handled apart from the loop above because it is the one
+    # optional field the scheduler *computes with*: every consumer may assume
+    # a float. A value that isn't a number falls back to the default rather
+    # than raising -- a table whose priority column reads 'A'/'B' is still a
+    # perfectly good target table, it just has no usable ranking. Callers that
+    # need to tell the user so should use priority_coercions().
+    source_col = mapping.columns.get('priority')
+    out['priority'] = (
+        pd.to_numeric(df[source_col], errors='coerce').fillna(DEFAULT_PRIORITY)
+        if source_col else DEFAULT_PRIORITY)
+
     bad = out['ra_deg'].isna() | out['dec_deg'].isna()
     if bad.any():
         names = ', '.join(out.loc[bad, 'name'].head(5))
@@ -282,3 +300,52 @@ def load_targets(source, mapping=None):
             f'{names} -- each target must be one row, or it will be '
             f'scheduled twice', mapping)
     return out
+
+
+def priority_coercions(source, mapping=None):
+    """
+    Count priority values that are not numbers, for reporting to the user.
+
+    Created by JXP and Claude
+
+    `load_targets` quietly falls back to DEFAULT_PRIORITY for anything it
+    cannot read as a float, because an unreadable ranking is not a reason
+    to refuse a target table. Quiet is not the same as hidden, though:
+    dropping a priority column on the floor without saying so is the exact
+    behaviour this field was added to fix. Callers that have somewhere to
+    put a warning -- the GUI's inspect step -- ask here.
+
+    Inputs
+    ------
+    source : str, Path or pandas.DataFrame
+        The target table, as given to load_targets.
+    mapping : ColumnMapping, optional
+        A mapping already detected for this table; re-detected if omitted.
+
+    Outputs
+    -------
+    dict with keys:
+        'column'  -- the source column priority was read from, or None if
+                     the table has no priority column at all
+        'n_total' -- rows in the table
+        'n_coerced' -- rows whose priority was not a number and therefore
+                     fell back to DEFAULT_PRIORITY
+        'examples' -- up to 3 distinct offending values, as strings
+    """
+    df = (pd.read_csv(source) if isinstance(source, (str, os.PathLike))
+          else source)
+    if mapping is None:
+        mapping = detect_mapping(df)
+
+    column = mapping.columns.get('priority')
+    if not column:
+        return {'column': None, 'n_total': len(df), 'n_coerced': 0,
+                'examples': []}
+
+    numeric = pd.to_numeric(df[column], errors='coerce')
+    # A blank cell is a missing value, not a typo: the user left it to the
+    # default on purpose, so it is not worth warning about.
+    bad = numeric.isna() & df[column].notna()
+    examples = [str(v) for v in df.loc[bad, column].drop_duplicates().head(3)]
+    return {'column': column, 'n_total': len(df),
+            'n_coerced': int(bad.sum()), 'examples': examples}

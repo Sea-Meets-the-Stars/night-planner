@@ -7,6 +7,15 @@ Created by JXP and Claude
 from datetime import datetime, timedelta, timezone
 import pandas as pd
 
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
 # PST fixed offset
 PST = timezone(timedelta(hours=-8))
 
@@ -26,7 +35,7 @@ def pst_to_lst(pst_time):
     return lst
 
 # Read selected targets
-df = pd.read_csv('/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-01/selected_targets_night1.csv')
+df = pd.read_csv(f'{_PLANS}/Lick-2026B-01/selected_targets_night1.csv')
 
 print("="*80)
 print("LICK-2026B-01 DEADTIME ANALYSIS (Aug 13-14, 2026)")

@@ -28,10 +28,19 @@ from lick_2026b02_calculations import (
 )
 from night_planner.estimate_kast_exposures import estimate_exposure
 
-TARGETS_CSV = ('/home/lordrick/Projects/night-planner/Night_plans/'
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
+TARGETS_CSV = (f'{_PLANS}/'
                'Lick-2026B-02/Lick-2026B-02_targets.csv')
 DATE = '2026-09-14'
-OUTFILE = ('/home/lordrick/Projects/night-planner/Night_plans/'
+OUTFILE = (f'{_PLANS}/'
            'Lick-2026B-02/target_rejection_analysis.md')
 
 

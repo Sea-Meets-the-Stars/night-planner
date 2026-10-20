@@ -1559,3 +1559,88 @@ uninteresting ones -- log the reason at every skip point.
   their rejections are a bare `conflicts` list with no reason. **The two repos
   are missing opposite halves of the same system: they have a consumer with no
   principled source, we have a source with no consumer.**
+- **v0.58 — 2026-10-19 (UTC):** Built the priority system the v0.56/v0.57 docs
+  said was missing: `priority` is now a real float column (lower = better,
+  `DEFAULT_PRIORITY = 1.0`), recognised by `targets_io.ALIASES`, carried by
+  `analyze_targets` into every schedule frame, and consumed by a tier loop.
+  Durable points:
+  (1) **The comparison doc was right about *what* to build and wrong about
+  *how*.** I had written that we should copy AstroScheduler's
+  "already-placed-is-mandatory" trick by passing tier-1 slots to a second
+  `schedule_greedy` pass as blocks. That cannot work here: `fit_around_blocks`
+  can only ever push a target *later* (`candidate_start` is monotonically
+  non-decreasing) and `schedule_greedy`'s cursor never rewinds, so one more
+  full-night pass sails past every gap it already crossed. The working form is
+  **per-gap** — compute gaps, call `schedule_greedy` once inside each,
+  restarting the cursor — which the repo already did at
+  `lick_2026b02_night2_calculations.py:366-386`. **Lesson: read the primitives
+  before trusting a design note, even one you wrote three days ago.**
+  (2) `schedule_by_priority()` short-circuits to a single `schedule_greedy`
+  call when there is one tier, so an un-prioritised table schedules *exactly*
+  as before. `tests/test_priority_tiers.py` asserts it. Keep that guarantee.
+  (3) `--max-targets` used to trim by `nsmallest(n, 'start_pst')` — by time —
+  which would silently drop a top-priority late target for an early filler.
+  Now sorts by `(priority, start_pst)`.
+  (4) `TargetDecision.priority` **must stay defaulted**: `from_dict` splats a
+  saved row into the constructor, so any new field without a default breaks
+  every `plan_result.json` already on disk.
+  (5) Priorities travel to the scheduler **as a column in a derived
+  `targets_with_priority.csv` written into the plan directory**, not as a
+  request field. That is what makes a GUI plan reproducible — verified by
+  re-running the CLI on that file and getting an identical schedule.
+  (6) `frontend/app.js` has **no persistence of any kind** and `useTemplate()`
+  clones a fresh template on every route change, so anything a pre-plan page
+  needs must be stashed in the module-level `state`. A reload still loses it
+  and there is no `dir=` to re-fetch from, so the priorities page says so
+  instead of rendering empty.
+- **v0.59 — 2026-10-19 (UTC):** Made the repo run on any machine —
+  41 hardcoded paths across 25 files, now `night_planner/paths.py`. Durable
+  points:
+  (1) **Hardcoded paths split into two kinds wanting opposite treatment.**
+  Inside the repo (root, `Night_plans/`, `scripts/`) they should be *derived*
+  from `Path(__file__)`, never configured — a setting is one more thing to get
+  wrong, and a computed path cannot be. Only genuinely external locations get
+  environment variables: `FFFF_PZ_REPO` (guesses a sibling checkout first),
+  `NIGHT_PLANNER_PLANS`, `LICK_NIGHT_PLAN_TEMPLATE` (deliberately no default —
+  guessing a read-only file's path turns "set this variable" into a confusing
+  missing-file trace).
+  (2) **This had been silently broken for months.** `make_lick_night_plan.py`
+  carried a `/home/xavier/Projects/...` default that worked for nobody on this
+  machine. That is the whole failure mode: fine for whoever wrote it, invisible
+  to them, broken for everyone else.
+  (3) `tests/test_paths.py` greps every source file for machine-specific
+  absolute paths. **Plant a violation to confirm a guard test like this
+  actually fails** — I did; a guard that passes vacuously is worse than none.
+  (4) Importing every script to smoke-test them **runs work**: several scripts
+  have no `if __name__ == '__main__'` guard (`check_deadtime_lick_2026b01.py`
+  prints an entire analysis). Expect side effects from an import sweep.
+  (5) **Establish causation before "repairing" unexpected git changes.** A
+  modified plan directory looked like my import sweep had clobbered it and I
+  nearly `git checkout`-ed it back; it was the author's own GUI session
+  (a `uvicorn backend.app` on port 8020) testing the new feature. A confident
+  repair of someone else's work is worse than the mess it tidies.
+- **v0.60 — 2026-10-19 (UTC):** `backfill_partials()` fills leftover idle time
+  with truncated exposures of targets dropped for want of time, marked
+  `PARTIAL` in `skip_reason` → `notes`. Durable points:
+  (1) **The `notes`-prefix convention is the repo's labelling mechanism.**
+  `FORCED` already drove `targetClass()`, a pill and the rescue list; adding
+  `PARTIAL` needed only a new CSS token, a legend row and a pill. Reuse it for
+  any future category rather than inventing a field.
+  (2) Two invariants a truncating scheduler must hold, both tested: a partial
+  **never moves anything already scheduled**, and **never leaves the target's
+  own HA window** just because the exposure is short.
+  (3) **Idle time has two different causes and only one is fixable this way.**
+  On `Lick-2026A-07_host_wg` (211 min idle) truncation changed *nothing*: both
+  rejected targets' HA windows did not overlap any gap — FRB20260619A's
+  16-minute window closes before science even starts, since focus + evening
+  standard eat the first 20 min. That is an **exhausted pool**, not
+  all-or-nothing rejection. Where the pool really is oversubscribed
+  (`autumn_ffffpz`) it went 85% → 88% of night used. Diagnose which cause is in
+  play before promising a fix.
+  (4) **Known cosmetic bug:** the kast adapter passes no `overheads=`, so the
+  focus/standard block at the head of the night counts as *idle*, making
+  `idle_min` read ~15 min high on every Lick plan.
+  (5) On a night where nothing is observable `schedule_greedy` returns a frame
+  with **no columns at all** — `run()`'s schema-guarantee loop exists for that.
+  Any new pass inserted before it must guard for a missing `'scheduled'`
+  column.

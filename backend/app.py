@@ -34,7 +34,8 @@ from pydantic import BaseModel
 from night_planner.cli import INSTRUMENTS, generate_plan
 from night_planner.plan_store import load_plan
 from night_planner.targets_io import (
-    TargetTableError, detect_format, detect_mapping, load_targets,
+    DEFAULT_PRIORITY, TargetTableError, detect_format, detect_mapping,
+    load_targets, priority_coercions,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -52,6 +53,60 @@ app = FastAPI(title='night-planner')
 # --------------------------------------------------------------------
 # Helpers
 # --------------------------------------------------------------------
+
+def _write_prioritized_targets(targets_csv, priorities, output_dir):
+    """
+    Write a copy of the target table carrying the user's priorities.
+
+    The scheduler reads priority as a column, not a flag, so the GUI's
+    per-target choices have to land in a table. Writing that table into the
+    plan directory -- rather than passing the numbers through the request
+    and keeping them in memory -- is what makes a GUI plan reproducible from
+    the command line: the directory ends up holding the exact input that
+    produced it, and `night-planner calc --targets-csv` on that file
+    rebuilds the same night.
+
+    Inputs
+    ------
+    targets_csv : str
+        Path to the table the user chose.
+    priorities : dict
+        {target name: priority}, lower = more important. Names absent from
+        the table are ignored; targets absent from the dict keep whatever
+        priority the table already carried.
+    output_dir : Path
+        Plan directory to write into; created if missing.
+
+    Outputs
+    -------
+    str path of the written CSV.
+    """
+    import pandas as pd
+
+    frame = pd.read_csv(targets_csv)
+    mapping = detect_mapping(frame)
+    if not mapping.ok:
+        raise HTTPException(
+            422, {'error': 'cannot apply priorities to a table whose columns '
+                           'are still ambiguous: '
+                           + '; '.join(mapping.issues),
+                  'mapping': mapping.to_dict()})
+
+    name_col = mapping.columns['name']
+    # Write to the canonical column name, not whatever spelling the source
+    # used, so the derived file reads back unambiguously.
+    existing = mapping.columns.get('priority')
+    frame['priority'] = (frame[existing] if existing else DEFAULT_PRIORITY)
+    wanted = {str(k): v for k, v in priorities.items()}
+    frame['priority'] = [
+        wanted.get(str(name), current)
+        for name, current in zip(frame[name_col], frame['priority'])]
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_path = output_dir / 'targets_with_priority.csv'
+    frame.to_csv(out_path, index=False)
+    return str(out_path)
+
 
 def _safe_dir(output_dir):
     """
@@ -169,17 +224,24 @@ def inspect_targets(file: UploadFile = File(None), path: str = Query(None)):
     if mapping.ok:
         try:
             canonical = load_targets(frame, mapping=mapping)
-            columns = ['name', 'ra_deg', 'dec_deg', 'mag']
+            columns = ['name', 'ra_deg', 'dec_deg', 'mag', 'priority']
             preview = canonical[columns].head(PREVIEW_LIMIT).to_dict('records')
             truncated = max(len(canonical) - PREVIEW_LIMIT, 0)
         except TargetTableError as err:
             mapping.issues.append(str(err))
 
+    # A priority column we could not read as numbers is the one thing that
+    # must not pass in silence: dropping it on the floor unannounced is the
+    # behaviour this whole field was added to fix.
+    coercions = priority_coercions(frame, mapping=mapping)
+
     return {'path': source, 'n_rows': len(frame),
             'columns': list(frame.columns),
             'source_format': source_format,
             'mapping': mapping.to_dict(), 'preview': preview,
-            'preview_truncated': truncated}
+            'preview_truncated': truncated,
+            'default_priority': DEFAULT_PRIORITY,
+            'priority_coercions': coercions}
 
 
 # --------------------------------------------------------------------
@@ -203,6 +265,8 @@ class GenerateRequest(BaseModel):
     forced: list = []                  # [{'target','minutes'}]
     max_targets: Optional[int] = None
     assume_masks: bool = False         # schedule mask-needing targets anyway
+    priorities: dict = {}              # {target name: float}, lower = better
+    no_partials: bool = False          # leave idle time idle
 
 
 @app.post('/api/generate')
@@ -246,7 +310,7 @@ def generate(req: GenerateRequest):
     # an exit code.
     supports = INSTRUMENTS[req.instrument].get('supports', set())
     asked = {name for name in ('targets_csv', 'output_dir', 'date',
-                                'max_targets', 'assume_masks')
+                                'max_targets', 'assume_masks', 'no_partials')
              if getattr(req, name)}
     asked |= {'forced'} if req.forced else set()
     unsupported = sorted(asked - supports)
@@ -257,8 +321,15 @@ def generate(req: GenerateRequest):
                  f"run's targets and output directory. Use lris for a plan "
                  f"built from your own target table.")
 
+    # Priorities travel in the table, so the CLI and the GUI consume exactly
+    # the same input and the plan directory records what it was built from.
+    targets_csv = req.targets_csv
+    if req.priorities:
+        targets_csv = _write_prioritized_targets(
+            targets_csv, req.priorities, output_dir)
+
     argv = []
-    for flag, value in (('--targets-csv', req.targets_csv),
+    for flag, value in (('--targets-csv', targets_csv),
                          ('--output-dir', str(output_dir)),
                          ('--date', req.date),
                          ('--start', req.start)):
@@ -273,6 +344,8 @@ def generate(req: GenerateRequest):
         argv += ['--force', f"{forced['target']}@{forced['minutes']}"]
     if req.assume_masks:
         argv.append('--assume-masks')
+    if req.no_partials:
+        argv.append('--no-partials')
 
     try:
         # argparse writes its complaint to stderr and then raises SystemExit

@@ -13,6 +13,8 @@
   --science: #2563eb;
   --mos: #7c3aed;
   --forced: #b45309;
+  --partial: #db2777;   /* truncated backfill: deliberately unlike
+                           --forced, which the observer asked for */
   --slew: #94a3b8;
   --overhead: #0d9488;
   --idle: #f59e0b;        /* idle is drawn hatched, see .seg.idle-hover */
@@ -105,6 +107,7 @@ tr.rejected td { color: var(--muted); }
 .pill.no { background: #fee2e2; color: #991b1b; }
 .pill.mos { background: #ede9fe; color: #5b21b6; }
 .pill.forced { background: #fef3c7; color: #92400e; }
+.pill.partial { background: #fce7f3; color: #9d174d; }
 
 /* Timeline */
 #timeline { background: var(--card); border: 1px solid var(--line);
@@ -117,6 +120,7 @@ tr.rejected td { color: var(--muted); }
 .seg.science { background: var(--science); }
 .seg.mos { background: var(--mos); }
 .seg.forced { background: var(--forced); }
+.seg.partial { background: var(--partial); }
 .seg.slew { background: var(--slew); }
 .seg.overhead { background: var(--overhead); }
 .seg.blocked { background: var(--blocked); }
@@ -208,6 +212,21 @@ label.check .hint { display: block; font-weight: 400; margin-top: 0.15rem; }
 #rescue-mins { width: 6rem; min-width: 0; margin-top: 0; }
 #rescue-chosen:empty { display: none; }
 #rescue-chosen { margin: 0.75rem 0; }
+
+/* Priority rows. Same flex-div shape as the rescue rows rather than a real
+   table: nothing in this app has an editable <table>, and a per-row input is
+   the one thing table.data cannot carry. */
+.prio-row { display: flex; align-items: center; gap: 0.7rem;
+            padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); }
+.prio-row:last-child { border-bottom: none; }
+/* min-width beats the 13rem default on every input, or each row is a column. */
+.prio-row input.prio { width: 4.75rem; min-width: 0; margin-top: 0; flex: none; }
+.prio-label { font-size: 0.86rem; }
+.prio-label b { margin-right: 0.35rem; }
+
+#prio-bulk { width: 6rem; min-width: 0; margin-top: 0; }
+#prio-list { margin-top: 0.75rem; }
+#prio-tiers { margin-left: auto; }
 
 /* Target preview: show the whole table, scrolled rather than silently cut. */
 .preview-scroll { max-height: 22rem; overflow-y: auto; border: 1px solid var(--line);

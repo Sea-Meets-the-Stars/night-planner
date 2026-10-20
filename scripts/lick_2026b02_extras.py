@@ -29,15 +29,20 @@ targets.
 """
 
 import sys
+from pathlib import Path
 from datetime import timedelta
 
 import pandas as pd
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
 from scripts.lick_2026b02_calculations import DEC_LIMIT, find_twilight, target_window
 from night_planner.estimate_kast_exposures import estimate_exposure
 
-OUT_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-02'
+OUT_DIR = f'{_PLANS}/Lick-2026B-02'
 FULL_TABLE_CSV = f'{OUT_DIR}/full_frb_table.csv'
 PRIMARY_TARGETS_CSV = f'{OUT_DIR}/Lick-2026B-02_targets.csv'
 PRIMARY_SCHEDULE_CSV = f'{OUT_DIR}/selected_targets_night1.csv'

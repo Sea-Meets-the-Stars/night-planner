@@ -17,6 +17,7 @@ Adds two sheets to the existing Lick_2026B-02_Night_plan.xlsx (alongside
 """
 
 import sys
+from pathlib import Path
 from datetime import timedelta, timezone
 
 import pandas as pd
@@ -25,7 +26,8 @@ from openpyxl.styles import Font, PatternFill
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
 from scripts.lick_2026b02_calculations import find_twilight, calculate_lst, ha_at
 from scripts.lick_2026b02_night2_calculations import (
     DATE, OUT_DIR, never_legal_diagnostic, REPEAT_PRIMARY_TNS, REPEAT_EXTRA_TNS,
