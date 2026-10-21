@@ -10,6 +10,7 @@ Created by JXP and Claude
 
 ### General Documentation
 
+- **[Install Guide](../INSTALL.md)** - Conda environment, environment variables, first run, troubleshooting
 - **[Shane Telescope Constraints](Shane_telescope_constraints.md)** - Shane 3m pointing limits, HA ranges, observable RA windows
 - **[Target CSV Guide](target_csv_guide.md)** - How to build a target table that loads cleanly and makes a good night: columns, units, magnitudes, priorities
 - **[Testing Guide](Testing_guide.md)** - How to use the test suite and edge case datasets

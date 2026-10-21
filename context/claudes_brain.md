@@ -1666,3 +1666,36 @@ uninteresting ones -- log the reason at every skip point.
   (5) The Keck/LRIS path (`scripts/keck_2026oct06_calculations.py:921`) is
   still `sort_values('window_end')` — tiering exists only in the Kast entry
   point. Any claim that "the planner schedules by priority" needs that caveat.
+- **v0.62 — 2026-10-21 (UTC):** Shipping pass for other users: hardcoded-path
+  audit, `environment.yml`, `INSTALL.md`
+  (`claude_prompts/shipping.md`). Durable points:
+  (1) **`night_planner/paths.py` is the only place machine-specific paths may
+  live.** Repo-internal paths derive from `__file__`; external ones read
+  `FFFF_PZ_REPO`, `NIGHT_PLANNER_PLANS`, `LICK_NIGHT_PLAN_TEMPLATE`. New code
+  that needs a plan directory calls `plans_dir()` / `plan_dir(name)` — never
+  `REPO_ROOT / 'Night_plans'`, which is how `backend/app.py` had drifted into
+  writing somewhere different from the CLI.
+  (2) **A default argument relative to the CWD is a hardcoded path in
+  disguise.** `estimate_kast_exposures.py` defaulted to
+  `Night_plans/Lick-2026B-01/...`, which worked only from the repo root and
+  ignored `NIGHT_PLANNER_PLANS`. `tests/test_paths.py` never caught it because
+  the literal has no leading slash.
+  (3) `tests/test_paths.py` only scans `.py`/`.js`/`.html` *string literals*,
+  so a `cd /home/someone/...` inside a markdown fence slips past it — and those
+  get copy-pasted. `scripts/check_portability.py` covers code + config + docs,
+  exits 1 on a finding, and is now called from `test_paths.py`. It skips
+  `Logs/`, `Night_plans/`, `context/`, `claude_prompts/`: those are records of
+  one machine on one night, not code. It also has to skip *itself* in that
+  test, since it spells out the patterns it hunts.
+  (4) **The declared dependencies were five; the code imports eleven.** pandas
+  (51 files) and openpyxl (13) were both undeclared. `setup.cfg` now carries
+  them plus pytz/requests/certifi, with `[gui]`, `[finders]`, `[dev]`, `[full]`
+  extras. `astroplan` is declared and imported *nowhere* — left in place,
+  flagged for JXP.
+  (5) `environment.yml` pins python 3.12 and solves clean on conda-forge
+  (verified with `conda env create --dry-run`). Verify an env file by solving
+  it, not by reading it.
+  (6) The CLI has **`calc`, `build`, `serve`** — no `generate` — and uses
+  dashed flags (`--targets-csv`, `--output-dir`). `build` is wired for
+  `lris` only; `kast` has no Excel builder yet (`INSTRUMENTS` in
+  `night_planner/cli.py`).

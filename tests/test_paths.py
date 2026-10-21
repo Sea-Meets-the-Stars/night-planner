@@ -11,6 +11,7 @@ noticing.
 
 import os
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,10 @@ from night_planner.paths import (
 # Directories whose contents are generated or vendored, not authored here.
 SKIP_DIRS = {'__pycache__', '.git', '.pytest_cache', 'Night_plans',
              'node_modules'}
+
+# The portability checker necessarily spells these patterns out, so it
+# cannot be scanned by the rule it enforces.
+SKIP_FILES = {'scripts/check_portability.py'}
 
 # An absolute path under a user's home or observatory scratch space.
 HARDCODED = re.compile(r'''['"(]\s*(/home/[a-z]+/|/Users/|/mnt/scratch/)''')
@@ -36,7 +41,10 @@ def _source_files():
     for path in REPO_ROOT.rglob('*'):
         if not path.is_file() or path.suffix not in {'.py', '.js', '.html'}:
             continue
-        if SKIP_DIRS & set(path.relative_to(REPO_ROOT).parts):
+        rel = path.relative_to(REPO_ROOT)
+        if SKIP_DIRS & set(rel.parts):
+            continue
+        if rel.as_posix() in SKIP_FILES:
             continue
         yield path
 
@@ -114,3 +122,21 @@ def test_lick_template_has_no_default(monkeypatch):
 
     monkeypatch.setenv('LICK_NIGHT_PLAN_TEMPLATE', '/tmp/template.xlsx')
     assert lick_template() == Path('/tmp/template.xlsx')
+
+
+def test_check_portability_script_reports_a_clean_repo():
+    """scripts/check_portability.py agrees the repo is portable.
+
+    It scans wider than the test above -- docs, config and shell commands
+    people copy out of markdown, where a path under someone's home
+    directory is just as fatal and nothing else was checking.
+
+    Inputs: none.
+    Outputs: none (asserts on success).
+    """
+    sys.path.insert(0, str(REPO_ROOT / 'scripts'))
+    import check_portability
+
+    hits = check_portability.check(REPO_ROOT)
+    assert not hits, '\n'.join(
+        f"{h['relpath']}:{h['lineno']}: {h['text']}" for h in hits)

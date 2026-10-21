@@ -74,6 +74,7 @@ cat tests/test_data/TEST_RESULTS_SUMMARY.md
 
 ### 📖 Getting Started
 
+- **[Install Guide](INSTALL.md)** - Clone to generated night plan in five minutes
 - **[Documentation Index](docs/README.md)** - Complete documentation overview
 - **[Shane Telescope Constraints](docs/Shane_telescope_constraints.md)** - HA limits, observable RA windows
 - **[Testing Guide](docs/Testing_guide.md)** - Edge case validation, bug reports
@@ -264,23 +265,34 @@ See [`Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md`](Night_plans/Lick-
 
 ## Installation
 
+Full walkthrough, including troubleshooting:
+**[INSTALL.md](INSTALL.md)**.
+
 ```bash
-git clone <this repo>
+git clone https://github.com/profxj/night-planner.git
 cd night-planner
 
-# Install dependencies (minimal - uses astropy)
-pip install -r requirements.txt
-
-# Or install as package
+# Conda (recommended -- the astro stack builds cleanly here)
+conda env create -f environment.yml
+conda activate night-planner
 pip install -e .
+
+# Or pip only
+pip install -e ".[gui,dev]"
 ```
 
-**Dependencies:**
-- numpy
-- pandas
-- astropy
-- matplotlib
-- openpyxl (for Excel generation)
+Check the install on a machine that has never seen this repo:
+
+```bash
+pytest
+python scripts/check_portability.py   # no machine-specific paths
+night-planner --help
+```
+
+**Dependencies:** numpy, pandas, astropy, astroplan, matplotlib, openpyxl,
+pyyaml, pytz, requests, certifi. Extras: `[gui]` for the viewer (FastAPI,
+uvicorn), `[finders]` for finder charts (astroquery, photutils), `[dev]` for
+pytest/black/flake8.
 
 ### Environment variables
 
