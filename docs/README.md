@@ -13,7 +13,7 @@ Created by JXP and Claude
 - **[Shane Telescope Constraints](Shane_telescope_constraints.md)** - Shane 3m pointing limits, HA ranges, observable RA windows
 - **[Target CSV Guide](target_csv_guide.md)** - How to build a target table that loads cleanly and makes a good night: columns, units, magnitudes, priorities
 - **[Testing Guide](Testing_guide.md)** - How to use the test suite and edge case datasets
-- **[Priority System](priority_system.md)** - How target priority is actually set: pool draw, feasibility gates, greedy urgency ordering, and hand overrides
+- **[Priority System](priority_system.md)** - What the planner does with a priority column: the float contract, tiered scheduling, what outranks priority, and what it never touches
 - **[Priority: night-planner vs AstroScheduler](priority_comparison_astroscheduler.md)** - Comparison with the UCSC AstroScheduler priority-sequential Branch and Bound solver
 
 ### Run-Specific Documentation

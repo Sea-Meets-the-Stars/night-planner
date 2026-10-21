@@ -39,6 +39,8 @@ import pandas as pd
 import openpyxl
 from openpyxl.styles import Font
 
+from .paths import plan_dir
+
 # Kast setup for this run, stamped on each target sheet
 KAST_SETUP_NOTE = ('Kast setup: d57 dichroic | red 600/7500 | '
                    'blue 600/4310 | 2" slit')
@@ -265,13 +267,17 @@ def main():
     parser = argparse.ArgumentParser(
         description='Estimate Kast exposure times (d57, 600/7500 red, '
                     '600/4310 blue, 2" slit) and fill the Night plan')
+    # Resolved through paths.plan_dir() rather than written relative to the
+    # CWD: the old defaults only found their files when you happened to run
+    # from the repo root, and ignored NIGHT_PLANNER_PLANS entirely.
+    run_dir = plan_dir('Lick-2026B-01')
     parser.add_argument(
         '--possible_targs', type=str,
-        default='Night_plans/Lick-2026B-01/Lick-2026B-01_possible_targs.xlsx',
+        default=str(run_dir / 'Lick-2026B-01_possible_targs.xlsx'),
         help='possible_targs xlsx (sheet possible_targs)')
     parser.add_argument(
         '--night_plan', type=str,
-        default='Night_plans/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx',
+        default=str(run_dir / 'Lick_2026B-01_Night_plan.xlsx'),
         help='Night-plan xlsx to update in place')
     parser.add_argument(
         '--dry_run', action='store_true',

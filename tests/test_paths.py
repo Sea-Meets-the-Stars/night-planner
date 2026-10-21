@@ -2,10 +2,11 @@
 
 Created by JXP and Claude.
 
-The failure these guard against is silent: a hardcoded
-/home/<someone>/Projects/... keeps working perfectly for whoever wrote it
-and breaks for everyone else, which is how make_lick_night_plan.py carried
-a broken /home/xavier/... default for months without anyone noticing.
+The failure these guard against is silent: an absolute path under one
+person's home directory keeps working perfectly for whoever wrote it and
+breaks for everyone else, which is how make_lick_night_plan.py carried a
+default pointing at the other author's laptop for months without anyone
+noticing.
 """
 
 import os

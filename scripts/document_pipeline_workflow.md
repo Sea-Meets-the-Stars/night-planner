@@ -30,7 +30,7 @@ EOF
 ### Step 2: Add Resource to FFFF-PZ DB
 
 ```bash
-cd /home/lordrick/Projects/chime-ffff-pz
+cd "$FFFF_PZ_REPO"   # your chime-ffff-pz checkout
 chime_ffff_pz_add_furesource chime_ffff_pz/data/Observing/Lick-2026B-1/Lick-2026B-1.json
 # Output: "Your request succeeded!"
 ```
@@ -85,7 +85,8 @@ observable = df[
 # Check for PATH results
 for name in observable['name']:
     year = name[3:7]
-    path_file = f'/home/lordrick/Projects/chime-path/chime_path/{year}/{name}/{name}_PATH_candidates.csv'
+    chime_path = os.environ['CHIME_PATH_REPO']   # your chime-path checkout
+    path_file = f'{chime_path}/chime_path/{year}/{name}/{name}_PATH_candidates.csv'
     if exists(path_file):
         # Read magnitudes, check if suitable
         ...

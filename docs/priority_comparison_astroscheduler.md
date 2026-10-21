@@ -3,9 +3,8 @@
 Created by JXP and Claude
 
 > Companion to [`priority_system.md`](priority_system.md), which documents
-> night-planner's own behaviour. This file reads
-> `/home/lordrick/Projects/fun_side_projects/ryan_scheduler/AstroScheduler`
-> (UCSC-Transients/AstroScheduler) as of 2026-10-16 and compares the two.
+> night-planner's own behaviour. This file reads a local checkout of
+> UCSC-Transients/AstroScheduler as of 2026-10-16 and compares the two.
 > AstroScheduler is a separate repository and was read only.
 
 ---

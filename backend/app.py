@@ -32,6 +32,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from night_planner.cli import INSTRUMENTS, generate_plan
+from night_planner.paths import plans_dir
 from night_planner.plan_store import load_plan
 from night_planner.targets_io import (
     DEFAULT_PRIORITY, TargetTableError, detect_format, detect_mapping,
@@ -40,7 +41,9 @@ from night_planner.targets_io import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = REPO_ROOT / 'frontend'
-PLANS_ROOT = REPO_ROOT / 'Night_plans'
+# night_planner.paths owns this so a shared checkout can send plans
+# elsewhere (NIGHT_PLANNER_PLANS); the default is still <repo>/Night_plans.
+PLANS_ROOT = plans_dir()
 UPLOAD_DIR = Path(tempfile.gettempdir()) / 'night-planner-uploads'
 
 # Rows returned by /api/targets/inspect. Generous enough that a normal

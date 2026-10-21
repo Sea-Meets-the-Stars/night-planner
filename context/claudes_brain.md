@@ -1644,3 +1644,25 @@ uninteresting ones -- log the reason at every skip point.
   with **no columns at all** — `run()`'s schema-guarantee loop exists for that.
   Any new pass inserted before it must guard for a missing `'scheduled'`
   column.
+- **v0.61 — 2026-10-21 (UTC):** Rewrote `docs/priority_system.md` around *"you
+  have a targets table with priority values — what happens?"*, replacing the
+  2026-10-16 version whose first line was "there is no priority field anywhere
+  in this pipeline". Durable points:
+  (1) **Docs in this repo describing an absence go stale the fastest.** v0.56
+  and v0.57 both documented the missing priority system; v0.58 built it two
+  days later and neither doc was touched. When a doc's thesis is "X does not
+  exist", it has a shelf life — check `git log` before editing one.
+  (2) The useful framing for priority is **precedence, not layers**: feasible →
+  blocks → forced → tier → urgency within tier → table order. `reserve_forced`
+  runs *before* `schedule_by_priority` and hands its slot back as a block, so
+  forcing is strictly stronger than any tier value.
+  (3) Priority values are **tier labels, not weights** — only the sort order of
+  the distinct values is used, so `1,2,3` and `1,10,100` give identical
+  schedules. Worth stating explicitly in any user-facing doc.
+  (4) `free_gaps` lives in `scripts/kast_calculations.py:241`, *not* in
+  `scripts/schedule_overrides.py` (which has `fit_around_blocks` and
+  `push_past_blocks`); and `schedule_overrides.py` is under `scripts/`, not
+  `night_planner/`.
+  (5) The Keck/LRIS path (`scripts/keck_2026oct06_calculations.py:921`) is
+  still `sort_values('window_end')` — tiering exists only in the Kast entry
+  point. Any claim that "the planner schedules by priority" needs that caveat.

@@ -2,10 +2,10 @@
 """Created by JXP and Claude
 
 Build a Lick Shane-3m + Kast Night-plan workbook, modeled on the
-professional night plans in
-/mnt/scratch/xavier/Observing/Observations/Lick_Kast/obs_docs/2026
+professional night plans the authors keep on observatory scratch space
 (e.g. Lick_2026A-4_Night_plan.xlsx), but with one science sheet per
-target, named exactly by its TNS.
+target, named exactly by its TNS. Point LICK_NIGHT_PLAN_TEMPLATE at one
+of those workbooks; see night_planner/paths.py.
 
 Inputs
 ------
@@ -340,8 +340,8 @@ def main():
     Command-line driver. Inputs are the argparse options below; the
     output is the Night-plan xlsx written to --output.
     """
-    # Was hardcoded to /home/xavier/..., which had been broken on every
-    # other machine since it was written.
+    # Was hardcoded to one author's home directory, which had been broken
+    # on every other machine since it was written.
     base = str(plan_dir('Lick-2026B-01'))
     parser = argparse.ArgumentParser(
         description='Build a Lick Shane/Kast Night-plan workbook with one '
