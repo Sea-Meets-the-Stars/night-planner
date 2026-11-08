@@ -151,7 +151,8 @@ def analyze(df, twilight):
     return pd.DataFrame(rows).sort_values('RA_hours').reset_index(drop=True)
 
 
-def schedule_greedy(observable_df, start_time, end_time, forced_first=None, blocks=None):
+def schedule_greedy(observable_df, start_time, end_time, forced_first=None, blocks=None,
+                    slew_min=SLEW_MINUTES, readout=None, exposure=None):
     """Earliest-window-close-first greedy scheduler over a single
     continuous time span [start_time, end_time) (mirrors schedule_night()
     in lick_2026b02_calculations.py).
@@ -173,7 +174,37 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
         Called on every sub-window (the main FRB pass and each spare
         gap-fill pass in main()), so a block is honored everywhere this
         function is used, not just on the first call.
+    slew_min : float
+        Gap left after each target before the next can start. Defaults to
+        this run's SLEW_MINUTES; the general Kast path
+        (kast_calculations) passes instrument_params.lick_gap_minutes()
+        (slew + acquisition), added 2026-11-07.
+    readout : callable, optional
+        readout(red, blue) -> minutes of detector readout the recipe adds
+        (or None if NOT SET). Default: none, as this run was planned. The
+        general Kast path passes instrument_params.readout_minutes (T1.1,
+        added 2026-11-07). A forced-first truncation is an allocation, so
+        it gets no readout added.
+    exposure : callable, optional
+        exposure(row, start, minutes) -> dict with 'red', 'blue', 'dur_s'
+        and any extra columns to keep on the row. start/minutes are None
+        for the first guess; afterwards they are the placed science span,
+        so the exposure can follow the airmass there (T1.3). Default: this
+        run's empirical estimate_exposure. When given, a placed target is
+        re-sized at its placement and re-placed if it grew, up to
+        max_rounds times (added 2026-11-07).
     """
+    def _readout(red, blue):
+        return (readout(red, blue) or 0.0) if readout else 0.0
+
+    def _exposure(row, start=None, minutes=None):
+        if exposure is None:
+            red, blue, dur_s = estimate_exposure(row['mag_r'])
+            return {'red': red, 'blue': blue, 'dur_s': dur_s}
+        return exposure(row, start, minutes)
+
+    max_rounds = 3
+
     blocks = blocks or []
     observable = observable_df.copy()
     schedule = []
@@ -184,7 +215,8 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
         row = observable[mask].iloc[0]
         observable = observable[~mask]
 
-        red, blue, dur_s = estimate_exposure(row['mag_r'])
+        e = _exposure(row)
+        red, blue, dur_s = e['red'], e['blue'], e['dur_s']
         dur_min = dur_s / 60.0
         start = max(current_time, row['entry_pst'])
         window_close = min(row['exit_pst'], end_time)
@@ -210,12 +242,14 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
             schedule.append(dict(row, scheduled=True, start_pst=start, end_pst=end,
                                   duration_min=got_min, red_side=red, blue_side=blue,
                                   skip_reason=reason))
-            current_time = advance(end, SLEW_MINUTES)
+            current_time = advance(end, slew_min)
 
     observable = observable.sort_values('exit_pst').reset_index(drop=True)
     for _, row in observable.iterrows():
-        red, blue, dur_s = estimate_exposure(row['mag_r'])
-        dur_min = dur_s / 60.0
+        e = _exposure(row)
+        red, blue, dur_s = e['red'], e['blue'], e['dur_s']
+        readout_min = _readout(red, blue)
+        dur_min = dur_s / 60.0 + readout_min
 
         raw_start = max(current_time, row['entry_pst'])
         window_close = min(row['exit_pst'], end_time)
@@ -228,6 +262,21 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
             continue
 
         start, end = fit_around_blocks(raw_start, dur_min, window_close, blocks)
+        # Re-size at the placement (airmass there) and re-place. The block is
+        # always re-fitted to the latest exposure; iteration stops once a
+        # re-size changes it by <= 0.5 min.
+        for _ in range(max_rounds if exposure is not None else 0):
+            if start is None:
+                break
+            e2 = _exposure(row, start, dur_s / 60.0)
+            settled = abs(e2['dur_s'] - dur_s) / 60.0 <= 0.5
+            e = e2
+            red, blue, dur_s = e['red'], e['blue'], e['dur_s']
+            readout_min = _readout(red, blue)
+            dur_min = dur_s / 60.0 + readout_min
+            start, end = fit_around_blocks(raw_start, dur_min, window_close, blocks)
+            if settled:
+                break
         if start is None:
             reason = blocking_reason(raw_start, dur_min, blocks)
             if reason:
@@ -242,10 +291,11 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
                                                   f"min left in its HA window"))
             continue
 
+        extra = {k: v for k, v in e.items() if k not in ('red', 'blue', 'dur_s')}
         schedule.append(dict(row, scheduled=True, start_pst=start, end_pst=end,
                               duration_min=dur_min, red_side=red, blue_side=blue,
-                              skip_reason=''))
-        current_time = advance(end, SLEW_MINUTES)
+                              readout_min=readout_min, skip_reason='', **extra))
+        current_time = advance(end, slew_min)
 
     return pd.DataFrame(schedule), current_time
 

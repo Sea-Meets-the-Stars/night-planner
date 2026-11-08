@@ -162,9 +162,21 @@ tier → table order**.
   [`night_planner/standards.py`](../night_planner/standards.py)) or **workbook
   sheet order** (RA order, for the observer's convenience, not an observing
   order).
-- **It does not apply to the Keck/LRIS path yet.**
+- **The Keck/LRIS path tiers too (since 2026-11-07).**
   [`scripts/keck_2026oct06_calculations.py`](../scripts/keck_2026oct06_calculations.py)
-  still sorts purely by `window_end`. Tiering lives in the Kast entry point.
+  runs the top tier through its usual window-order greedy pass
+  (`_greedy_pass`) over the whole night, then places each lower tier into
+  the gaps left (`_insert_tier`), with every placed target immovable. The
+  Keck-specific twist is the slew: it depends on the previous target's Dec,
+  so slotting X between A and B can change B's slew (the 14 min S→N Dec +20°
+  crossing). The fit test is therefore exact rather than padded: X fits when
+  `A.end + slew(A→X) + acq(X) + X + slew(X→B) + acq(B) <= B.science_start`,
+  and B's slew is then recomputed. Forced targets still come first
+  (`reserve_forced_targets` / `append_forced_targets`), as on Kast. With one
+  tier the schedule is exactly the old one
+  (`tests/snapshots/lris_single_tier.json` pins it).
+  - Unlike Kast, LRIS has no partial backfill, so a lower-tier target either
+    fits whole in a gap or is rejected with `priority Pn: no gap ...`.
 
 ---
 

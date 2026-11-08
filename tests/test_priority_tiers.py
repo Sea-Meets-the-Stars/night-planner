@@ -63,7 +63,10 @@ def test_one_tier_is_identical_to_the_plain_greedy_pass(night):
     observable, start, end = night
     assert observable['priority'].nunique() == 1
 
-    baseline, _ = schedule_greedy(observable, start, end, blocks=[])
+    # Same per-target gap and readout as the Kast path passes (2026-11-07).
+    baseline, _ = schedule_greedy(observable, start, end, blocks=[],
+                                  slew_min=kc.SLEW_MINUTES,
+                                  readout=kc.kast_readout)
     tiered = kc.schedule_by_priority(observable, start, end, [])
 
     assert _scheduled(tiered).equals(_scheduled(baseline))

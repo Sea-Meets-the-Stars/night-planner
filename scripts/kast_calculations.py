@@ -26,9 +26,124 @@ sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_REPO_ROOT / 'scripts'))
 
 from scripts.lick_2026b02_calculations import (
-    DEC_LIMIT, HA_MAX, HA_MIN, LICK, PST, SLEW_MINUTES,
+    DEC_LIMIT, HA_MAX, HA_MIN, LICK, PST,
     find_twilight, ha_at, target_window,
 )
+from night_planner.instrument_params import (DEFAULT_CONFIG, ConfigError,
+                                             add_config_args, lick_gap_minutes,
+                                             readout_minutes, resolve_options)
+
+# Minutes from one target's end to the next one's science start: Lick slew
+# + acquisition (2 + 3 = 5 min, Lordrick 2026-11-07). Read from
+# instrument_params, not the run-specific lick_2026b02_* scripts, so
+# adapters._attribute_kast_slews splits exactly the gap this leaves.
+SLEW_MINUTES = lick_gap_minutes()
+
+
+def kast_readout(red, blue):
+    """
+    Readout minutes a Kast recipe adds (slow mode, 20 s per frame; T1.1).
+
+    Parameters
+    ----------
+    red, blue : str
+        Exposure recipes, e.g. '6 x 600', '3 x 1200'.
+
+    Returns
+    -------
+    float minutes, or None if NOT SET.
+    """
+    return readout_minutes('kast', red, blue, DEFAULT_CONFIG['kast'])
+
+
+def make_kast_exposure(etc_opts=None, spectra=None):
+    """
+    The exposure function the Kast schedulers call (T1.3, T3.4).
+
+    Everything goes through night_planner.etc: the UCO/Lick ETC by default
+    (S/N 5 per sub-exposure, >= 3 sub-exposures, d57 sent as d55), or the
+    old empirical magnitude rule with --etc empirical.
+
+    Parameters
+    ----------
+    etc_opts : dict, optional
+        From instrument_params.resolve_options('kast'). None = the
+        empirical rule, which is what the scheduling functions fall back
+        to when called directly.
+    spectra : dict, optional
+        Filled with TNS -> S/N spectrum of the latest call, for
+        <plan>/etc/<target>.json.
+
+    Returns
+    -------
+    callable exposure(row, start=None, minutes=None) -> dict with 'red',
+    'blue', 'dur_s', plus 'airmass_used', 'airmass_rule' and the S/N
+    columns. With start=None the ETC runs at the best airmass in the
+    target's HA window (the first guess); with a placed span, at the
+    --airmass-rule airmass over it.
+    """
+    from night_planner import etc as etc_mod
+    from night_planner.instrument_params import DEFAULT_SEEING, ETC_FILTERS
+    from night_planner.sky import block_airmass
+
+    opts = dict(etc_opts or {'etc': 'empirical'})
+    spec = opts.get('etc') or 'kast'
+    empirical = etc_mod.load_etc(spec) is etc_mod.empirical_kast_etc
+    rule = opts.get('airmass_rule', 'worst')
+    best = {}
+
+    def exposure(row, start=None, minutes=None):
+        airmass, used_rule = 1.0, ''
+        if not empirical:
+            ra = row['RA_hours'] * 15.0
+            if row['TNS'] not in best:
+                best[row['TNS']] = (block_airmass(ra, row['Dec_deg'], row['entry_pst'],
+                                                  row['exit_pst'], 'best', LICK)
+                                    if pd.notna(row.get('entry_pst')) else None)
+            airmass, used_rule = best[row['TNS']] or 1.2, 'best'
+            if start is not None and minutes:
+                am = block_airmass(ra, row['Dec_deg'], start,
+                                   advance(start, minutes), rule, LICK)
+                if am is not None:
+                    airmass, used_rule = am, rule
+        band = row.get('mag_band')
+        band = '' if band is None or (not isinstance(band, str) and pd.isna(band)) \
+            else str(band).strip()
+        if band not in ETC_FILTERS:
+            band = opts.get('mag_band') or 'r'
+        e = etc_mod.exposure(spec, row['mag_r'], band, airmass,
+                             opts.get('seeing') or DEFAULT_SEEING['kast'],
+                             opts.get('config') or DEFAULT_CONFIG['kast'],
+                             opts.get('target_sn') or etc_mod.TARGET_SN['kast'],
+                             opts.get('n_sub_min') or etc_mod.N_SUB_MIN['kast'])
+        if spectra is not None and e.get('wave'):
+            spectra[row['TNS']] = {'wave': e['wave'], 's2n': e['s2n'],
+                                   'airmass': airmass, 'sub_len_s': e['sub_len_s'],
+                                   'n_sub': e['n_sub'], 'band': band,
+                                   'target_sn': opts.get('target_sn')}
+        sn, comb = e.get('sn_sub') or {}, e.get('sn_combined') or {}
+        out = {'red': e['red_exp'], 'blue': e['blue_exp'],
+               'dur_s': e['science_min'] * 60.0,
+               'airmass_used': None if empirical else airmass,
+               'airmass_rule': used_rule,
+               'sn_sub_blue': sn.get('blue'), 'sn_sub_red': sn.get('red'),
+               'sn_comb_blue': comb.get('blue'), 'sn_comb_red': comb.get('red'),
+               'time_source': 'empirical' if empirical else 'ETC',
+               'etc_min': e['science_min'],
+               'required': bool(row.get('required', False))}
+        # A user t_target sets the time (T3.3); the estimate stays as etc_min.
+        user_t = row.get('t_target')
+        if user_t is not None and pd.notna(user_t):
+            out.update(red=f'{float(user_t):g} min (user)',
+                       blue=f'{float(user_t):g} min (user)',
+                       dur_s=float(user_t) * 60.0, time_source='user',
+                       airmass_used=None, airmass_rule='')
+        return out
+
+    return exposure
+
+
+_EMPIRICAL = make_kast_exposure()
 # schedule_greedy is general (observable frame + explicit start/end, with
 # blocked-window support); it just happens to live in the night-2 module.
 from scripts.lick_2026b02_night2_calculations import schedule_greedy
@@ -85,7 +200,9 @@ def analyze_targets(targets_csv, date_str, mapping=None):
             'TNS': row['name'], 'RA_deg': row['ra_deg'], 'Dec_deg': dec_deg,
             'RA_hours': ra_hours, 'mag_r': row['mag'], 'POx': row['pox'],
             'tags': row['tags'], 'DM': row['dm'],
-            'priority': row['priority'],
+            'priority': row['priority'], 'mag_band': row.get('mag_band', ''),
+            't_target': row.get('t_target', float('nan')),
+            'required': bool(row.get('required', False)),
         }
 
         if dec_deg > DEC_LIMIT:
@@ -115,7 +232,7 @@ def analyze_targets(targets_csv, date_str, mapping=None):
 
 
 def reserve_forced(results_df, forced, science_start, night_end, blocks,
-                    failures=None):
+                    failures=None, exposure=None):
     """
     Place forced targets inside their own windows, ahead of the greedy pass.
 
@@ -196,7 +313,8 @@ def reserve_forced(results_df, forced, science_start, night_end, blocks,
                       f"block or its {close:%H:%M} window close")
             continue
 
-        red, blue, _ = estimate_exposure(row['mag_r'])
+        red_blue = (exposure or _EMPIRICAL)(row, start, got)
+        red, blue = red_blue['red'], red_blue['blue']
         rows.append(dict(row, TNS=tns, scheduled=True, start_pst=start,
                          end_pst=end, duration_min=got, red_side=red,
                          blue_side=blue,
@@ -229,6 +347,7 @@ def parse_args(argv=None):
     p.add_argument('--min-partial', type=float, default=MIN_PARTIAL_MINUTES,
                    help=f'Shortest partial exposure worth scheduling, in '
                         f'minutes (default {MIN_PARTIAL_MINUTES}).')
+    add_config_args(p, 'kast')
     return p.parse_args(argv)
 
 
@@ -286,7 +405,7 @@ def free_gaps(placements, window_start, window_end, slew_min=SLEW_MINUTES):
 
 
 def backfill_partials(schedule_rows, science_start, night_end, blocks,
-                      min_minutes=MIN_PARTIAL_MINUTES):
+                      min_minutes=MIN_PARTIAL_MINUTES, exposure=None):
     """
     Put dropped targets into the leftover gaps, truncated to fit.
 
@@ -337,9 +456,21 @@ def backfill_partials(schedule_rows, science_start, night_end, blocks,
 
     # Only targets that have a real window tonight and simply ran out of
     # room in it. A missing entry/exit means it was never up.
+    # A required target gets its full time or nothing (T3.3): never a
+    # partial. Its rejection says so.
+    required = {r['TNS'] for _, r in dropped.iterrows() if r.get('required')}
     candidates = [r for _, r in dropped.iterrows()
                   if r.get('observable') and pd.notna(r.get('entry_pst'))
-                  and pd.notna(r.get('exit_pst'))]
+                  and pd.notna(r.get('exit_pst')) and r['TNS'] not in required]
+    if required:
+        records = schedule_rows.to_dict('records')
+        for rec in records:
+            if rec['TNS'] in required and not rec.get('scheduled'):
+                need = (exposure or _EMPIRICAL)(rec)['dur_s'] / 60.0
+                rec['skip_reason'] = (f'required: needs {need:.0f} min, no gap '
+                                      f'that long -- not truncated into a '
+                                      f'partial ({rec.get("skip_reason") or "dropped"})')
+        schedule_rows = pd.DataFrame(records)
     if not candidates:
         return schedule_rows
 
@@ -366,7 +497,8 @@ def backfill_partials(schedule_rows, science_start, night_end, blocks,
             if got < min_minutes:
                 continue
 
-            red, blue, dur_s = estimate_exposure(row['mag_r'])
+            e = (exposure or _EMPIRICAL)(row, start, got)
+            red, blue, dur_s = e['red'], e['blue'], e['dur_s']
             needed = dur_s / 60.0
             new_row = dict(
                 row, scheduled=True, start_pst=start, end_pst=end,
@@ -393,7 +525,8 @@ def backfill_partials(schedule_rows, science_start, night_end, blocks,
     return pd.DataFrame(rows).reset_index(drop=True)
 
 
-def schedule_by_priority(observable, science_start, night_end, blocks):
+def schedule_by_priority(observable, science_start, night_end, blocks,
+                         exposure=None):
     """
     Schedule in priority tiers, best first, lower tiers filling the gaps.
 
@@ -434,7 +567,8 @@ def schedule_by_priority(observable, science_start, night_end, blocks):
     if len(tiers) <= 1:
         # The single-tier path is the old behaviour, preserved exactly.
         sched, _ = schedule_greedy(observable, science_start, night_end,
-                                   blocks=blocks)
+                                   blocks=blocks, slew_min=SLEW_MINUTES,
+                                   readout=kast_readout, exposure=exposure)
         return sched
 
     print(f'\nScheduling in {len(tiers)} priority tiers: '
@@ -450,7 +584,8 @@ def schedule_by_priority(observable, science_start, night_end, blocks):
 
         if position == 0:
             sched, _ = schedule_greedy(pool, science_start, night_end,
-                                       blocks=blocks)
+                                       blocks=blocks, slew_min=SLEW_MINUTES,
+                                   readout=kast_readout, exposure=exposure)
             frames.append(sched)
             got = sched[sched['scheduled']] if len(sched) else sched
             placed.extend(got.to_dict('records'))
@@ -465,7 +600,8 @@ def schedule_by_priority(observable, science_start, night_end, blocks):
             if not len(remaining):
                 break
             sched, _ = schedule_greedy(remaining, gap_start, gap_end,
-                                       blocks=blocks)
+                                       blocks=blocks, slew_min=SLEW_MINUTES,
+                                   readout=kast_readout, exposure=exposure)
             got = sched[sched['scheduled']] if len(sched) else sched
             if not len(got):
                 continue
@@ -477,7 +613,7 @@ def schedule_by_priority(observable, science_start, night_end, blocks):
         # that missed four gaps is still a single target the observer has
         # to decide about, and four identical rows only bury that.
         for _, row in remaining.iterrows():
-            _, _, dur_s = estimate_exposure(row['mag_r'])
+            dur_s = (exposure or _EMPIRICAL)(row)['dur_s']
             frames.append(pd.DataFrame([dict(
                 row, scheduled=False,
                 skip_reason=(f'priority P{tier:g}: needs '
@@ -500,6 +636,10 @@ def run(args):
     date = args.date or (cfg.date if cfg else None)
     if not (targets_csv and output_dir and date):
         raise SystemExit('kast needs --targets-csv, --output-dir and --date')
+    try:
+        etc_opts = resolve_options(args, cfg, 'kast')
+    except ConfigError as err:
+        raise SystemExit(f'error: {err}')
 
     tz = OBSERVATORY_TZ['lick']
     start_spec = args.start or (cfg.start_override if cfg else None)
@@ -538,13 +678,20 @@ def run(args):
     n_obs = int(results_df['observable'].sum())
     print(f'\nObservable: {n_obs} / {len(results_df)}')
 
-    # Science starts after the dome-open focus and the evening standard.
-    science_start = advance(night_start, FOCUS_MINUTES + STD_STAR_MINUTES)
+    # Science starts after the dome-open focus, the evening standard, and the
+    # slew + acquisition to the first target (that last term added
+    # 2026-11-07: before, the first target started with no slew at all).
+    science_start = advance(night_start,
+                            FOCUS_MINUTES + STD_STAR_MINUTES + SLEW_MINUTES)
+    # Exposures through night_planner.etc at each target's scheduled
+    # airmass (T1.3, T3.4); --etc empirical restores the old rule.
+    spectra = {}
+    exposure = make_kast_exposure(etc_opts, spectra)
     forced_failures, forced_rows, reservations = [], [], []
     if forced:
         forced_rows, reservations = reserve_forced(
             results_df, forced, science_start, night_end, blocks,
-            failures=forced_failures)
+            failures=forced_failures, exposure=exposure)
 
     observable = results_df[results_df['observable']]
     placed = {r['TNS'] for r in forced_rows}
@@ -553,12 +700,13 @@ def run(args):
         observable = observable[~observable['TNS'].isin(placed)]
 
     sched = schedule_by_priority(observable, science_start, night_end,
-                                  list(blocks) + reservations)
+                                  list(blocks) + reservations, exposure=exposure)
     if not getattr(args, 'no_partials', False):
         sched = backfill_partials(sched, science_start, night_end,
                                    list(blocks) + reservations,
                                    min_minutes=getattr(args, 'min_partial',
-                                                       MIN_PARTIAL_MINUTES))
+                                                       MIN_PARTIAL_MINUTES),
+                                   exposure=exposure)
     if forced_rows:
         sched = pd.concat([sched, pd.DataFrame(forced_rows)], ignore_index=True)
 
@@ -585,6 +733,9 @@ def run(args):
         sched = pd.concat([keep, sched[~sched['scheduled']]], ignore_index=True)
 
     done = sched[sched['scheduled'].fillna(False).astype(bool)]
+    from night_planner.etc import write_spectra
+    write_spectra(output_dir, list(done['TNS']) if 'TNS' in done.columns else [],
+                  spectra)
     science_min = done['duration_min'].sum() if len(done) else 0
     night_min = (night_end - night_start).total_seconds() / 60
     share = 100 * science_min / night_min if night_min else 0
@@ -615,6 +766,11 @@ def run(args):
         'forced_failures': forced_failures,
         'output_dir': output_dir,
         'date': date,
+        'config': etc_opts['config'],
+        'seeing': etc_opts['seeing'],
+        'mag_band': etc_opts['mag_band'],
+        'etc_opts': {k: etc_opts[k] for k in ('etc', 'target_sn', 'n_sub_min',
+                                              'airmass_rule')},
     }
 
 

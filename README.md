@@ -51,13 +51,54 @@ python scripts/keck_2026oct06_rejection_analysis.py
 ```
 
 Output: `Night_plans/Keck-2026B-02/` (xlsx, starlist, per-target rejection
-report). Keck rules: 10 min base slew, 20 min from Dec < +20 to Dec > +20
+report). Keck rules: 5 min base slew, 14 min from Dec < +20 to Dec > +20, then acquisition (5 min longslit, 10 min mask)
 (`scripts/keck_overheads.py`); MOS blocks 1-2 h + 5 min buffer, only for
 masks in `MOS_MASKS_AVAILABLE`.
+
+### Planning options (2026-11-07)
+
+Both instruments (`night-planner calc --instrument lris|kast ...`, or the
+Configuration card on the setup page) take:
+
+| Flag | Default | What it does |
+|---|---|---|
+| `--grism --grating --dichroic --slit --binning` | the standard setup | instrument configuration; only values the UCO/Lick ETC can model are accepted |
+| `--seeing` | LRIS 0.8", Kast 1.5" | FWHM fed to the ETC |
+| `--mag-band` | `r` | band of the `mag` column (a per-row `mag_band` / FFFF-PZ `Pri_filter` wins) |
+| `--etc` | LRIS `lris` (UCO ETC), Kast `empirical` | exposure model: `lris`, `kast`, `empirical`, or your own `package.module:function` |
+| `--target-sn` | LRIS 10, Kast 5 | median continuum S/N per sub-exposure (>= 3 sub-exposures) |
+| `--airmass-rule` | `worst` | airmass the ETC runs at over each target's scheduled block (`worst`, `mid`, `best`) |
+
+What every plan now includes:
+- **Time accounting.** Slew, acquisition, readout and on-target time are
+  separate terms, and on target + slew + acquisition + readout + overheads +
+  blocked + idle = the night. Keck: 5 min base slew, 14 min for a S→N Dec
+  +20° crossing, acquisition 5 min longslit / 10 min mask, readout 80 s per
+  frame at 2x2. Lick: 2 min slew + 3 min acquisition, readout 20 s per
+  frame. The plan page's **Assumptions** panel lists the values used.
+- **Target table columns.** `priority` (tiers, on both instruments),
+  `t_target` (your own minutes on target) and `required` (full time or
+  nothing). See [`docs/target_csv_guide.md`](docs/target_csv_guide.md).
+- **Telescope limits.** Keck I can't track above 88.9° elevation (a short
+  keyhole each target's block avoids), and blocks passing above 85° carry a
+  guiding warning.
+- **Scenarios.** Several plans for one night (e.g. seeing 0.6/0.8/1.2",
+  "lost first half"), shown as tabs with a comparison table.
+- **Observing log page.** Calibrations checklist, night checklist,
+  conditions log and per-target outcomes, then a Markdown night report plus
+  the FFFF-PZ CSV (`night-planner report --plan-dir ...`).
+
+Calibrations are no longer scheduled. They are ticked off on the Observing
+log page.
 
 ### Run Tests
 
 ```bash
+# Unit/integration tests (offline: the UCO ETC is faked, sockets blocked)
+conda run -n frb_env python -m pytest -q
+# ...plus the one test that calls the real ETC
+conda run -n frb_env python -m pytest -q --run-network
+
 # Generate 17 edge case test datasets
 python tests/test_data/generate_test_frbs.py
 
@@ -185,7 +226,7 @@ night-planner/
 | `check_deadtime_lick_2026b01.py` | Analyze timeline for gaps |
 | `keck_2026oct06_calculations.py` | Keck/LRIS ephemeris, Nasmyth-deck limits, ETC exposures, scheduling |
 | `build_keck_night_plan.py` | Keck Excel night plan |
-| `keck_overheads.py` | Keck slew times (10 min base, 20 min Dec<+20 -> Dec>+20) |
+| `keck_overheads.py` | Keck slew and acquisition times (5 min base slew, 14 min Dec<+20 -> Dec>+20; acquisition 5 min longslit, 10 min mask) |
 | `keck_2026oct06_rejection_analysis.py` | Per-target accept/reject report |
 | `lris_etc.py` | LRIS exposure times from the UCO/Lick ETC |
 | `generate_test_frbs.py` | Create 17 synthetic edge case datasets |

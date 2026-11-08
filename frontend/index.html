@@ -39,10 +39,22 @@
   <p class="lede" id="setup-lede"></p>
 
   <section class="card">
-    <h2>1. Target table</h2>
+    <h2>Configuration</h2>
+    <p class="hint">What the exposure-time calculator models. Only the settings the
+      UCO/Lick ETC can model are offered; the defaults are the standard setup.</p>
+    <div class="grid" id="config-fields"></div>
+  </section>
+
+  <section class="card">
+    <h2>1. Target table <span class="req" title="required">*</span></h2>
     <p class="hint">Any table will do &mdash; FFFF&#8209;PZ pulls and your own
       spreadsheets alike. Columns are detected automatically; you'll only be
       asked when something is genuinely ambiguous.</p>
+    <p class="hint" id="column-list"></p>
+    <p class="hint">A <code>priority</code> column in the table is read: lower is
+      scheduled first, only the order of the values matters, and fractions are
+      allowed (1.5 sits between 1 and 2). You can also set priorities on the
+      next page.</p>
     <div class="row">
       <input type="file" id="targets-file" accept=".csv">
       <span class="or">or</span>
@@ -54,14 +66,14 @@
   <section class="card">
     <h2>2. Constraints</h2>
     <div class="grid">
-      <label>Start time <span class="hint">blank = evening twilight</span>
+      <label>Start time <span class="hint">optional; blank = evening twilight</span>
         <input type="text" id="start" placeholder="HH:MM local">
       </label>
-      <label>Max targets
+      <label>Max targets <span class="hint">optional</span>
         <input type="number" id="max-targets" placeholder="20" min="1">
       </label>
-      <label>Output directory
-        <input type="text" id="output-dir" placeholder="Night_plans/&hellip;">
+      <label>Output directory <span class="req" title="required">*</span>
+        <input type="text" id="output-dir" placeholder="Night_plans/&hellip;" required>
       </label>
     </div>
 
@@ -80,10 +92,20 @@
           best to mill the mask before the run &mdash; submit the designs</span></span>
     </label>
 
-    <h3>Blocked windows <span class="hint">ToO, weather hold, engineering</span></h3>
+    <h3>Blocked windows <span class="hint">optional; ToO, weather hold, engineering</span></h3>
     <div id="blocks"></div>
     <button type="button" class="ghost" id="add-block">+ blocked window</button>
 
+  </section>
+
+  <section class="card">
+    <h2>3. Scenarios <span class="hint">optional</span></h2>
+    <p class="hint">Make several plans for the same night under different conditions,
+      shown as tabs with a comparison. Each scenario overrides the seeing and/or
+      start time and can add a blocked window. Leave empty for a single plan.</p>
+    <div class="row" id="scenario-presets"></div>
+    <div id="scenarios"></div>
+    <button type="button" class="ghost" id="add-scenario">+ scenario</button>
   </section>
 
   <p class="hint">Next you'll set each target's priority &mdash; the scheduler
@@ -103,10 +125,14 @@
   <section class="card">
     <h2>Priority</h2>
     <p class="hint">Lower is more important &mdash; 1 is scheduled first.
-      Fractions are allowed, so something can sit between two tiers without
-      renumbering everything below it. Targets sharing a number compete with
-      each other exactly as they do today; a lower tier only ever gets the
-      time the tiers above it left behind.</p>
+      Only the order of the values matters, not their size. Fractions are
+      allowed, so something can sit between two tiers without renumbering
+      everything below it. Targets sharing a number compete with each other
+      exactly as they do today; a lower tier only ever gets the time the
+      tiers above it left behind. Values from a <code>priority</code> column in
+      your table are already filled in.</p>
+    <label class="check"><input type="checkbox" id="prio-show-tags">
+      <span>Show FFFF-PZ tags and DM</span></label>
     <div class="row">
       <label style="margin:0">Set every target to
         <input type="number" id="prio-bulk" step="0.5" min="0">
@@ -126,10 +152,17 @@
 
 <template id="tpl-plan">
   <h1>Night plan</h1>
+  <div id="scenario-tabs"></div>
   <div id="plan-head"></div>
+  <details class="card" id="assumptions-card">
+    <summary><h2>Assumptions</h2> <span class="hint">what this plan assumed</span></summary>
+    <table class="data" id="assumptions-table"></table>
+  </details>
   <div id="timeline"></div>
   <div id="legend" class="legend"></div>
   <div id="overruns"></div>
+  <label class="check"><input type="checkbox" id="plan-show-tags">
+    <span>Show FFFF-PZ tags and DM</span></label>
   <table id="plan-table" class="data"></table>
 </template>
 
@@ -249,6 +282,74 @@
   </div>
   <div id="airmass-plot"></div>
   <div id="airmass-note" class="hint"></div>
+  <h2 style="margin-top:1.25rem">Predicted S/N</h2>
+  <div id="sn-plot"></div>
+  <div id="sn-note" class="hint"></div>
+</template>
+
+<template id="tpl-log">
+  <h1>Observing log</h1>
+  <p class="lede" id="log-lede"></p>
+  <div class="row log-toolbar">
+    <span id="log-saved" class="hint"></span>
+  </div>
+  <div id="log-errors"></div>
+
+  <section class="card" id="log-night">
+    <h2>Night</h2>
+    <div id="log-night-fields" class="log-grid"></div>
+    <div id="log-scenario"></div>
+    <h3>Time lost</h3>
+    <div id="log-lost"></div>
+    <button type="button" class="ghost" id="log-lost-add">Add time lost</button>
+  </section>
+
+  <details class="card" id="log-cal-card" open>
+    <summary><h2>Calibrations <span id="log-cal-count" class="hint"></span></h2></summary>
+    <p class="hint">Take these when it suits the night: they are not on the
+      timeline. Record the UT and frame numbers, because the reduction needs the
+      calibration file ranges as much as the science ones.</p>
+    <div id="log-cals"></div>
+  </details>
+
+  <details class="card" open>
+    <summary><h2>Night checklist <span id="log-cal-count2" class="hint"></span></h2></summary>
+    <div id="log-checklist"></div>
+  </details>
+
+  <details class="card" open>
+    <summary><h2>Conditions log</h2></summary>
+    <p class="hint">Add an entry whenever the sky or seeing changes. Each target
+      row shows the entry in force when it started.</p>
+    <div id="log-conditions"></div>
+    <button type="button" class="ghost" id="log-cond-add">Add entry (now)</button>
+  </details>
+
+  <section class="card">
+    <h2>Targets</h2>
+    <div id="log-time" class="stats"></div>
+    <div class="log-scroll"><table id="log-targets" class="data log-table"></table></div>
+    <h3>Unplanned targets</h3>
+    <div class="log-scroll"><table id="log-unplanned" class="data log-table"></table></div>
+    <div class="row">
+      <select id="log-unplanned-pick"></select>
+      <input type="text" id="log-unplanned-name" placeholder="or type a name">
+      <button type="button" id="log-unplanned-add">Add unplanned target</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Observing report</h2>
+    <p class="hint">Writes <code>observing_report_&lt;date&gt;.md</code> and the
+      FFFF-PZ CSV into the plan directory. Gaps are listed as warnings; the
+      report is written anyway.</p>
+    <div class="row">
+      <button type="button" class="primary" id="log-report">Generate report</button>
+      <span id="log-report-status" class="hint"></span>
+    </div>
+    <div id="log-report-warnings"></div>
+    <pre id="log-report-md" class="starlist" hidden></pre>
+  </section>
 </template>
 
 <!-- Full-size finder viewer. Lives outside #view so it survives a route

@@ -1699,3 +1699,251 @@ uninteresting ones -- log the reason at every skip point.
   dashed flags (`--targets-csv`, `--output-dir`). `build` is wired for
   `lris` only; `kast` has no Excel builder yet (`INSTRUMENTS` in
   `night_planner/cli.py`).
+- **v0.63 — 2026-11-07 (UTC):** Sorted the 2026-11 user-testing feedback (7
+  users) into tiered goals in `claude_prompts/development/users_comments.md`.
+  Durable points:
+  (1) **Gaps users noticed that the code confirms:** no detector readout
+  model; acquisition is folded into slew; the LRIS ETC uses each target's
+  *minimum* airmass, not the scheduled one; seeing is hard-coded at 0.8″;
+  Kast has no ETC (empirical magnitude rule); table headers carry no units.
+  (2) The "20 min hit" users report is the Keck Dec +20° S→N slew rule.
+  Explain it in the interface, don't remove it.
+  (3) **Pending conflict:** X (likely JXP) now asks for a 5 min WMKO slew
+  baseline and a separate acquisition term; Lordrick asks for 5 min longslit /
+  10 min mask. This may reverse the 2026-09-30 "base slew 10 min" rule. Don't
+  change `keck_overheads.py` until Q1 in that file is answered.
+  (4) The most requested feature is a **live night mode** (mark progress,
+  replan from now, planned-vs-actual, as-realized log). It needs the plan to
+  become stateful per entry. Design that in `plan_store.py`/`plan_result.py`
+  before writing any UI.
+- **v0.64 — 2026-11-07 (UTC):** Decisions on the user-feedback goals
+  (`claude_prompts/development/users_comments.md`, Decisions table).
+  Durable points:
+  (1) **X in user comments = JXP; his comments take precedence** over other
+  testers'.
+  (2) **New Keck overhead model (decided, not yet coded):** slew base 5 min
+  (was 10), Dec < +20° → > +20° crossing 14 min (was 20), plus a separate
+  acquisition: longslit 5 min, mask 10 min. Supersedes the 2026-09-30 rule
+  above once `scripts/keck_overheads.py` is updated. Open: whether the 10 min
+  mask acquisition replaces `MOS_MASK_BUFFER_MIN` (Q7), and whether Lick gets
+  an acquisition term (Q8).
+  (3) **Priorities stay fractional.** Sunil's integer-ranks request was
+  declined so existing ranks need no renumbering. Priority is strict tiering,
+  never probabilistic; only the value order matters.
+  (4) **ETC airmass rule:** default to the worst airmass in the scheduled
+  block (conservative), user-adjustable (worst / mid / best).
+  (5) **Seeing is a manual input**; no forecast pulling for now.
+  (6) **Calibrations (arcs, flats, biases) are not scheduled.** Remove the
+  Keck arc/flat blocks (`adapters.py:176`); standards and focus stay. A
+  calibrations checklist page replaces them: Lick biases + flats + arcs per
+  configuration; LRIS flats + arcs per configuration *and per mask*.
+  (7) `t_target` gets a companion per-row `required` flag. Required targets
+  get full time or are rejected, never backfilled as partials.
+- **v0.65 — 2026-11-07 (UTC):** Wrote
+  `claude_prompts/development/user_comments_implementation.md` (renamed by
+  the author from implementation.md; 10 milestones for goals
+  T1–T4; calibrations checklist first). Code facts found while planning,
+  true as of this date:
+  (1) `select_targets_for_night` reserves a flat 30 min "for calibrations"
+  (`keck_2026oct06_calculations.py:939`), separate from the arc/flat
+  overhead blocks in `adapters._keck_overheads`. Both must go together.
+  (2) `adapters.lick_kast` emits **no overhead blocks**, so Kast's 20 min of
+  focus + evening standard (`FOCUS_MINUTES`, `STD_STAR_MINUTES`) shows as
+  idle in the viewer.
+  (3) `FinderRequest.targets` already supports rendering a subset of
+  finders; only the frontend lacks the button.
+  (4) The LRIS path has no partial backfill; `backfill_partials` is
+  Kast-only.
+  (5) `query_lris_etc` takes `ffilter` (default `sdss_r.dat`), so the
+  magnitude band is a pass-through.
+  (6) Planned home for instrument numbers other than Keck slew/acq:
+  `night_planner/instrument_params.py` (not yet created).
+- **v0.66 — 2026-11-07 (UTC):** Added goal T4.2 / Milestone 11: an
+  observer's log page (`observing_log.json` per plan) that generates
+  `observing_report_<date>.md`. Durable points:
+  (1) `scripts/make_observing_report.py` already writes the **FFFF-PZ
+  observing-log CSV** (`TNS, FRB_Survey, Resource, mode, date, texp,
+  Conditions, success`) from a saved plan + flags. The new log must feed it
+  through one shared row builder, not a parallel one. The committed
+  `Night_plans/Keck-2026B-02/Keck-2026B-02_report.csv` is the regression
+  fixture.
+  (2) Design rule: the log is the single as-realized record. Tier 5
+  automation (start/finish buttons, data watcher) writes into it with
+  `source: auto`, and never into a second file.
+  (3) The web interface palette is light (`--bg: #f6f8fb`); there is no
+  night mode yet.
+- **v0.67 — 2026-11-07 (UTC):** The observer's log and the calibrations
+  checklist are **one page** ("Observing log", spec in Milestone 1b of
+  `claude_prompts/development/user_comments_implementation.md`), per
+  Lordrick. Durable design points:
+  (1) A single `observing_log.json` per night holds `night`, `calibrations`,
+  `night_checklist`, `conditions`, `targets` and `unplanned`. One
+  `merge_log` handles plan regeneration: user-touched rows and ticked
+  calibrations are kept as `not_in_plan`, never dropped.
+  (2) Calibration items carry UT and frame numbers, not just a tick, because
+  reduction (PypeIt) needs the calibration file ranges.
+  (3) With multiple scenarios (M10) there is still one log per night.
+  Calibrations are the union across scenarios.
+  This supersedes the separate `calibrations.json` / `/api/calibrations`
+  design in v0.64–v0.66.
+- **v0.68 — 2026-11-07 (UTC):** Lordrick answered three plan questions.
+  (1) **Lick overheads:** about 3 min slew + 3 min acquisition per target
+  (6 min total, replacing the all-inclusive 5 min). This is planned as
+  `LICK_SLEW_MIN` / `LICK_ACQ_MIN` in `night_planner/instrument_params.py`.
+  Caution: the current 5 min lives in three run-specific scripts
+  (`lick_2026b02_calculations.py`, `_extras.py`, `_night2_calculations.py`)
+  that the general Kast path imports from. `adapters._attribute_kast_slews`
+  only recognises a gap of exactly `SLEW_MINUTES`, so it must change in step
+  with the scheduler.
+  (2) **Kast target S/N = 5** per sub-exposure (≥ 3 subs) for now; it will
+  change later, so it is a flag. LRIS stays at 10.
+  (3) **ETC plug-in:** function shape, not a class (overrides Sunil's "ETC
+  class" for now).
+  Q7 (MOS buffer) is still open; the default is to drop it.
+- **v0.69 — 2026-11-07 (UTC):** Corrections to v0.68, from Lordrick.
+  (1) **Lick overheads are 2 min slew + 3 min acquisition = 5 min per
+  target**, not 3 + 3. The total equals the old all-inclusive 5 min, so Kast
+  schedule timing is unchanged; only the labels split.
+  (2) **Q7: keep the +5 min per-mask buffer (`MOS_MASK_BUFFER_MIN`)** on top
+  of the planned 10 min mask acquisition. It is deliberate, not a double
+  count, so don't remove it. LRIS mask cost = slew + 10 acq + 60/90/120
+  block + 5 buffer.
+  All plan questions (Q1–Q8) are now answered.
+- **v0.70 — 2026-11-07 (UTC):** Instrument numbers fetched from the web
+  (full tables with links: "Data needed" in
+  `claude_prompts/development/user_comments_implementation.md`).
+  (1) **LRIS readout**
+  ([win_bin](https://www2.keck.hawaii.edu/inst/lris/win_bin.html)), elapsed
+  time per frame including erase:
+  - Red Mark IV, 2 amps (spectroscopy): 1x1 97 s, 2x2 39 s.
+  - Blue: 1x1 54 s, 1x2 36 s. **Blue 2x2 is not published.**
+
+  (2) **Kast readout**
+  ([hw_detectors](https://mthamilton.ucolick.org/techdocs/instruments/kast/hw_detectors.html)),
+  blue/red:
+  - Slow, full frame: 43/34 s.
+  - Slow, sub-region: 7/20 s.
+  - Fast, sub-region: 2/14 s.
+
+  (3) **UCO ETC Kast form:** `inst=kast`.
+  - Grisms: G2 = 600/4310, G3 = 830/3460.
+  - Grating: 600/7500 only.
+  - Dichroics: **d55, d46 only (no d57)**.
+  - Slits: 1.0, 1.5, 2.0.
+  - Same filters as LRIS: `sdss_{ugriz}.dat`, `Buser_{B,V}.dat`,
+    `Cousins_{R,I}.dat`.
+  - Output grid: 3150–8000 Å.
+
+  (4) **UCO ETC LRIS form:** dichroics D560, D460, D500, D680.
+  (5) **Getting through the ETC's certificate problem:** the server omits its
+  intermediate. Use `--cacert scripts/certs/ca_bundle_with_incommon.pem`
+  (curl) or `verify=CA_BUNDLE` (requests). Never `-k`.
+  (6) **Limits:**
+  - Keck I zenith limit is 88.9° elevation, with no stable guiding for
+    transits above ~85° ([TelLimits](https://www2.keck.hawaii.edu/inst/common/TelLimits.html)).
+  - LRIS rotator physical PA: −239 < x < 189
+    ([rotpposn](https://www2.keck.hawaii.edu/inst/lris/procs/rotpposn.html)).
+  - Shane HA is −5:40/+3:45 (the page source has a stale commented-out
+    +5:40; trust +3:45), and Dec runs −35 to +72 nominal, +82 absolute.
+
+  (7) Verify WebFetch-summarised numbers against the raw HTML. It mis-read
+  the Shane west limit.
+- **v0.71 — 2026-11-07 (UTC):** Lordrick's answers after the web fetch.
+  (1) **LRIS readout in practice: ~80 s blue, ~40 s red** (default 2x2).
+  This overrides the web blue numbers (54 s at 1x1). Per-frame cost is
+  80 s, the slower arm.
+  (2) **Kast: always slow readout.** We use full frame, 43 s blue / 34 s red
+  → 43 s per frame (sub-region unconfirmed).
+  (3) **Kast ETC dichroic: d55** (d57 isn't offered).
+  (4) **LRIS rotator:** starlists send the finder `slit_pa` as
+  `rotdest=… rotmode=pa` (sky PA, as in chime-ffff-pz). That has been
+  accurate, and Keck converts it to the physical angle. The physical range
+  is 428° wide, so no LRIS rotator check is needed.
+  (5) **Shane tub reference: `helpful_scripts/calcint.c`.** It covers every
+  PA (20–380 → readout 17.45–330.64), so no tub reject rule is needed.
+  M9 is now Keck elevation checks only.
+- **v0.72 — 2026-11-07 (UTC):** **Kast readout is 20 s per frame**
+  (Lordrick: "normally 20 s on the blue side"). This replaces the 43 s full
+  frame in v0.71. The Lick page lists 20 s for the *red* slow sub-region and
+  7 s for blue; the per-frame cost is 20 s either way.
+- **v0.73 — 2026-11-07 (UTC): Milestone 1 implemented.**
+  (1) **Calibrations are not scheduled.**
+  - No arc/flat overheads.
+  - The LRIS end-of-night reserve is
+    `keck_2026oct06_calculations.MORNING_RESERVE_MIN` (closing slew to
+    Feige 110 + 5 min standard).
+  - Calibrations live on the **Observing log** page (`#/log?dir=`).
+
+  (2) **Observing log storage.**
+  - `observing_log.json` sits in the plan directory, managed by
+    `night_planner/observing_log.py`: `open_log` = load + `merge_log` +
+    save; `set_field` validates every edit and records provenance in
+    `edits`.
+  - Routes: `GET/PATCH /api/log`, `POST /api/log/report`. CLI:
+    `night-planner report --plan-dir`.
+  - Rows and items with user input survive plan regeneration as
+    `not_in_plan`.
+
+  (3) **The report.** `night_planner/observing_report.py` writes
+  `observing_report_<date>.md` and the FFFF-PZ CSV.
+  `scripts/make_observing_report.py` goes through `build_ffffpz_rows`
+  (verified byte-identical on Keck-2026B-02).
+  (4) **Rules and checklists.** `night_planner/instrument_params.py` now
+  exists (`DEFAULT_CONFIG`, `config_label`, `CALIBRATION_RULES`,
+  `NIGHT_CHECKLIST`, `is_mask_mode`); later milestones extend it.
+  (5) **Gotcha: `plan.output_dir` is where a plan was generated, not
+  necessarily where it is being viewed.** Anything that writes beside a
+  plan must use the requested directory: `backend._plan_here` pins it;
+  the frontend uses `state.outputDir`.
+  (6) **Gotcha: never `pkill -f` a pattern that appears in the same
+  command line.** Stop servers by PID.
+- **v0.74 — 2026-11-07 (UTC): Milestones 2-10 implemented** (details in
+  `claude_prompts/development/user_comments_implementation.md` Logs).
+  Durable points:
+  (1) **Block anatomy:** start → slew → acquisition → science_start →
+  exposures → readout → end. `end - science_start = on_target_min +
+  readout_min`. The totals reconcile: on target + slew + acq + readout +
+  overheads + blocked + idle = night (`tests/test_overheads.py`).
+  (2) **One owner per number:**
+  - Keck slew/acq: `scripts/keck_overheads.py`.
+  - Everything else: `night_planner/instrument_params.py` (Lick 2+3 min,
+    `READOUT_S`, `ETC_OPTIONS`/`ETC_FILTERS`/stand-ins,
+    `KECK_ELEVATION_LIMITS`, `CALIBRATION_RULES`).
+  (3) **ETC:** `night_planner/etc.py`. Function signature `etc(mag, band,
+  airmass, seeing, config, target_sn, n_sub_min)`; registry lris / kast /
+  empirical; `load_etc('pkg.mod:func')`; cached. **The Kast default is
+  `empirical`, pending Lordrick/JXP**: at S/N 5 the ETC is 0.07× the rule
+  at mag 16-17 and 2.4× at mag 21.
+  (4) **Tests are offline by construction:** `tests/conftest.py` blocks
+  sockets and fakes `query_uco_etc` *session-wide*, because a
+  module-scoped fixture would otherwise run first. Real-ETC tests carry
+  `@pytest.mark.network` and need `--run-network`.
+  (5) **LRIS single-tier schedule pinned** by
+  `tests/snapshots/lris_single_tier.json`. Re-record it only on purpose
+  (`tests/snapshots/make_lris_snapshot.py`).
+  (6) **Keck zenith:** never cut a window at the keyhole. It's a per-target
+  block (`zenith_keyhole`); `check_keck_limits(..., ignore_zenith=True)`
+  in the window search and the best-airmass check.
+  (7) **Scenarios:** `<base>/<slug>/` plan dirs plus
+  `<base>/scenarios.json`. One `observing_log.json` at the base;
+  `backend._log_context` resolves it.
+  (8) **Palette:** check with `scripts/check_palette.py` (CIEDE2000 ≥ 12
+  under protan/deutan), never by eye.
+  (9) **FFFF-PZ `Pri_filter`** is the band of `Pri_mag`, in the form
+  'Survey:Instrument-band'; `targets_io.normalize_band` keeps the band.
+- **v0.75 — 2026-11-07 (UTC): user tutorial ("night-planner Handbook"
+  artifact, https://claude.ai/artifact/DbC4mVutCjmFyQMh6CxR5Y).**
+  (1) **Example tables live in `examples/tutorial/`, not `test_targs/`.**
+  `tests/test_test_targs.py` globs `test_targs/*.csv`, so a new table
+  there joins every table test. `scripts/make_tutorial_examples.py`
+  rebuilds the tables from `test_targs/autumn_ffffpz.csv` (all SIM
+  objects). It also writes the two worked Kast plans (2026-10-20, own
+  table and FFFF-PZ) as JSON, so the tutorial's numbers can be refreshed
+  after the time model changes.
+  (2) **`PlanResult.idle_gaps` is a method**, returning [(start, end)].
+  (3) The tutorial has a mode switch: "Your own table" vs FFFF-PZ
+  (Resource → `chime_ffff_pz_add_furesource` → `chime_ffff_pz_targets` →
+  plan → candidates slit → log/FFFF-PZ CSV → `make_pending_targets.py`).
+  If pages or flags change, update the artifact by republishing from the
+  same template (the scratchpad template does not persist; rebuild from
+  the published page).

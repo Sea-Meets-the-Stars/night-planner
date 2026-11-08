@@ -9,16 +9,20 @@
   --card: #ffffff;
   --accent: #1d4ed8;
 
-  /* Timeline semantics, reused by the legend so the two can't drift. */
-  --science: #2563eb;
-  --mos: #7c3aed;
-  --forced: #b45309;
-  --partial: #db2777;   /* truncated backfill: deliberately unlike
+  /* Timeline semantics, reused by the legend so the two can't drift.
+     Okabe-Ito based (T2.1, 2026-11-07); every pair is >= dE2000 12 under
+     normal, protan and deutan vision -- check with
+     scripts/check_palette.py after any change, not by eye. */
+  --science: #0072B2;
+  --mos: #332288;
+  --forced: #D55E00;
+  --partial: #CC79A7;   /* truncated backfill: deliberately unlike
                            --forced, which the observer asked for */
-  --slew: #94a3b8;
-  --overhead: #0d9488;
-  --idle: #f59e0b;        /* idle is drawn hatched, see .seg.idle-hover */
-  --blocked: #dc2626;
+  --slew: #009E73;
+  --acq: #88CCEE;       /* acquisition, after the slew */
+  --overhead: #E69F00;  /* standards and focus: orange, per JXP */
+  --idle: #BBBBBB;      /* neutral grey, drawn hatched (.seg.idle-hover) */
+  --blocked: #000000;
   --twilight: #1e293b;
 }
 
@@ -120,8 +124,9 @@ tr.rejected td { color: var(--muted); }
 .seg.science { background: var(--science); }
 .seg.mos { background: var(--mos); }
 .seg.forced { background: var(--forced); }
-.seg.partial { background: var(--partial); }
+.seg.partial { background: var(--partial); color: #1f1f1f; }
 .seg.slew { background: var(--slew); }
+.seg.acq { background: var(--acq); }
 .seg.overhead { background: var(--overhead); }
 .seg.blocked { background: var(--blocked); }
 .tick { position: absolute; top: -1.45rem; font-size: 0.7rem; color: var(--muted);
@@ -181,14 +186,15 @@ pre.starlist { background: var(--card); border: 1px solid var(--line); border-ra
 
 /* Idle stretches carry no fill of their own -- the track shows through --
    but still need to be hoverable. */
-/* Idle reads as hatched orange: unmistakably "nobody is using this time",
-   without the solid fill that would make it compete with real targets. */
+/* Idle reads as hatched neutral grey: unmistakably "nobody is using this
+   time", without the solid fill that would make it compete with real
+   targets. */
 .seg.idle-hover, .legend i.idle {
   background: repeating-linear-gradient(
     45deg,
-    rgba(245, 158, 11, 0.30) 0 6px,
-    rgba(245, 158, 11, 0.07) 6px 12px);
-  border: 1px solid rgba(245, 158, 11, 0.55);
+    rgba(187, 187, 187, 0.55) 0 6px,
+    rgba(187, 187, 187, 0.12) 6px 12px);
+  border: 1px solid rgba(120, 120, 120, 0.55);
 }
 .legend i.idle { background-size: 6px 6px; }
 
@@ -337,3 +343,72 @@ table.slit-report tr.fallback td { background: #fff7ed; }
                margin-top: 0.6rem; }
 #fd-progress[hidden] { display: none; }
 #fd-bar { flex: 0 0 18rem; height: 0.6rem; }
+
+/* Observing log. Used at the telescope on a laptop, so the inputs are full
+   size and nothing depends on hover. */
+details.card > summary { cursor: pointer; list-style: none; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary h2 { display: inline; }
+details.card > summary::before { content: '▸ '; color: var(--muted); }
+details.card[open] > summary::before { content: '▾ '; }
+.log-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+            gap: 0 1.25rem; }
+.log-grid label { margin-bottom: 0.6rem; }
+.log-grid input, .log-grid select, .log-grid textarea { width: 100%; min-width: 0; }
+.log-grid label.wide { grid-column: 1 / -1; }
+textarea { font: inherit; display: block; margin-top: 0.3rem; padding: 0.45rem 0.6rem;
+           border: 1px solid var(--line); border-radius: 6px; min-height: 3.2rem; }
+.log-line { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+            padding: 0.4rem 0; border-bottom: 1px solid var(--line); }
+.log-line:last-child { border-bottom: none; }
+.log-line input[type=text], .log-line select, .log-line input[type=number] {
+  margin-top: 0; min-width: 0; }
+.log-line .ut { width: 5.2rem; }
+.log-line .mid { width: 9rem; }
+.log-line .grow { flex: 1; min-width: 10rem; }
+.log-line.done { background: #f0fdf4; }
+.log-line.gone { opacity: 0.6; }
+.cal-group { font-weight: 600; font-size: 0.86rem; margin: 0.8rem 0 0.2rem;
+             color: var(--muted); }
+.log-scroll { overflow-x: auto; margin-bottom: 0.75rem; }
+table.log-table td { vertical-align: top; }
+table.log-table input[type=text], table.log-table select {
+  margin-top: 0; min-width: 0; width: 100%; padding: 0.3rem 0.4rem; }
+table.log-table td.w-s { min-width: 5.5rem; }
+table.log-table td.w-m { min-width: 8rem; }
+table.log-table td.w-l { min-width: 12rem; }
+table.log-table .planned { font-size: 0.78rem; color: var(--muted); line-height: 1.35; }
+table.log-table .checks label { display: flex; gap: 0.3rem; font-weight: 400;
+                                font-size: 0.78rem; margin: 0; white-space: nowrap; }
+tr.st-observed td { background: #f0fdf4; }
+tr.st-partial td { background: #fdf2f8; }
+tr.st-not_observed td, tr.st-skipped td { background: #f8fafc; color: var(--muted); }
+tr.st-late td { background: #fffbeb; }
+tr.gone td { opacity: 0.6; }
+.btn-now { padding: 0.25rem 0.5rem; font-size: 0.78rem; }
+.ut-cell { display: flex; gap: 0.3rem; align-items: center; }
+.ut-cell input { width: 4.6rem !important; }
+#log-unplanned-pick { min-width: 18rem; margin-top: 0; }
+#log-unplanned-name { margin-top: 0; }
+
+.req { color: #b91c1c; font-weight: 700; }
+.lst-row { position: relative; height: 1.1rem; margin-top: 3.1rem; }  /* clear the twilight labels */
+.lst-row .tick { top: 0; color: #64748b; }
+.lst-row .tick::after { display: none; }
+.lst-label { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
+.finders figcaption .btn-now { margin-left: 0.4rem; }
+.finders figure.missing { cursor: default; display: flex; flex-direction: column;
+                          align-items: center; justify-content: center; min-height: 10rem; }
+td.tagcol, th.tagcol { display: none; }
+table.show-tags td.tagcol, table.show-tags th.tagcol { display: table-cell; }
+#assumptions-table th { width: 14rem; text-transform: none; font-size: 0.82rem; }
+#assumptions-table td.notset { color: #b91c1c; font-weight: 700; }
+
+/* Scenario tabs (T4.1) */
+.tabs { display: flex; gap: 0.3rem; border-bottom: 1px solid var(--line); margin-bottom: 0.6rem; }
+.tab { padding: 0.4rem 0.9rem; border: 1px solid var(--line); border-bottom: none;
+       border-radius: 6px 6px 0 0; text-decoration: none; color: var(--muted);
+       background: #eef2f7; font-size: 0.88rem; }
+.tab.active { background: var(--card); color: var(--accent); font-weight: 600; }
+table.compare { margin-bottom: 1rem; }
+table.compare tr.active td { background: #eff6ff; }

@@ -61,6 +61,7 @@ const routes = {
   '/starlist': renderStarlist,
   '/airmass': renderAirmass,
   '/nightchart': renderNightChart,
+  '/log': renderLog,
 };
 
 function parseHash() {
@@ -92,12 +93,18 @@ function renderNav(current) {
   const d = encodeURIComponent(state.outputDir);
   [['Plan', '/plan'], ['Rejections', '/rejections'], ['Finders', '/finders'],
    ['Starlist', '/starlist'], ['Airmass', '/airmass'],
-   ['Night chart', '/nightchart']].forEach(([label, p]) => {
+   ['Night chart', '/nightchart'], ['Observing log', '/log']].forEach(([label, p]) => {
     const a = el('a', current === p ? 'active' : '', label);
     a.href = `#${p}?dir=${d}`;
     nav.append(a);
   });
-  $('#context').textContent = state.outputDir.split('/').pop();
+  // Instrument, telescope and date on every plan page (T2.2), once the
+  // plan for this directory is loaded; the directory name until then.
+  const p = state.plan;
+  $('#context').textContent = (p && p.output_dir === state.outputDir)
+    ? `${p.instrument.toUpperCase()} · ${p.telescope} · ${p.date} · `
+      + `${state.outputDir.split('/').pop()}`
+    : state.outputDir.split('/').pop();
 }
 
 function notice(message, isError) {
@@ -181,6 +188,95 @@ async function renderSetup(params) {
 
   let targetsPath = null;
 
+  /* T2.4: the columns the loader reads, from the server so the list can't
+     drift from targets_io. */
+  api('/api/targets/columns').then((cols) => {
+    const fmt = (f) => `<b>${f}</b> (${(cols.aliases[f] || []).slice(0, 4).join(', ')})`;
+    $('#column-list').innerHTML = `Required columns: ${cols.required.map(fmt).join('; ')}. `
+      + `Optional: ${cols.optional.map((f) => f).join(', ')}. `
+      + 'See docs/target_csv_guide.md.';
+  }).catch(() => {});
+
+  /* Configuration card: dropdowns limited to what the ETC can model. */
+  const configFields = $('#config-fields');
+  const configInputs = {};
+  try {
+    const opt = await api(`/api/instruments/${encodeURIComponent(instrument)}/options`);
+    const prev = state.setup?.instrument === instrument ? (state.setup.config || {}) : {};
+    const choice = (key, label, values, names = {}) => {
+      const sel = el('select');
+      values.forEach((v) => {
+        const label = key === 'slit' ? Number(v).toFixed(1) : String(v);
+        const o = el('option', '', names[v] && names[v] !== v ? `${names[v]} (${v})` : label);
+        o.value = String(v);
+        sel.append(o);
+      });
+      sel.value = String(prev[key] ?? opt.defaults[key]);
+      configInputs[key] = sel;
+      const l = el('label', '', label);
+      l.append(sel);
+      configFields.append(l);
+    };
+    choice('grism', 'Blue grism', opt.options.grism, opt.grism_names);
+    choice('grating', 'Red grating', opt.options.grating);
+    choice('dichroic', 'Dichroic', opt.options.dichroic);
+    choice('slit', 'Slit width [arcsec]', opt.options.slit);
+    choice('binning', 'Binning', opt.options.binning);
+    const seeing = el('input');
+    seeing.type = 'number';
+    seeing.step = '0.1';
+    seeing.min = '0.2';
+    seeing.value = prev.seeing ?? opt.defaults.seeing;
+    configInputs.seeing = seeing;
+    const sl = el('label', '', 'Seeing [arcsec]');
+    sl.append(seeing);
+    configFields.append(sl);
+    choice('mag_band', 'Magnitude band', opt.bands);
+    choice('etc', 'Exposure model', opt.etcs,
+           { lris: 'UCO/Lick ETC', kast: 'UCO/Lick ETC', empirical: 'empirical rule' });
+    const sn = el('input');
+    sn.type = 'number';
+    sn.step = '0.5';
+    sn.min = '1';
+    sn.value = prev.target_sn ?? opt.defaults.target_sn;
+    configInputs.target_sn = sn;
+    const snl = el('label', '', 'Target S/N per sub-exposure');
+    snl.append(sn);
+    configFields.append(snl);
+    choice('airmass_rule', 'ETC airmass over the block', opt.airmass_rules,
+           { worst: 'worst in the block', mid: 'mid-block', best: 'best in the block' });
+  } catch (err) {
+    configFields.replaceChildren(notice(`Configuration options unavailable: ${err.message}`, true));
+  }
+
+  /* Scenarios (T4.1): presets plus free rows. */
+  const scenarioFields = [
+    { placeholder: 'name', key: 'name', size: 16 },
+    { placeholder: 'seeing ″', key: 'seeing', size: 6 },
+    { placeholder: 'start HH:MM', key: 'start', size: 8 },
+    { placeholder: 'block from HH:MM', key: 'bstart', size: 10 },
+    { placeholder: 'block to HH:MM', key: 'bend', size: 10 }];
+  const addScenario = (values = {}) => {
+    addRow($('#scenarios'), scenarioFields);
+    const rows = $('#scenarios').children;
+    const inputs = rows[rows.length - 1].querySelectorAll('input');
+    scenarioFields.forEach((f, i) => { if (values[f.key] != null) inputs[i].value = values[f.key]; });
+  };
+  [['good 0.6″', { name: 'good seeing', seeing: 0.6 }],
+   ['median 0.8″', { name: 'median seeing', seeing: 0.8 }],
+   ['poor 1.2″', { name: 'poor seeing', seeing: 1.2 }],
+   ['lost first half', { name: 'lost first half', bstart: 'night', bend: '00:00' }]]
+    .forEach(([label, values]) => {
+      const b = el('button', 'ghost', `+ ${label}`);
+      b.type = 'button';
+      b.addEventListener('click', () => addScenario(values));
+      $('#scenario-presets').append(b);
+    });
+  $('#add-scenario').addEventListener('click', () => addScenario());
+  (state.setup?.scenarios || []).forEach((sc) => addScenario({
+    name: sc.name, seeing: sc.seeing, start: sc.start,
+    bstart: sc.blocks?.[0]?.start, bend: sc.blocks?.[0]?.end }));
+
   $('#add-block').addEventListener('click', () => addRow($('#blocks'), [
     { placeholder: 'from HH:MM', key: 'start' },
     { placeholder: 'to HH:MM', key: 'end' },
@@ -228,6 +324,15 @@ async function renderSetup(params) {
         assumeMasks: $('#assume-masks').checked,
         noPartials: $('#no-partials').checked,
         blocks: collectRows($('#blocks')).filter((b) => b.start && b.end),
+        config: Object.fromEntries(Object.entries(configInputs)
+          .map(([k, input]) => [k, input.value])),
+        scenarios: collectRows($('#scenarios')).filter((r) => r.name).map((r) => ({
+          name: r.name,
+          seeing: r.seeing ? Number(r.seeing) : null,
+          start: r.start || null,
+          blocks: r.bstart && r.bend
+            ? [{ start: r.bstart, end: r.bend, reason: r.name }] : [],
+        })),
       };
       // Seed every target at the default, so an untouched page generates
       // precisely the night the planner produced before priorities existed.
@@ -300,10 +405,18 @@ async function renderPriorities() {
     label.append(el('b', '', String(r.name)));
     label.append(el('span', 'hint',
       ` mag ${r.mag ?? '—'} · RA ${r.ra_deg.toFixed(3)}° · Dec ${r.dec_deg.toFixed(3)}°`));
+    const extra = [r.tags ? `tags: ${r.tags}` : '',
+                   r.dm != null ? `DM ${Math.round(r.dm)}` : ''].filter(Boolean).join(' · ');
+    if (extra) label.append(el('span', 'hint prio-tags', ` · ${extra}`));
     row.append(label);
     return row;
   }));
   tierNote();
+  const showTags = $('#prio-show-tags');
+  const applyTags = () => list.querySelectorAll('.prio-tags')
+    .forEach((n) => { n.style.display = showTags.checked ? '' : 'none'; });
+  showTags.addEventListener('change', applyTags);
+  applyTags();
 
   if (data.preview_truncated) {
     $('#prio-notes').append(el('p', 'hint',
@@ -353,6 +466,17 @@ async function renderPriorities() {
           blocks: setup.blocks,
           forced: [],
           priorities: state.priorities,
+          grism: setup.config?.grism || null,
+          grating: setup.config?.grating || null,
+          dichroic: setup.config?.dichroic || null,
+          slit: setup.config?.slit ? Number(setup.config.slit) : null,
+          binning: setup.config?.binning || null,
+          seeing: setup.config?.seeing ? Number(setup.config.seeing) : null,
+          mag_band: setup.config?.mag_band || null,
+          etc: setup.config?.etc || null,
+          target_sn: setup.config?.target_sn ? Number(setup.config.target_sn) : null,
+          airmass_rule: setup.config?.airmass_rule || null,
+          scenarios: setup.scenarios || [],
         }),
       });
       state.plan = plan;
@@ -398,6 +522,14 @@ function renderInspection(data, opts = {}) {
   // Priority values the table carried but we could not read as numbers. The
   // targets are still perfectly usable; they just have no ranking, and that
   // has to be said rather than silently defaulted.
+  Object.entries(data.field_coercions || {}).forEach(([field, c]) => {
+    if (!c.n_coerced) return;
+    wrap.append(notice(
+      `The '${c.column}' column has ${c.n_coerced} value(s) that can't be read as `
+      + `${field === 'required' ? 'true/false' : 'positive minutes'} `
+      + `(${c.examples.join(', ')}) — those rows are treated as `
+      + `${field === 'required' ? 'not required' : 'having no user time (the ETC decides)'}.`));
+  });
   const coerced = data.priority_coercions;
   if (coerced && coerced.n_coerced) {
     wrap.append(notice(
@@ -491,11 +623,17 @@ function targetDetail(t) {
     ['mode', t.mode],
     ['mag', t.mag?.toFixed(2)],
     ['RA / Dec', coords],
-    ['airmass', t.airmass?.toFixed(2)],
+    ['airmass', t.airmass != null ? `${t.airmass.toFixed(2)}`
+      + (t.airmass_rule ? ` (${t.airmass_rule} over the block; best ${t.airmass_min?.toFixed(2)})` : '') : null],
+    ['S/N red', t.sn_sub_red != null
+      ? `${t.sn_sub_red.toFixed(1)} per sub, ${t.sn_comb_red?.toFixed(1)} combined` : null],
     ['red', t.exposure_red],
     ['blue', t.exposure_blue],
     ['on target', `${Math.round(t.on_target_min)} min`],
-    ['slew', t.slew_min ? `${Math.round(t.slew_min)} min` : null],
+    ['slew', t.slew_min ? `${Math.round(t.slew_min)} min`
+      + (t.slew_reason ? ` (${t.slew_reason})` : '') : null],
+    ['acquisition', t.acq_min ? `${Math.round(t.acq_min)} min` : null],
+    ['readout', t.readout_min ? `${t.readout_min.toFixed(1)} min` : null],
     ['AM<2 window', window],
     ['', t.notes],
   ];
@@ -532,9 +670,19 @@ function renderTimeline(plan, host) {
   plan.blocks.forEach((b) => place(b.start, b.end, 'blocked', b.reason,
     [['reason', b.reason]]));
   plan.schedule.forEach((t) => {
+    // Slew, then acquisition, then science. Older plans carry no acq_min,
+    // so their whole pre-science stretch is drawn as slew, as before.
+    const acq = t.acq_min || 0;
+    const acqStart = new Date(new Date(t.science_start).getTime() - acq * 60000)
+      .toISOString();
     if (t.slew_min > 0) {
-      place(t.start, t.science_start, 'slew', '',
-        [['slew to', t.name], ['duration', `${Math.round(t.slew_min)} min`]]);
+      place(t.start, acq ? acqStart : t.science_start, 'slew', '',
+        [['slew to', t.name], ['duration', `${Math.round(t.slew_min)} min`],
+         ['why', t.slew_reason || null]]);
+    }
+    if (acq > 0) {
+      place(acqStart, t.science_start, 'acq', '',
+        [['acquire', t.name], ['duration', `${Math.round(acq)} min`]]);
     }
     place(t.science_start, t.end, targetClass(t), t.name, targetDetail(t));
   });
@@ -568,6 +716,23 @@ function renderTimeline(plan, host) {
   });
 
   host.append(track);
+
+  // LST under the local-time axis (T2.3). Sidereal time runs 1.0027379x
+  // faster than solar, so it is extrapolated from the LST at night start.
+  if (plan.lst_start_h != null) {
+    const row = el('div', 'lst-row');
+    const n0 = new Date(plan.night_start).getTime();
+    for (let t = Math.ceil((t0 + off) / hour) * hour - off; t <= t1; t += hour) {
+      const lst = ((plan.lst_start_h + ((t - n0) / hour) * 1.0027379) % 24 + 24) % 24;
+      const h = Math.floor(lst);
+      const m = Math.floor((lst - h) * 60);
+      const tick = el('div', 'tick',
+        `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+      tick.style.left = `${((t - t0) / (t1 - t0)) * 100}%`;
+      row.append(tick);
+    }
+    host.append(row, el('div', 'lst-label', 'upper axis: local time · lower axis: LST'));
+  }
 }
 
 async function renderPlan() {
@@ -575,17 +740,59 @@ async function renderPlan() {
   useTemplate('tpl-plan');
   renderNav('/plan');
 
+  /* Scenario tabs and comparison (T4.1), when this night has several. */
+  try {
+    const sc = await api(`/api/scenarios?output_dir=${encodeURIComponent(state.outputDir)}`);
+    if (sc.scenarios.length) {
+      const host = $('#scenario-tabs');
+      const tabs = el('div', 'tabs');
+      sc.scenarios.forEach((e) => {
+        const a = el('a', e.slug === sc.active ? 'tab active' : 'tab', e.name);
+        a.href = `#/plan?dir=${encodeURIComponent(e.dir)}`;
+        tabs.append(a);
+      });
+      const table = el('table', 'data compare');
+      table.innerHTML = '<tr><th>scenario</th><th class="num">seeing [″]</th>'
+        + '<th class="num">targets</th><th class="num">on target [h]</th>'
+        + '<th class="num">idle [min]</th><th>only in this scenario</th></tr>'
+        + sc.scenarios.map((e) => `<tr${e.slug === sc.active ? ' class="active"' : ''}>`
+          + `<td>${e.name}</td><td class="num">${e.seeing ?? 'plan'}</td>`
+          + `<td class="num">${e.n_scheduled ?? '—'}</td>`
+          + `<td class="num">${e.on_target_h ?? '—'}</td>`
+          + `<td class="num">${e.idle_min != null ? Math.round(e.idle_min) : '—'}</td>`
+          + `<td>${(e.unique || []).join(', ') || '—'}</td></tr>`).join('');
+      host.append(tabs, table);
+    }
+  } catch { /* no scenarios: a single plan */ }
+
   const s = plan.summary;
   const head = $('#plan-head');
   head.append(el('p', 'lede',
-    `${plan.telescope} · ${plan.date} · ${hhmm(plan.night_start)}–${hhmm(plan.night_end)} `
-    + `(${plan.timezone})`));
+    `${plan.instrument.toUpperCase()} · ${plan.telescope} · ${plan.date} · `
+    + `${hhmm(plan.night_start)}–${hhmm(plan.night_end)} (${plan.timezone})`));
+
+  // T2.8: what this plan assumed, saved with it in plan_result.json.
+  const assumptions = Object.entries(plan.assumptions || {});
+  const at = $('#assumptions-table');
+  if (assumptions.length) {
+    at.replaceChildren(...assumptions.map(([k, v]) => {
+      const tr = el('tr');
+      const val = el('td', String(v) === 'NOT SET' ? 'notset' : '', String(v));
+      tr.append(el('th', '', k), val);
+      return tr;
+    }));
+  } else {
+    at.replaceChildren(el('tr', '', 'This plan predates the assumptions record; '
+      + 'regenerate it to see them.'));
+  }
 
   const stats = el('div', 'stats');
   [[`${s.n_scheduled}`, 'targets'],
    [`${(s.on_target_min / 60).toFixed(1)} h`, 'on target'],
    [`${Math.round(s.utilization * 100)}%`, 'utilization'],
    [`${Math.round(s.slew_min)} min`, 'slew'],
+   [`${Math.round(s.acq_min || 0)} min`, 'acquisition'],
+   [`${Math.round(s.readout_min || 0)} min`, 'readout'],
    [`${Math.round(s.overhead_min)} min`, 'overheads'],
    [`${Math.round(s.idle_min)} min`, 'idle']].forEach(([value, label]) => {
     const stat = el('div', 'stat');
@@ -612,7 +819,7 @@ async function renderPlan() {
   const legend = $('#legend');
   [['science', 'longslit'], ['mos', 'MOS'], ['forced', 'forced/truncated'],
    ['partial', 'partial (backfilled)'],
-   ['slew', 'slew'], ['overhead', 'standards, focus, calibs'],
+   ['slew', 'slew'], ['acq', 'acquisition'], ['overhead', 'standards, focus'],
    ['blocked', 'blocked'], ['idle', 'idle']].forEach(([cls, label]) => {
     const item = el('span');
     const swatch = el('i', cls);
@@ -626,10 +833,10 @@ async function renderPlan() {
   if (plan.overruns.length) {
     const last = plan.overruns[plan.overruns.length - 1];
     $('#overruns').append(notice(
-      `Calibrations run past the end of the night — “${last.label}” ends `
+      `The end-of-night sequence runs past the end of the night — “${last.label}” ends `
       + `${Math.round(last.minutes_past_end)} min after ${hhmm(plan.night_end)}. `
-      + 'Internal arcs and flats do not need dark sky, but the morning '
-      + 'standard should be taken before it gets much brighter.'));
+      + 'The morning standard should be taken before it gets much brighter. '
+      + '(Calibrations are not scheduled; see the Observing log.)'));
   }
 
   if (plan.idle_gaps.length) {
@@ -641,22 +848,43 @@ async function renderPlan() {
 
   $('#plan-table').innerHTML =
     '<tr><th>Science (local)</th><th>Target</th><th>Mode</th>'
-    + '<th class="num">mag</th><th class="num">AM</th><th>Exposure</th>'
-    + '<th class="num">slew</th><th class="num">on target</th><th>Notes</th></tr>'
+    + '<th class="num">mag</th><th class="num">AM</th><th>Exposure [n × s]</th>'
+    + '<th class="num">slew [min]</th><th class="num">acq [min]</th>'
+    + '<th class="num">on target [min]</th><th class="num">readout [min]</th>'
+    + '<th class="num" title="median continuum S/N per pixel, red arm: one '
+    + 'sub-exposure / all combined">S/N red [sub / comb]</th>'
+    + '<th class="tagcol">Tags</th><th class="num tagcol">DM</th>'
+    + '<th>Notes</th></tr>'
     + plan.schedule.map((t) => {
       const pill = t.mode.startsWith('MOS') ? '<span class="pill mos">MOS</span>'
         : (t.notes || '').startsWith('PARTIAL') ? '<span class="pill partial">partial</span>'
         : (t.notes || '').startsWith('FORCED') ? '<span class="pill forced">forced</span>' : '';
+      const req = t.required ? ' <span class="pill no" title="full time or nothing: never truncated">required</span>' : '';
       return `<tr><td>${hhmm(t.science_start)}–${hhmm(t.end)}</td>`
         + `<td><a href="#/airmass?dir=${encodeURIComponent(plan.output_dir)}&target=${t.name}">${t.name}</a></td>`
-        + `<td>${pill} ${t.mode}</td>`
+        + `<td>${pill} ${t.mode}${req}</td>`
         + `<td class="num">${t.mag?.toFixed(1) ?? '—'}</td>`
-        + `<td class="num">${t.airmass?.toFixed(2) ?? '—'}</td>`
+        + `<td class="num"${t.airmass_rule ? ` title="ETC airmass (${t.airmass_rule} over the block); best tonight ${t.airmass_min?.toFixed(2) ?? '—'}"` : ''}>`
+        + `${t.airmass?.toFixed(2) ?? '—'}</td>`
         + `<td>${t.exposure_red || '—'}</td>`
-        + `<td class="num">${Math.round(t.slew_min)}</td>`
-        + `<td class="num">${Math.round(t.on_target_min)}</td>`
+        + `<td class="num"${t.slew_reason ? ` title="${t.slew_reason}"` : ''}>`
+        + `${Math.round(t.slew_min)}${t.slew_reason ? '*' : ''}</td>`
+        + `<td class="num">${Math.round(t.acq_min || 0)}</td>`
+        + `<td class="num" title="${t.time_source ? `time from: ${t.time_source}` : ''}`
+        + `${t.etc_min != null && t.time_source !== 'ETC' ? `; ETC estimate ${t.etc_min.toFixed(0)} min` : ''}">`
+        + `${Math.round(t.on_target_min)}`
+        + `${t.time_source ? `<br><span class="hint">${t.time_source}`
+          + `${t.etc_min != null && t.time_source === 'user' ? ` (ETC ${t.etc_min.toFixed(0)})` : ''}</span>` : ''}</td>`
+        + `<td class="num">${(t.readout_min || 0).toFixed(1)}</td>`
+        + `<td class="num">${t.sn_sub_red != null
+          ? `${t.sn_sub_red.toFixed(1)} / ${t.sn_comb_red?.toFixed(1) ?? '—'}` : '—'}</td>`
+        + `<td class="tagcol">${t.tags || ''}</td>`
+        + `<td class="num tagcol">${t.dm != null ? Math.round(t.dm) : ''}</td>`
         + `<td>${t.notes || ''}</td></tr>`;
     }).join('');
+  const tagToggle = $('#plan-show-tags');
+  tagToggle.addEventListener('change', () =>
+    $('#plan-table').classList.toggle('show-tags', tagToggle.checked));
 }
 
 /* ------------------------------------------------------------ rejections */
@@ -877,9 +1105,42 @@ async function renderFinders() {
 
   const files = await api(`/api/finders?output_dir=${encodeURIComponent(plan.output_dir)}`);
   const grid = $('#finder-grid');
+
+  /* T2.7: one chart at a time, so fixing one target doesn't mean
+     re-fetching every image. */
+  const generateOne = async (target, button) => {
+    button.disabled = true;
+    button.textContent = '…';
+    $('#fd-notes').replaceChildren();
+    try {
+      const result = await api('/api/finders/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ output_dir: plan.output_dir, targets: [target],
+                               slit_mode: lastSlitMode, overwrite: true }),
+      });
+      result.results.filter((r) => r.error)
+        .forEach((r) => $('#fd-notes').append(notice(`${r.name}: ${r.error}`, true)));
+      await renderFinders();
+    } catch (err) {
+      $('#fd-notes').replaceChildren(notice(err.message, true));
+      button.disabled = false;
+      button.textContent = 'retry';
+    }
+  };
+
+  // Scheduled targets with no chart yet get a placeholder card.
+  const have = new Set(files.map((f) => f.name.replace('_finder.png', '')));
+  plan.schedule.filter((t) => !have.has(t.name)).forEach((t) => {
+    const fig = el('figure', 'missing');
+    const b = el('button', 'btn-now', 'Generate');
+    b.type = 'button';
+    b.addEventListener('click', () => generateOne(t.name, b));
+    fig.append(el('figcaption', '', `${t.name} · no chart yet`), b);
+    grid.append(fig);
+  });
   if (!files.length) {
-    grid.append(el('p', 'hint',
-      'No finder charts yet — generate them above.'));
+    grid.prepend(el('p', 'hint',
+      'No finder charts yet — generate them all above, or one at a time below.'));
     return;
   }
 
@@ -911,7 +1172,13 @@ async function renderFinders() {
     img.loading = 'lazy';
     img.alt = target;
     img.src = src;
-    fig.append(img, el('figcaption', '', caption));
+    const cap = el('figcaption', '', caption);
+    const redo = el('button', 'btn-now', 'Re-render');
+    redo.type = 'button';
+    redo.title = 'Regenerate just this chart, with the slit choice above';
+    redo.addEventListener('click', (e) => { e.stopPropagation(); generateOne(target, redo); });
+    cap.append(redo);
+    fig.append(img, cap);
     fig.addEventListener('click', () => openLightbox(i));
     fig.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(i); }
@@ -1179,8 +1446,47 @@ async function renderAirmass(params) {
       : 'This target is never above the horizon during astronomical night.';
   };
 
-  select.addEventListener('change', draw);
+  /* Predicted S/N(lambda) at the airmass the target was scheduled at
+     (T3.4a): the target S/N line and the two continuum windows the ETC
+     sizes exposures on. */
+  const drawSN = async () => {
+    const q = new URLSearchParams({ output_dir: plan.output_dir, target: select.value });
+    let spec;
+    try {
+      spec = await api(`/api/etc?${q}`);
+    } catch (err) {
+      Plotly.purge('sn-plot');
+      $('#sn-plot').replaceChildren();
+      $('#sn-note').textContent = err.message;
+      return;
+    }
+    const shapes = Object.values(spec.windows || {}).map(([w0, w1]) => ({
+      type: 'rect', xref: 'x', yref: 'paper', x0: w0, x1: w1, y0: 0, y1: 1,
+      fillcolor: '#64748b', opacity: 0.12, line: { width: 0 },
+    }));
+    if (spec.target_sn) {
+      shapes.push({ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y',
+                    y0: spec.target_sn, y1: spec.target_sn,
+                    line: { color: '#dc2626', width: 1, dash: 'dot' } });
+    }
+    Plotly.newPlot('sn-plot', [{
+      x: spec.wave, y: spec.s2n, mode: 'lines', line: { color: '#0d9488', width: 2 },
+      hovertemplate: '%{x:.0f} Å: S/N %{y:.1f}<extra></extra>',
+    }], {
+      margin: { t: 10, r: 20, b: 50, l: 60 }, height: 300,
+      xaxis: { title: 'wavelength [Å]' },
+      yaxis: { title: 'S/N per pixel, one sub-exposure', rangemode: 'tozero' },
+      shapes, showlegend: false,
+    }, { responsive: true, displayModeBar: false });
+    $('#sn-note').textContent = `One ${spec.sub_len_s} s sub-exposure (${spec.n_sub} planned) at `
+      + `airmass ${Number(spec.airmass).toFixed(2)}, band ${spec.band}. Dotted line: `
+      + `target S/N ${spec.target_sn ?? '—'}; shaded: the continuum windows the `
+      + 'exposure is sized on.';
+  };
+
+  select.addEventListener('change', () => { draw(); drawSN(); });
   await draw();
+  await drawSN();
 }
 
 /* ----------------------------------------------------------- night chart */
@@ -1387,6 +1693,473 @@ async function renderNightChart() {
   $('#nc-rejected').addEventListener('change', draw);
   $('#nc-moon').addEventListener('change', draw);
   await draw();
+}
+
+/* ------------------------------------------------------- observing log */
+
+/* One page for the night as it actually happened: header, calibrations
+   checklist, night checklist, conditions log, the target table and the
+   report. Every field autosaves on change with a single PATCH, and the
+   server returns the derived numbers (calibration count, airmass at the
+   actual start, time accounting), so this page never recomputes them. */
+
+const LOG_LABELS = {
+  pending: 'pending', observed: 'observed', partial: 'partial',
+  not_observed: 'not observed', skipped: 'skipped',
+  weather: 'weather', ran_out_of_time: 'ran out of time', technical: 'technical',
+  not_acquired: 'target not acquired', bumped: 'lower priority / bumped',
+  other: 'other', good: 'good', usable: 'usable', poor: 'poor',
+  yes: 'yes', no: 'no', unknown: 'unknown', clear: 'clear',
+  thin_cirrus: 'thin cirrus', patchy: 'patchy', thick: 'thick', closed: 'closed',
+  acquired: 'acquired', on_slit: 'on slit / mask aligned',
+  exposures_complete: 'exposures complete', quicklook: 'quick-look OK',
+};
+const logLabel = (v) => (v === '' ? '—' : (LOG_LABELS[v] || v));
+const utHHMM = (ut) => (ut ? ut.slice(11, 16) : '');
+const isoUT = (iso) => (iso ? new Date(iso).toISOString().slice(11, 16) : '');
+
+async function renderLog() {
+  const plan = await loadPlan();
+  useTemplate('tpl-log');
+  renderNav('/log');
+  // The directory this page was opened with, not plan.output_dir: a copied
+  // or moved plan still records where it was generated, and the log must be
+  // written beside the plan actually being viewed.
+  const dir = state.outputDir || plan.output_dir;
+  let data = await api(`/api/log?output_dir=${encodeURIComponent(dir)}`);
+  const opts = data.options;
+
+  $('#log-lede').textContent =
+    `${plan.telescope} · ${plan.instrument.toUpperCase()} · ${plan.date} · `
+    + `${(data.log.configs || []).map((c) => c.label).join('; ')} · times in UT`;
+
+  const saved = $('#log-saved');
+  async function save(path, value) {
+    $('#log-errors').replaceChildren();
+    try {
+      const resp = await api('/api/log', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ output_dir: dir, path, value }),
+      });
+      data = resp;
+      saved.textContent = `Saved ${new Date().toISOString().slice(11, 19)} UT`;
+      refreshDerived();
+      return resp.value;
+    } catch (err) {
+      $('#log-errors').replaceChildren(notice(`Not saved: ${err.message}`, true));
+      throw err;
+    }
+  }
+
+  /* Small input builders. Each saves itself on change. */
+  const textIn = (value, path, cls, placeholder) => {
+    const input = el('input', cls || '');
+    input.type = 'text';
+    input.value = value ?? '';
+    if (placeholder) input.placeholder = placeholder;
+    if (path) input.addEventListener('change', () => save(path, input.value));
+    return input;
+  };
+  const selectIn = (value, choices, path, onSaved) => {
+    const sel = el('select');
+    choices.forEach((c) => {
+      const o = el('option', '', logLabel(c));
+      o.value = c;
+      sel.append(o);
+    });
+    sel.value = value ?? '';
+    if (path) {
+      sel.addEventListener('change', async () => {
+        await save(path, sel.value);
+        if (onSaved) onSaved(sel.value);
+      });
+    }
+    return sel;
+  };
+  const checkIn = (value, path, onSaved) => {
+    const box = el('input');
+    box.type = 'checkbox';
+    box.checked = !!value;
+    box.addEventListener('change', async () => {
+      try { await save(path, box.checked); if (onSaved) onSaved(box.checked); }
+      catch { box.checked = !box.checked; }
+    });
+    return box;
+  };
+  /* A UT HH:MM field plus a "now" button. The server turns HH:MM into a
+     full UT timestamp on the right night. */
+  const utIn = (value, path, onSaved) => {
+    const wrap = el('span', 'ut-cell');
+    const input = textIn(utHHMM(value), null, 'ut', 'HH:MM');
+    const store = async (v) => {
+      const clean = await save(path, v);
+      input.value = utHHMM(clean);
+      if (onSaved) onSaved(clean);
+    };
+    input.addEventListener('change', () => store(input.value));
+    const now = el('button', 'btn-now', 'now');
+    now.type = 'button';
+    now.addEventListener('click', () => store(new Date().toISOString()));
+    wrap.append(input, now);
+    return wrap;
+  };
+  const labelled = (text, control, cls) => {
+    const l = el('label', cls || '', text);
+    l.append(control);
+    return l;
+  };
+
+  /* ---- 1. Night header */
+  const night = data.log.night;
+  const nf = $('#log-night-fields');
+  nf.append(
+    labelled('Observers', textIn(night.observers, ['night', 'observers'])),
+    labelled('Support astronomer / operator', textIn(night.support, ['night', 'support'])),
+    labelled('Dome open (UT)', utIn(night.dome_open_ut, ['night', 'dome_open_ut'])),
+    labelled('Dome close (UT)', utIn(night.dome_close_ut, ['night', 'dome_close_ut'])),
+    labelled('Sky (night summary)', selectIn(night.sky_summary, opts.sky, ['night', 'sky_summary'])),
+    labelled('Seeing range (″)', textIn(night.seeing_range, ['night', 'seeing_range'], '', 'e.g. 0.7–1.1')),
+    labelled('FFFF-PZ conditions', textIn(night.ffffpz_conditions, ['night', 'ffffpz_conditions'], '', 'Good / Fair / Poor')),
+    labelled('Humidity / wind', textIn(night.weather_notes, ['night', 'weather_notes'])),
+  );
+  const notes = el('textarea');
+  notes.value = night.notes || '';
+  notes.addEventListener('change', () => save(['night', 'notes'], notes.value));
+  nf.append(labelled('General notes', notes, 'wide'));
+
+  /* Scenario in use (T4.1): one log per night; its target rows follow the
+     scenario actually being observed. Changing it re-merges the log. */
+  try {
+    const sc = await api(`/api/scenarios?output_dir=${encodeURIComponent(dir)}`);
+    if (sc.scenarios.length) {
+      const slugs = sc.scenarios.map((e) => e.slug);
+      const current = slugs.includes(night.scenario) ? night.scenario : sc.active;
+      const sel = el('select');
+      sc.scenarios.forEach((e) => {
+        const o = el('option', '', e.name);
+        o.value = e.slug;
+        sel.append(o);
+      });
+      sel.value = current;
+      sel.addEventListener('change', async () => {
+        await save(['night', 'scenario'], sel.value);
+        renderLog();
+      });
+      $('#log-scenario').append(labelled('Scenario in use (one log per night; '
+        + 'calibrations cover every scenario)', sel));
+    }
+  } catch { /* single plan */ }
+
+  /* Time lost: a small list saved whole. */
+  function renderLost() {
+    const host = $('#log-lost');
+    host.replaceChildren();
+    const rows = data.log.night.time_lost || [];
+    if (!rows.length) host.append(el('div', 'hint', 'None recorded.'));
+    rows.forEach((row, i) => {
+      const line = el('div', 'log-line');
+      const mins_ = el('input', 'ut');
+      mins_.type = 'number'; mins_.min = '0'; mins_.value = row.minutes;
+      const cause = selectIn(row.cause, opts.lost_causes);
+      const reason = textIn(row.reason, null, 'grow', 'reason');
+      const commit = () => {
+        const list = rows.map((r, j) => (j === i
+          ? { minutes: Number(mins_.value) || 0, cause: cause.value, reason: reason.value } : r));
+        save(['night', 'time_lost'], list).then(renderLost);
+      };
+      [mins_, cause, reason].forEach((c) => c.addEventListener('change', commit));
+      const del = el('button', 'ghost', 'Remove');
+      del.type = 'button';
+      del.addEventListener('click', () =>
+        save(['night', 'time_lost'], rows.filter((_, j) => j !== i)).then(renderLost));
+      line.append(mins_, el('span', 'hint', 'min'), cause, reason, del);
+      host.append(line);
+    });
+  }
+  $('#log-lost-add').addEventListener('click', () =>
+    save(['night', 'time_lost'],
+         [...(data.log.night.time_lost || []), { minutes: 0, cause: 'weather', reason: '' }])
+      .then(renderLost));
+  renderLost();
+
+  /* ---- 2. Calibrations, grouped by configuration then mask */
+  function renderCals() {
+    const host = $('#log-cals');
+    host.replaceChildren();
+    const items = Object.entries(data.log.calibrations)
+      .sort((a, b) => a[1].order - b[1].order);
+    if (!items.length) host.append(el('div', 'hint', 'No calibrations needed.'));
+    let group = null;
+    items.forEach(([id, c]) => {
+      const g = `${c.scope === 'mask' ? 'Mask' : 'Configuration'}: ${c.scope_name}`
+        + (c.not_in_plan ? ' (no longer in plan)' : '');
+      if (g !== group) { host.append(el('div', 'cal-group', g)); group = g; }
+      const line = el('div', 'log-line' + (c.done ? ' done' : '') + (c.not_in_plan ? ' gone' : ''));
+      const box = checkIn(c.done, ['calibrations', id, 'done'],
+                          (v) => line.classList.toggle('done', v));
+      const name = el('label', 'check');
+      name.style.margin = '0';
+      name.append(box, el('span', '', c.label));
+      line.append(name,
+        el('span', 'hint', 'UT'), utIn(c.ut, ['calibrations', id, 'ut']),
+        textIn(c.frames, ['calibrations', id, 'frames'], 'mid', 'frames'),
+        textIn(c.note, ['calibrations', id, 'note'], 'grow', 'note'));
+      host.append(line);
+    });
+  }
+  renderCals();
+
+  /* ---- 3. Night checklist */
+  const cl = $('#log-checklist');
+  Object.entries(data.log.night_checklist)
+    .sort((a, b) => a[1].order - b[1].order)
+    .forEach(([key, item]) => {
+      const l = el('label', 'check');
+      l.append(checkIn(item.done, ['night_checklist', key, 'done']),
+               el('span', '', item.label));
+      cl.append(l);
+    });
+
+  /* ---- 4. Conditions log, saved whole */
+  function renderConditions() {
+    const host = $('#log-conditions');
+    host.replaceChildren();
+    const rows = data.log.conditions || [];
+    if (!rows.length) host.append(el('div', 'hint', 'No entries yet.'));
+    rows.forEach((row, i) => {
+      const line = el('div', 'log-line');
+      const ut = textIn(utHHMM(row.ut), null, 'ut', 'HH:MM');
+      const sky = selectIn(row.sky, opts.sky);
+      const seeing = textIn(row.seeing, null, 'ut', 'seeing ″');
+      const note = textIn(row.note, null, 'grow', 'note');
+      const commit = () => {
+        const list = rows.map((r, j) => (j === i
+          ? { ut: ut.value, sky: sky.value, seeing: seeing.value, note: note.value } : r));
+        save(['conditions'], list).then(() => { renderConditions(); renderTargets(); });
+      };
+      [ut, sky, seeing, note].forEach((c) => c.addEventListener('change', commit));
+      const del = el('button', 'ghost', 'Remove');
+      del.type = 'button';
+      del.addEventListener('click', () =>
+        save(['conditions'], rows.filter((_, j) => j !== i))
+          .then(() => { renderConditions(); renderTargets(); }));
+      line.append(el('span', 'hint', 'UT'), ut, sky, seeing, note, del);
+      host.append(line);
+    });
+  }
+  $('#log-cond-add').addEventListener('click', () =>
+    save(['conditions'], [...(data.log.conditions || []),
+      { ut: new Date().toISOString(), sky: '', seeing: '', note: '' }])
+      .then(renderConditions));
+  renderConditions();
+
+  /* ---- 5. Target table */
+  const rowClass = (r) => {
+    let cls = `st-${r.status}`;
+    // During the night only, highlight pending rows whose planned end has
+    // already passed. Reviewing an old night shouldn't paint every row.
+    const now = new Date();
+    const live = now >= new Date(plan.night_start)
+      && now <= new Date(new Date(plan.night_end).getTime() + 2 * 3600e3);
+    if (live && r.status === 'pending' && r.planned.end && new Date(r.planned.end) < now) {
+      cls = 'st-late';
+    }
+    return cls + (r.not_in_plan ? ' gone' : '');
+  };
+
+  function renderTargets() {
+    const table = $('#log-targets');
+    table.replaceChildren();
+    const head = el('tr');
+    ['Target', 'Status', 'Reason', 'Start [UT]', 'Exposures [n × s]',
+     'Frames', 'Airmass', 'PA [deg]', 'Sky / seeing [″]', 'Checks',
+     'Quality', 'Success / z', 'Comments'].forEach((h) => head.append(el('th', '', h)));
+    table.append(head);
+
+    Object.entries(data.log.targets)
+      .sort((a, b) => a[1].order - b[1].order)
+      .forEach(([name, r]) => {
+        const tr = el('tr', rowClass(r));
+        const p = r.planned;
+        const der = data.derived.targets[name] || {};
+        const base = ['targets', name];
+
+        const who = el('td', 'w-l');
+        who.append(el('b', '', name + (r.not_in_plan ? ' (no longer in plan)' : '')));
+        const tub = p.cass_tub ? ` · tub ${p.cass_tub.tub.toFixed(2)} / ${p.cass_tub.alt_tub.toFixed(2)}` : '';
+        who.append(el('div', 'planned',
+          `${p.mode} · planned ${isoUT(p.science_start)}–${isoUT(p.end)} UT `
+          + `(${hhmm(p.science_start)}–${hhmm(p.end)} local)`
+          + (p.exposure_red ? ` · ${p.exposure_red}` : '') + tub));
+
+        const td = (cls, ...nodes) => { const c = el('td', cls); c.append(...nodes); return c; };
+        const status = selectIn(r.status, opts.statuses, [...base, 'status'],
+                                (v) => { r.status = v; tr.className = rowClass(r); });
+        const reason = selectIn(r.reason, opts.reasons, [...base, 'reason']);
+        const reasonText = textIn(r.reason_text, [...base, 'reason_text'], '', 'details');
+
+        const cond = der.conditions || {};
+        const sky = selectIn(r.sky, opts.sky, [...base, 'sky']);
+        if (!r.sky && cond.sky) sky.title = `log: ${logLabel(cond.sky)}`;
+        const seeing = textIn(r.seeing, [...base, 'seeing'], '',
+                              cond.seeing ? `log: ${cond.seeing}` : 'seeing');
+
+        const checks = el('div', 'checks');
+        opts.checks.forEach((k) => {
+          const l = el('label');
+          l.append(checkIn(r.checks[k], [...base, 'checks', k]), el('span', '', logLabel(k)));
+          checks.append(l);
+        });
+
+        const am = der.airmass_start;
+        tr.append(
+          who,
+          td('w-m', status),
+          td('w-m', reason, reasonText),
+          td('w-s', utIn(r.actual_start_ut, [...base, 'actual_start_ut'], () => refreshDerived())),
+          td('w-m', textIn(r.exposures_red, [...base, 'exposures_red'], '',
+                           p.exposure_red && /\d+\s*x/i.test(p.exposure_red) ? p.exposure_red : 'n x s')),
+          td('w-m', textIn(r.frames, [...base, 'frames'], '', 'e.g. r0045–0047')),
+          el('td', 'num am-cell', am == null ? '—' : am.toFixed(2)),
+          td('w-s', textIn(r.pa, [...base, 'pa'])),
+          td('w-m', sky, seeing),
+          td('', checks),
+          td('w-s', selectIn(r.quality, opts.qualities, [...base, 'quality'])),
+          td('w-s', selectIn(r.success, opts.success, [...base, 'success']),
+                    textIn(r.z, [...base, 'z'], '', 'z')),
+          td('w-l', textIn(r.comments, [...base, 'comments'])),
+        );
+        tr.dataset.name = name;
+        table.append(tr);
+      });
+  }
+  renderTargets();
+
+  /* Unplanned targets: a list saved whole. */
+  function renderUnplanned() {
+    const table = $('#log-unplanned');
+    table.replaceChildren();
+    const rows = data.log.unplanned || [];
+    if (!rows.length) {
+      const tr = el('tr');
+      tr.append(el('td', 'hint', 'None.'));
+      table.append(tr);
+      return;
+    }
+    const head = el('tr');
+    ['Target', 'Status', 'Start [UT]', 'Exposures [n × s]', 'Frames',
+     'Success / z', 'Comments', ''].forEach((h) => head.append(el('th', '', h)));
+    table.append(head);
+    rows.forEach((row, i) => {
+      const tr = el('tr', `st-${row.status}`);
+      const status = selectIn(row.status, opts.statuses);
+      const start = textIn(utHHMM(row.actual_start_ut), null, 'ut', 'HH:MM');
+      const exp = textIn(row.exposures_red, null, '', 'n x s');
+      const frames = textIn(row.frames, null, '', 'frames');
+      const succ = selectIn(row.success, opts.success);
+      const z = textIn(row.z, null, '', 'z');
+      const comments = textIn(row.comments, null, '', '');
+      const commit = () => {
+        const list = rows.map((r, j) => (j === i ? {
+          ...r, status: status.value, actual_start_ut: start.value,
+          exposures_red: exp.value, frames: frames.value, success: succ.value,
+          z: z.value, comments: comments.value,
+        } : r));
+        save(['unplanned'], list).then(renderUnplanned);
+      };
+      [status, start, exp, frames, succ, z, comments]
+        .forEach((c) => c.addEventListener('change', commit));
+      const del = el('button', 'ghost', 'Remove');
+      del.type = 'button';
+      del.addEventListener('click', () =>
+        save(['unplanned'], rows.filter((_, j) => j !== i)).then(renderUnplanned));
+      const cell = (...n) => { const c = el('td'); c.append(...n); return c; };
+      tr.append(cell(el('b', '', row.name)), cell(status), cell(start), cell(exp),
+                cell(frames), cell(succ, z), cell(comments), cell(del));
+      table.append(tr);
+    });
+  }
+  const pick = $('#log-unplanned-pick');
+  const firstOpt = el('option', '', 'pick a rejected target…');
+  firstOpt.value = '';
+  pick.append(firstOpt);
+  plan.decisions.filter((d) => d.status === 'rejected').forEach((d) => {
+    const o = el('option', '', `${d.name}${d.mag != null ? ` (mag ${d.mag})` : ''}`);
+    o.value = d.name;
+    pick.append(o);
+  });
+  $('#log-unplanned-add').addEventListener('click', () => {
+    const name = pick.value || $('#log-unplanned-name').value.trim();
+    if (!name) return;
+    const d = plan.decisions.find((x) => x.name === name) || {};
+    save(['unplanned'], [...(data.log.unplanned || []), {
+      name, mode: 'longslit', status: 'observed', ra_deg: d.ra_deg ?? null,
+      dec_deg: d.dec_deg ?? null, mag: d.mag ?? null,
+    }]).then(() => {
+      pick.value = '';
+      $('#log-unplanned-name').value = '';
+      renderUnplanned();
+    });
+  });
+  renderUnplanned();
+
+  /* Numbers the server derives: refreshed after every save, without
+     re-rendering inputs (that would steal focus mid-typing). */
+  function refreshDerived() {
+    const c = data.derived.calibrations;
+    const label = `${c.taken} / ${c.total} taken`;
+    $('#log-cal-count').textContent = label;
+    $('#log-cal-count2').textContent = `· calibrations ${label}`;
+    const t = data.derived.time;
+    const stats = $('#log-time');
+    stats.replaceChildren();
+    [[`${Math.round(t.planned_on_target_min)} min`, 'planned on target'],
+     [`${Math.round(t.integrated_min)} min`, 'integrated'],
+     [`${Math.round(t.lost_min)} min`, 'lost (weather / technical / other)']]
+      .forEach(([value, l]) => {
+        const s = el('div', 'stat');
+        s.append(el('b', '', value), el('span', '', l));
+        stats.append(s);
+      });
+    document.querySelectorAll('#log-targets tr[data-name]').forEach((tr) => {
+      const am = (data.derived.targets[tr.dataset.name] || {}).airmass_start;
+      const cell = tr.querySelector('.am-cell');
+      if (cell) cell.textContent = am == null ? '—' : am.toFixed(2);
+    });
+  }
+  refreshDerived();
+
+  /* ---- 6. Report */
+  $('#log-report').addEventListener('click', async () => {
+    const button = $('#log-report');
+    const status = $('#log-report-status');
+    button.disabled = true;
+    status.textContent = 'Writing…';
+    $('#log-report-warnings').replaceChildren();
+    try {
+      const out = await api('/api/log/report', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ output_dir: dir }),
+      });
+      status.textContent = `Wrote ${out.markdown_path.split('/').pop()} and `
+        + `${out.csv_path.split('/').pop()}`;
+      if (out.warnings.length) {
+        const box = notice(`${out.warnings.length} warning(s): `);
+        const ul = el('ul');
+        out.warnings.forEach((w) => ul.append(el('li', '', w)));
+        box.append(ul);
+        $('#log-report-warnings').append(box);
+      }
+      const pre = $('#log-report-md');
+      pre.textContent = out.markdown;
+      pre.hidden = false;
+    } catch (err) {
+      $('#log-report-warnings').replaceChildren(notice(err.message, true));
+      status.textContent = '';
+    } finally {
+      button.disabled = false;
+    }
+  });
 }
 
 window.addEventListener('hashchange', route);

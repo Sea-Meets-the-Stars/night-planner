@@ -58,6 +58,9 @@ the planner takes the **first** spelling it finds, in the order listed:
 | tags | no | `FRB_tags`, `tags`, `tag` | text |
 | DM | no | `FRB_DM`, `dm` | pc cm⁻³ |
 | priority | no | `priority`, `prio`, `rank` | float, **lower = more important** |
+| mag_band | no | `mag_band`, `band`, `mag_filter`, `Pri_filter` | band of `mag`: `u g r i z` (SDSS), `B V` (Buser), `R I` (Cousins). FFFF-PZ's `Blanco:DECam-r` reads as `r` |
+| t_target | no | `t_target`, `t_obs`, `exptime_min` | minutes on target; **sets the time for that row** |
+| required | no | `required` | true/false (also yes/no, 1/0); default false |
 
 **Every other column is carried through untouched.** Add `Notes`, `programme`,
 `z_phot`, whatever you like — nothing is lost, and the extra columns appear in
@@ -213,6 +216,32 @@ Those are written to `targets_with_priority.csv` in the plan's output directory 
 so a GUI plan can always be reproduced from the command line with that file.
 
 ---
+
+## 5b. Setting a target's time yourself: `t_target` and `required`
+
+Two optional columns let you overrule the planner for individual targets
+(added 2026-11-07, goal T3.3):
+
+```
+name,ra_deg,dec_deg,mag,t_target,required
+FRB20260518B,123.4,+45.6,20.1,45,yes
+FRB20260611G,210.0,+12.3,19.4,,
+```
+
+- **`t_target`** is the time on target in **minutes**, and it is used as given:
+  the ETC does not resize it. The ETC estimate is still worked out and shown
+  beside it in the plan table ("user (ETC 31)"), so you can see how far apart
+  they are. Treat it as the whole on-target block: no readout is added on top.
+  On LRIS, `--no-etc-for-user-times` skips the ETC call for these rows.
+- **`required`** means "the full time or nothing". A target that is not
+  required and runs out of room can be squeezed into idle time as a shortened
+  *partial* exposure (Kast does this by default). A required target never is:
+  if its full time does not fit, it is rejected with
+  `required: needs N min, no gap that long`.
+  - LRIS has no partial backfill, so `required` changes nothing there yet.
+- Values that can't be read (`t_target = soon`, `required = maybe`) don't
+  stop the table from loading. The row is treated as having no user time /
+  as not required, and the target-table page lists the offending values.
 
 ## 6. What makes a list *good*, not just valid
 

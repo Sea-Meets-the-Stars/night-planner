@@ -71,8 +71,7 @@ def add_observing_checklist(ws):
         "Standard star (evening)",
         "Science targets started",
         "Standard star (morning)",
-        "Arc lamp calibrations",
-        "Flat field calibrations",
+        "Calibrations: see the Observing log page",
         "Dome closed",
         "Data transferred"
     ]
@@ -271,8 +270,12 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst, blocks=None):
                         + ([tags] if tags else []))
         comments = ' | '.join(comment_bits)[:40]
 
-        # Slew (Keck rule: 10 min base, 20 min Dec<+20 -> Dec>+20)
+        # Slew, then acquisition (keck_overheads.py: 5 min base slew, 14 min
+        # Dec<+20 -> Dec>+20; acquisition 5 min longslit, 10 min mask).
         add_row(action=f"slew to", target=tns, duration_min=slew_min)
+        acq_min = targ.get('acq_min')
+        if pd.notna(acq_min) and acq_min:
+            add_row(action="acquire", target=tns, duration_min=int(acq_min))
 
         # Science observation
         add_row(action="Science" if not is_mos else "Science (MOS)",
@@ -304,9 +307,9 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst, blocks=None):
             duration_min=5,
             ra_hours=23.333)
 
-    # Calibrations
-    add_row(action="Arc lamps (HgNeArCdZn)", duration_min=10)
-    add_row(action="Internal flats", duration_min=10)
+    # Calibrations aren't scheduled (2026-11-07, T1.5); the observer takes
+    # them and ticks them off on the Observing log page.
+    add_row(action="Calibrations: see the Observing log page")
 
     # Add notes section
     note_row = current_row + 2
@@ -335,7 +338,8 @@ def add_night_sheet(wb, date_str, selected_targets, start_hst, blocks=None):
     notes = [
         gap_note,
         "- All targets observable at airmass < 2.0 when scheduled",
-        "- Keck slews: 10 min base; 20 min when moving from Dec < +20 to Dec > +20",
+        "- Keck slews: 5 min base; 14 min when moving from Dec < +20 to Dec > +20",
+        "- Acquisition after each slew: 5 min longslit, 10 min mask",
         "- MOS blocks include a 5 min buffer per mask on top of the 1-2h allocation",
         "- LRIS setup: 560 dichroic, 600/4000 blue grism, 600/7500 red grating (~7200A)",
         "- Exposure times from the real LRIS ETC (etc.ucolick.org): S/N=10/pixel per single exposure, 3 exposures min",

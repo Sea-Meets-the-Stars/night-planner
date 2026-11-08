@@ -36,7 +36,7 @@ from night_planner.paths import plans_dir
 from night_planner.plan_store import load_plan
 from night_planner.targets_io import (
     DEFAULT_PRIORITY, TargetTableError, detect_format, detect_mapping,
-    load_targets, priority_coercions,
+    field_coercions, load_targets, priority_coercions,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -176,6 +176,48 @@ def list_instruments():
             for name, spec in sorted(INSTRUMENTS.items())]
 
 
+@app.get('/api/instruments/{name}/options')
+def instrument_options(name: str):
+    """
+    What the setup page's Configuration card may offer for an instrument:
+    the ETC-supported values, the defaults, and the magnitude bands.
+    """
+    from night_planner.instrument_params import (DEFAULT_CONFIG, DEFAULT_MAG_BAND,
+                                                 DEFAULT_SEEING, ETC_FILTERS,
+                                                 ETC_OPTIONS, GRISM_NAMES)
+    if name not in ETC_OPTIONS:
+        raise HTTPException(404, f'unknown instrument: {name}')
+    from night_planner.etc import DEFAULT_ETC, TARGET_SN
+    return {
+        'options': ETC_OPTIONS[name],
+        'grism_names': GRISM_NAMES.get(name, {}),
+        'defaults': {**DEFAULT_CONFIG[name], 'seeing': DEFAULT_SEEING[name],
+                     'mag_band': DEFAULT_MAG_BAND, 'etc': DEFAULT_ETC[name],
+                     'target_sn': TARGET_SN[name], 'airmass_rule': 'worst'},
+        'bands': list(ETC_FILTERS),
+        'etcs': [name] + (['empirical'] if name == 'kast' else []),
+        'airmass_rules': ['worst', 'mid', 'best'],
+    }
+
+
+@app.get('/api/etc')
+def etc_spectrum(output_dir: str, target: str):
+    """
+    A scheduled target's predicted S/N spectrum (T3.4a): what the ETC
+    returned at the airmass the target was scheduled at, about 200 points.
+    """
+    base = _safe_dir(output_dir) / 'etc'
+    path = (base / f'{target}.json').resolve()
+    if not path.is_relative_to(base.resolve()):
+        raise HTTPException(400, 'target name escapes the plan directory')
+    if not path.exists():
+        raise HTTPException(404, f'no ETC spectrum for {target} (MOS blocks, '
+                                 'fixed recipes and the empirical Kast rule '
+                                 'have none; older plans predate them)')
+    with open(path) as f:
+        return json.load(f)
+
+
 @app.get('/api/plans')
 def list_plans():
     """Existing plan directories under Night_plans/, newest first."""
@@ -188,6 +230,18 @@ def list_plans():
                     'has_plan': saved.exists(),
                     'modified': saved.stat().st_mtime if saved.exists() else None})
     return sorted(out, key=lambda p: (p['modified'] or 0), reverse=True)
+
+
+@app.get('/api/targets/columns')
+def target_columns():
+    """
+    The columns a target table needs and may have, with the spellings
+    recognised for each (T2.4). Served from targets_io so the setup page's
+    list can never drift from what the loader actually reads.
+    """
+    from night_planner.targets_io import ALIASES, OPTIONAL_FIELDS, REQUIRED_FIELDS
+    return {'required': list(REQUIRED_FIELDS), 'optional': list(OPTIONAL_FIELDS),
+            'aliases': {k: list(v) for k, v in ALIASES.items()}}
 
 
 @app.post('/api/targets/inspect')
@@ -227,8 +281,11 @@ def inspect_targets(file: UploadFile = File(None), path: str = Query(None)):
     if mapping.ok:
         try:
             canonical = load_targets(frame, mapping=mapping)
-            columns = ['name', 'ra_deg', 'dec_deg', 'mag', 'priority']
-            preview = canonical[columns].head(PREVIEW_LIMIT).to_dict('records')
+            columns = ['name', 'ra_deg', 'dec_deg', 'mag', 'priority',
+                       't_target', 'required', 'tags', 'dm']
+            head = canonical[columns].head(PREVIEW_LIMIT).astype(object)
+            # NaN isn't JSON; an unset t_target travels as null.
+            preview = head.where(head.notna(), None).to_dict('records')
             truncated = max(len(canonical) - PREVIEW_LIMIT, 0)
         except TargetTableError as err:
             mapping.issues.append(str(err))
@@ -244,7 +301,8 @@ def inspect_targets(file: UploadFile = File(None), path: str = Query(None)):
             'mapping': mapping.to_dict(), 'preview': preview,
             'preview_truncated': truncated,
             'default_priority': DEFAULT_PRIORITY,
-            'priority_coercions': coercions}
+            'priority_coercions': coercions,
+            'field_coercions': field_coercions(frame, mapping=mapping)}
 
 
 # --------------------------------------------------------------------
@@ -270,6 +328,22 @@ class GenerateRequest(BaseModel):
     assume_masks: bool = False         # schedule mask-needing targets anyway
     priorities: dict = {}              # {target name: float}, lower = better
     no_partials: bool = False          # leave idle time idle
+    # Instrument configuration and observing assumptions (M4). Unset = the
+    # instrument's default (instrument_params.DEFAULT_CONFIG / DEFAULT_SEEING).
+    grism: Optional[str] = None
+    grating: Optional[str] = None
+    dichroic: Optional[str] = None
+    slit: Optional[float] = None
+    binning: Optional[str] = None
+    seeing: Optional[float] = None     # FWHM arcsec
+    mag_band: Optional[str] = None     # band of the mag column
+    # Milestone 5 (T1.3, T3.4).
+    airmass_rule: Optional[str] = None  # worst | mid | best
+    etc: Optional[str] = None           # registry name or 'pkg.mod:func'
+    target_sn: Optional[float] = None   # per sub-exposure
+    # Milestone 10 (T4.1): several plans for the night, one per scenario
+    # [{name, seeing?, start?, blocks?}], each in <output_dir>/<slug>/.
+    scenarios: list = []
 
 
 @app.post('/api/generate')
@@ -316,6 +390,11 @@ def generate(req: GenerateRequest):
                                 'max_targets', 'assume_masks', 'no_partials')
              if getattr(req, name)}
     asked |= {'forced'} if req.forced else set()
+    config_keys = ('grism', 'grating', 'dichroic', 'slit', 'binning')
+    if any(getattr(req, k) is not None for k in config_keys):
+        asked.add('config')
+    asked |= {k for k in ('seeing', 'mag_band', 'airmass_rule', 'etc', 'target_sn')
+              if getattr(req, k) is not None}
     unsupported = sorted(asked - supports)
     if unsupported:
         raise HTTPException(
@@ -323,6 +402,32 @@ def generate(req: GenerateRequest):
                  f"{', '.join(unsupported)} -- it is still tied to its own "
                  f"run's targets and output directory. Use lris for a plan "
                  f"built from your own target table.")
+
+    # A configuration the ETC can't model is the user's to fix, so say what
+    # is allowed here rather than failing deep inside the run.
+    from night_planner.instrument_params import (ConfigError, DEFAULT_CONFIG,
+                                                 etc_filter, validate_config)
+    try:
+        config = dict(DEFAULT_CONFIG[req.instrument])
+        config.update({k: getattr(req, k) for k in config_keys
+                       if getattr(req, k) is not None})
+        validate_config(req.instrument, config)
+        if req.mag_band is not None:
+            etc_filter(req.mag_band)
+    except ConfigError as err:
+        raise HTTPException(400, str(err))
+    if req.seeing is not None and not 0 < req.seeing < 10:
+        raise HTTPException(400, f'seeing {req.seeing}" is not plausible')
+    if req.airmass_rule is not None and req.airmass_rule not in ('worst', 'mid', 'best'):
+        raise HTTPException(400, 'airmass rule must be worst, mid or best')
+    if req.target_sn is not None and req.target_sn <= 0:
+        raise HTTPException(400, 'target S/N must be positive')
+    if req.etc is not None:
+        from night_planner.etc import load_etc
+        try:
+            load_etc(req.etc)
+        except (ValueError, ImportError) as err:
+            raise HTTPException(400, str(err))
 
     # Priorities travel in the table, so the CLI and the GUI consume exactly
     # the same input and the plan directory records what it was built from.
@@ -349,6 +454,19 @@ def generate(req: GenerateRequest):
         argv.append('--assume-masks')
     if req.no_partials:
         argv.append('--no-partials')
+    for name in (*config_keys, 'seeing', 'mag_band', 'airmass_rule', 'etc',
+                 'target_sn'):
+        value = getattr(req, name)
+        if value is not None and value != '':
+            argv += [f"--{name.replace('_', '-')}", str(value)]
+
+    if req.scenarios:
+        names = [str(s.get('name') or '').strip() for s in req.scenarios]
+        if not all(names):
+            raise HTTPException(400, 'every scenario needs a name')
+        from night_planner.scenarios import slugify
+        if len({slugify(n) for n in names}) != len(names):
+            raise HTTPException(400, 'scenario names must differ')
 
     try:
         # argparse writes its complaint to stderr and then raises SystemExit
@@ -356,6 +474,8 @@ def generate(req: GenerateRequest):
         # a bare number.
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
+            if req.scenarios:
+                return _generate_scenarios(req, argv, output_dir)
             plan = generate_plan(req.instrument, argv)
     except TargetTableError as err:
         # The table needs a column mapping -- hand back what was detected
@@ -367,13 +487,88 @@ def generate(req: GenerateRequest):
         message = detail[-1] if detail else f'exit code {err}'
         raise HTTPException(400, f'the {req.instrument} planner rejected this '
                                  f'request: {message}')
-    return plan.to_dict()
+    return _plan_payload(plan)
+
+
+def _generate_scenarios(req, argv, base_dir):
+    """
+    Generate one plan per scenario into <base>/<slug>/ and index them in
+    <base>/scenarios.json (T4.1).
+
+    Returns
+    -------
+    dict : the first scenario's plan payload, plus 'scenarios' (the index).
+    """
+    from night_planner.adapters import SITES
+    from night_planner.scenarios import scenario_argv, slugify, write_index
+    from night_planner.sun_events import find_sun_events
+
+    site = SITES[req.instrument]
+    # 'Lost first half' blocks from the start of the night: astronomical
+    # dusk, unless a manual start was given.
+    night_hhmm = req.start
+    if not night_hhmm and req.date:
+        sun = find_sun_events(req.date, site['location'], site['tz'])
+        night_hhmm = f'{sun.dusk_astronomical:%H:%M}'
+
+    entries, first = [], None
+    for scenario in req.scenarios:
+        s_argv, s_dir = scenario_argv(argv, scenario, str(base_dir), night_hhmm)
+        plan = generate_plan(req.instrument, s_argv)
+        entries.append({'name': scenario['name'], 'slug': slugify(scenario['name']),
+                        'dir': s_dir, 'seeing': scenario.get('seeing'),
+                        'start': scenario.get('start'),
+                        'blocks': scenario.get('blocks') or []})
+        first = first or plan
+    write_index(str(base_dir), entries)
+    return {**_plan_payload(first), 'scenarios': entries}
+
+
+@app.get('/api/scenarios')
+def get_scenarios(output_dir: str):
+    """
+    The scenario tabs for a plan directory (a base or one of its scenarios),
+    with a comparison row each: targets scheduled, on-target hours, idle
+    minutes, and targets unique to that scenario.
+    """
+    from night_planner.scenarios import comparison, find_base, load_index
+
+    base, slug = find_base(str(_safe_dir(output_dir)))
+    if base is None:
+        return {'base': None, 'active': None, 'scenarios': []}
+    entries = load_index(base)
+    plans = {}
+    for e in entries:
+        plan = load_plan(os.path.join(base, e['slug']))
+        if plan is not None:
+            plans[e['slug']] = plan
+    rows = comparison(plans)
+    return {'base': base, 'active': slug or (entries[0]['slug'] if entries else None),
+            'scenarios': [{**e, 'dir': os.path.join(base, e['slug']),
+                           **rows.get(e['slug'], {})} for e in entries]}
+
+
+def _plan_payload(plan):
+    """
+    A plan as the API serves it: PlanResult.to_dict() plus the LST at the
+    start and end of the night (T2.3), for the timeline's LST axis.
+    PlanResult stays astropy-free, so LST is added here.
+    """
+    from night_planner.adapters import SITES
+    from night_planner.sky import lst_hours
+
+    data = plan.to_dict()
+    site = SITES.get(plan.instrument)
+    if site is not None:
+        lst = lst_hours([plan.night_start, plan.night_end], site['location'])
+        data['lst_start_h'], data['lst_end_h'] = float(lst[0]), float(lst[1])
+    return data
 
 
 @app.get('/api/plan')
 def get_plan(output_dir: str):
     """The saved normalized plan for a directory."""
-    return _require_plan(output_dir).to_dict()
+    return _plan_payload(_require_plan(output_dir))
 
 
 class RegenerateRequest(BaseModel):
@@ -415,7 +610,7 @@ def regenerate(req: RegenerateRequest):
         argv += ['--force', f"{forced['target']}@{forced['minutes']}"]
 
     try:
-        return generate_plan(request.get('instrument', plan.instrument), argv).to_dict()
+        return _plan_payload(generate_plan(request.get('instrument', plan.instrument), argv))
     except SystemExit as err:
         raise HTTPException(400, f'planner exited: {err}')
 
@@ -744,6 +939,146 @@ def generate_starlist(req: StarlistRequest):
     path.write_text(text)
 
     return {'path': str(path), 'name': name, 'text': text, 'notes': notes}
+
+
+# --------------------------------------------------------------------
+# Observing log (with the calibrations checklist) and the night report
+# --------------------------------------------------------------------
+
+def _plan_here(output_dir):
+    """
+    The resolved plan directory and its plan, with plan.output_dir pinned
+    to that directory. A copied or moved plan still records where it was
+    generated, and the log and report must land beside the plan that was
+    actually asked for.
+    """
+    base = _safe_dir(output_dir)
+    plan = _require_plan(output_dir)
+    plan.output_dir = str(base)
+    return base, plan
+
+
+def _log_context(output_dir):
+    """
+    Where the night's log lives and which plans feed it.
+
+    A plain plan directory keeps its own log. A night with scenarios (T4.1)
+    has one log at the scenario base: only one scenario is observed. Target
+    rows follow the scenario marked in use (night.scenario, else the one
+    being viewed), and calibrations are the union over every scenario.
+
+    Returns
+    -------
+    (log_dir, plan, extra_plans) : (Path, PlanResult, list of PlanResult)
+    """
+    from night_planner.observing_log import load_log
+    from night_planner.scenarios import find_base, load_index
+
+    here, plan = _plan_here(output_dir)
+    base, slug = find_base(str(here))
+    if base is None:
+        return here, plan, []
+    entries = load_index(base)
+    slugs = [e['slug'] for e in entries]
+    log = load_log(base) or {}
+    in_use = (log.get('night') or {}).get('scenario')
+    if in_use not in slugs:
+        in_use = slug or (slugs[0] if slugs else None)
+    plans = {}
+    for s in slugs:
+        p = load_plan(os.path.join(base, s))
+        if p is not None:
+            p.output_dir = os.path.join(base, s)
+            plans[s] = p
+    plan = plans.get(in_use, plan)
+    return Path(base), plan, [p for s, p in plans.items() if s != in_use]
+
+
+def _log_payload(plan, log):
+    """The log plus everything the page derives from it."""
+    from night_planner import observing_log as olog
+    from night_planner.adapters import SITES
+
+    location = SITES.get(plan.instrument, {}).get('location')
+    return {
+        'log': log,
+        'derived': olog.derived(log, plan, location),
+        'options': {
+            'statuses': olog.STATUSES, 'reasons': olog.REASONS,
+            'qualities': olog.QUALITIES, 'success': olog.SUCCESS,
+            'sky': olog.SKY, 'checks': olog.CHECKS,
+            'lost_causes': olog.LOST_CAUSES,
+        },
+    }
+
+
+@app.get('/api/log')
+def get_log(output_dir: str):
+    """
+    The night's observing log, created on first visit and merged with the
+    current plan on every visit, so a regenerated plan shows up without
+    losing anything already typed.
+    """
+    from night_planner.observing_log import open_log
+
+    log_dir, plan, extra = _log_context(output_dir)
+    return _log_payload(plan, open_log(plan, str(log_dir), extra_plans=extra))
+
+
+class LogPatch(BaseModel):
+    output_dir: str
+    # A list of keys, e.g. ["targets", "FRB20260518B", "status"]. A dotted
+    # string is accepted too, for hand-typed calls, as long as no key has
+    # a dot in it.
+    path: list[str] | str
+    value: object = None
+    source: str = 'manual'
+
+
+@app.patch('/api/log')
+def patch_log(req: LogPatch):
+    """Set one field of the log (small writes, safe to autosave on blur)."""
+    from night_planner import observing_log as olog
+
+    log_dir, plan, extra = _log_context(req.output_dir)
+    log = olog.open_log(plan, str(log_dir), extra_plans=extra)
+    path = req.path.split('.') if isinstance(req.path, str) else req.path
+    try:
+        value = olog.set_field(log, plan, path, req.value, source=req.source)
+    except olog.LogEditError as err:
+        raise HTTPException(400, str(err))
+    olog.save_log(str(log_dir), log)
+    return {'value': value, **_log_payload(plan, log)}
+
+
+class ReportRequest(BaseModel):
+    output_dir: str
+    survey: str = 'CHIME/FRB'
+    resource: Optional[str] = None
+
+
+@app.post('/api/log/report')
+def log_report(req: ReportRequest):
+    """
+    Write observing_report_<date>.md and the FFFF-PZ CSV from the log.
+    Gaps (pending rows, missing frames, calibrations not taken) come back as
+    warnings; the report is written anyway.
+    """
+    from night_planner.adapters import SITES
+    from night_planner.observing_log import open_log
+    from night_planner.observing_report import write_report
+
+    log_dir, plan, extra = _log_context(req.output_dir)
+    log = open_log(plan, str(log_dir), extra_plans=extra)
+    # The report sits with the log: at the scenario base for a night with
+    # scenarios.
+    plan.output_dir = str(log_dir)
+    location = SITES.get(plan.instrument, {}).get('location')
+    out = write_report(plan, log, location, survey=req.survey,
+                       resource=req.resource)
+    with open(out['markdown_path']) as f:
+        out['markdown'] = f.read()
+    return out
 
 
 @app.get('/api/export')

@@ -31,7 +31,8 @@ from astropy.coordinates import Angle
 from astropy import units as u
 
 REQUIRED_FIELDS = ('name', 'ra', 'dec', 'mag')
-OPTIONAL_FIELDS = ('pox', 'tags', 'dm', 'priority')
+OPTIONAL_FIELDS = ('pox', 'tags', 'dm', 'priority', 'mag_band', 't_target',
+                   'required')
 
 # Priority convention, shared with the UCSC AstroScheduler so the two stay
 # comparable: a float, lower = more important. Every target defaults to the
@@ -57,7 +58,97 @@ ALIASES = {
     'tags': ['frb_tags', 'tags', 'tag'],
     'dm': ['frb_dm', 'dm'],
     'priority': ['priority', 'prio', 'rank'],
+    # Band of the mag column for this row (T3.5, 2026-11-07); beats the
+    # plan-wide --mag-band. 'filter' is deliberately not an alias: too many
+    # tables use it for something else.
+    # FFFF-PZ's Pri_filter is the band of Pri_mag, written as
+    # 'Survey:Instrument-band' (e.g. 'Blanco:DECam-r'); normalize_band()
+    # keeps just the band.
+    'mag_band': ['mag_band', 'band', 'mag_filter', 'pri_filter'],
+    # Milestone 6 (T3.3): minutes on target set by the user (the ETC is then
+    # only shown alongside), and whether a target must get its full time or
+    # nothing (never truncated into a partial).
+    't_target': ['t_target', 't_obs', 'exptime_min'],
+    'required': ['required'],
 }
+
+_TRUE = {'true', 'yes', 'y', '1', 't'}
+_FALSE = {'false', 'no', 'n', '0', 'f', ''}
+
+
+def parse_required(value):
+    """
+    A `required` cell as a bool.
+
+    Parameters
+    ----------
+    value : any
+        true/false, yes/no, y/n, 1/0 (any case), a bool, or empty/NaN.
+
+    Returns
+    -------
+    bool or None : None for a value that isn't recognisably either (the
+    caller treats it as False and reports it).
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return False
+    text = str(value).strip().lower()
+    if text.endswith('.0'):
+        text = text[:-2]
+    if text in _TRUE:
+        return True
+    if text in _FALSE:
+        return False
+    return None
+
+
+def parse_t_target(value):
+    """
+    A `t_target` cell as minutes.
+
+    Parameters
+    ----------
+    value : any
+
+    Returns
+    -------
+    float, NaN for an empty cell, or None for a value that isn't a positive
+    number (the caller treats it as unset and reports it).
+    """
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return np.nan
+    if isinstance(value, str) and not value.strip():
+        return np.nan
+    try:
+        minutes = float(value)
+    except (TypeError, ValueError):
+        return None
+    return minutes if minutes > 0 else None
+
+
+def normalize_band(value):
+    """
+    The photometric band in a table cell.
+
+    Parameters
+    ----------
+    value : any
+        e.g. 'r', ' g ', 'Blanco:DECam-r', 'Pan-STARRS1:GPC1-r', NaN.
+
+    Returns
+    -------
+    str : the band after the last '-' or ':' (case kept, since R/I are
+    Cousins and r/i are SDSS), or '' for an empty cell.
+    """
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return ''
+    text = str(value).strip()
+    for sep in ('-', ':'):
+        if sep in text:
+            text = text.rsplit(sep, 1)[1].strip()
+    return text
 
 # Source columns whose name already settles the unit question. Anything
 # outside these two sets is "bare" (e.g. plain 'ra') and gets the
@@ -268,6 +359,17 @@ def load_targets(source, mapping=None):
     for fieldname, empty in (('pox', np.nan), ('tags', ''), ('dm', np.nan)):
         source_col = mapping.columns.get(fieldname)
         out[fieldname] = df[source_col] if source_col else empty
+    source_col = mapping.columns.get('mag_band')
+    out['mag_band'] = (df[source_col].map(normalize_band) if source_col else '')
+    # Unreadable t_target / required values fall back to unset / False, like
+    # priority; field_coercions() reports them.
+    source_col = mapping.columns.get('t_target')
+    out['t_target'] = (df[source_col].map(parse_t_target).map(
+        lambda v: np.nan if v is None else v).astype(float)
+        if source_col else np.nan)
+    source_col = mapping.columns.get('required')
+    out['required'] = (df[source_col].map(parse_required).map(bool)
+                       if source_col else False)
 
     # Priority is handled apart from the loop above because it is the one
     # optional field the scheduler *computes with*: every consumer may assume
@@ -349,3 +451,36 @@ def priority_coercions(source, mapping=None):
     examples = [str(v) for v in df.loc[bad, column].drop_duplicates().head(3)]
     return {'column': column, 'n_total': len(df),
             'n_coerced': int(bad.sum()), 'examples': examples}
+
+
+def field_coercions(source, mapping=None):
+    """
+    Unreadable t_target / required values, for reporting to the user
+    (the same idea as priority_coercions).
+
+    Created by JXP and Claude
+
+    Inputs
+    ------
+    source : str, Path or pandas.DataFrame
+    mapping : ColumnMapping, optional
+
+    Outputs
+    -------
+    dict field -> {'column', 'n_coerced', 'examples'} for t_target and
+    required; fields the table doesn't have are left out.
+    """
+    df = (pd.read_csv(source) if isinstance(source, (str, os.PathLike))
+          else source)
+    if mapping is None:
+        mapping = detect_mapping(df)
+    out = {}
+    for field, parse in (('t_target', parse_t_target),
+                         ('required', parse_required)):
+        column = mapping.columns.get(field)
+        if not column:
+            continue
+        bad = [v for v in df[column] if parse(v) is None]
+        out[field] = {'column': column, 'n_coerced': len(bad),
+                      'examples': sorted({str(v) for v in bad})[:3]}
+    return out

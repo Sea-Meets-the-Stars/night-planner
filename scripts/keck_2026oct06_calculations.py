@@ -2,9 +2,43 @@
 Calculate LST, twilight, airmass for Keck/LRIS Oct 6, 2026 night
 and select targets for observation.
 
-Target pool: Keck-2026B-02 (global FFFF-PZ). Slews come from
-keck_overheads.py (10 min base, 20 min Dec<+20 -> Dec>+20). MOS blocks get
-+5 min buffer, and only masks in MOS_MASKS_AVAILABLE are schedulable.
+Target pool: Keck-2026B-02 (global FFFF-PZ). Slews and acquisition come
+from keck_overheads.py (5 min base slew, 14 min Dec<+20 -> Dec>+20;
+acquisition 5 min longslit, 10 min mask). MOS blocks get a +5 min buffer,
+and only masks in MOS_MASKS_AVAILABLE are schedulable.
+
+History:
+- 2026-11-07 (T1.5): calibrations (arcs, flats) are no longer scheduled or
+  reserved. They're taken when the observer chooses and are ticked off on
+  the Observing log page. The flat 30 min "for calibrations" reserve became
+  MORNING_RESERVE_MIN: just the closing slew to Feige 110 and the morning
+  standard.
+- 2026-11-07 (T1.1): detector readout is charged per frame for ETC/recipe
+  exposures (instrument_params.readout_minutes, 80 s per frame at 2x2):
+  block = slew + acq + on target + readout. MOS blocks and forced
+  allocations are time budgets that already include readout, so nothing is
+  added to them.
+- 2026-11-07 (T3.6): Keck I zenith limit (88.9 deg) enforced in
+  check_keck_limits; blocks passing above 85 deg get a guiding warning in
+  their notes (_flag_near_zenith). Limits live in
+  instrument_params.KECK_ELEVATION_LIMITS.
+- 2026-11-07 (T1.6): priority tiers. The top tier runs the window-order
+  greedy pass (_greedy_pass) over the whole night; lower tiers are inserted
+  into its gaps (_insert_tier) with an exact slew fit, and the next target's
+  slew is recomputed.
+- 2026-11-07 (T3.3): a target table's t_target (minutes on target, the
+  whole block, no readout added) overrides the ETC for that row; the ETC
+  estimate is kept as etc_min. `required` is carried through, but LRIS has
+  no partial backfill, so it changes nothing here yet.
+- 2026-11-07 (T1.3, T3.4): exposures come from night_planner.etc (the UCO
+  ETC by default, or --etc), re-run at the airmass the target gets over
+  its scheduled science span (--airmass-rule, default worst) and
+  re-placed when they grow (up to MAX_AIRMASS_ROUNDS). The night's best
+  airmass is only the first guess. Per-target S/N spectra go to
+  <plan>/etc/<target>.json.
+- 2026-11-07 (T1.2): acquisition is its own term (keck_acquisition_minutes),
+  between the slew and science: block = slew + acq + on target. Base slew
+  5 min, crossing 14 min (keck_overheads.py).
 
 Created by JXP and Claude
 """
@@ -18,7 +52,8 @@ from datetime import datetime, timedelta, timezone
 import os
 
 from lris_etc import estimate_lris_exposure_real
-from keck_overheads import (keck_slew_minutes, KECK_SLEW_BASE_MIN,
+from keck_overheads import (keck_slew_minutes, keck_slew_reason,
+                             keck_acquisition_minutes, KECK_SLEW_BASE_MIN,
                              KECK_SLEW_DEC_CROSS_MIN)
 from schedule_overrides import (resolve_start, fit_around_blocks, blocking_reason,
                                  push_past_blocks, _overlapping_block)
@@ -30,6 +65,10 @@ from pathlib import Path
 # Repo-relative, so this runs wherever the checkout lives.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from night_planner.paths import plans_dir
+from night_planner.instrument_params import (DEFAULT_CONFIG, ConfigError,
+                                             add_config_args, readout_minutes,
+                                             resolve_options)
+from night_planner.sky import block_airmass
 
 _PLANS = plans_dir()
 
@@ -37,6 +76,19 @@ _PLANS = plans_dir()
 # evening standard and slews to the morning standard after the last target.
 EVENING_STANDARD_DEC = 28.8640   # BD+28 4211
 MORNING_STANDARD_DEC = -5.1656   # Feige 110
+MORNING_STANDARD_MIN = 5
+
+# Re-placements allowed when the ETC, re-run at the scheduled airmass, asks
+# for a longer exposure (T1.3).
+MAX_AIRMASS_ROUNDS = 3
+
+# Time held back at the end of the night: the slew to Feige 110 plus the
+# standard itself. Feige 110 is south of +20 deg, so that slew is never a
+# S->N crossing and always costs the base slew. Calibrations aren't in here
+# (2026-11-07, T1.5): the observer takes them and ticks them off on the
+# Observing log page.
+MORNING_RESERVE_MIN = (keck_slew_minutes(0.0, MORNING_STANDARD_DEC)
+                       + MORNING_STANDARD_MIN)
 
 # Keck Observatory coordinates (Maunakea summit)
 # Verified against astropy's EarthLocation.of_site('keck') (IRAF Observatory
@@ -182,10 +234,14 @@ def calculate_airmass(ra, dec, time_utc, location=KECK):
 # Keck I: az 5.3-146.2 deg needs alt >= 33.3 deg (deck hit is N/E for Keck I;
 # it's S/W for Keck II -- opposite side). Elsewhere the normal unvignetted
 # floor is ~18 deg.
-KECK1_NASMYTH_AZ_MIN = 5.3
-KECK1_NASMYTH_AZ_MAX = 146.2
-KECK1_NASMYTH_ALT_MIN = 33.3
-KECK1_ALT_MIN = 18.0
+# One source of truth: instrument_params.KECK_ELEVATION_LIMITS (TelLimits
+# page, fetched 2026-11-07).
+from night_planner.instrument_params import KECK_ELEVATION_LIMITS as _KEL
+KECK1_NASMYTH_AZ_MIN, KECK1_NASMYTH_AZ_MAX = _KEL['nasmyth_az']
+KECK1_NASMYTH_ALT_MIN = _KEL['nasmyth_floor']
+KECK1_ALT_MIN = _KEL['floor']
+KECK1_ZENITH_MAX = _KEL['zenith_max']
+KECK1_GUIDE_WARN = _KEL['guide_warn']
 
 
 def check_keck1_nasmyth_vignetting(az, alt):
@@ -214,11 +270,12 @@ def check_keck1_nasmyth_vignetting(az, alt):
     return alt >= KECK1_ALT_MIN
 
 
-def check_keck_limits(ra, dec, ha, alt, az):
+def check_keck_limits(ra, dec, ha, alt, az, ignore_zenith=False):
     """
     Check if target violates Keck I pointing/vignetting limits.
 
     Keck constraints:
+    - Elevation <= 88.9° (zenith tracking limit, T3.6)
     - Dec > -37° (horizon limit at low dec)
     - HA limits: -5.5h to +5.5h (roughly)
     - Keck I Nasmyth-deck vignetting (see check_keck1_nasmyth_vignetting)
@@ -230,6 +287,12 @@ def check_keck_limits(ra, dec, ha, alt, az):
     ha : float (hours)
     alt : float (degrees)
     az : float (degrees)
+
+    ignore_zenith : bool
+        Skip the 88.9° tracking limit. The window search uses this: the
+        zenith keyhole lasts minutes, so it is handled as a per-target
+        blocked interval (zenith_keyhole) rather than by cutting the
+        target's window in two and keeping only the first half.
 
     Returns
     -------
@@ -246,6 +309,11 @@ def check_keck_limits(ra, dec, ha, alt, az):
 
     if ha > 5.5:
         return False, f"HA {ha:.2f}h > +5.5h limit (too far west)"
+
+    # Keck I can't track through the zenith (T3.6, 2026-11-07).
+    if not ignore_zenith and alt > KECK1_ZENITH_MAX:
+        return False, (f"alt {alt:.1f}° above the Keck I zenith limit "
+                       f"({KECK1_ZENITH_MAX}°)")
 
     # Keck I Nasmyth deck vignetting
     if not check_keck1_nasmyth_vignetting(az, alt):
@@ -314,7 +382,8 @@ def forced_longslit_exposure(tns):
     sci = f['n_sub'] * f['sub_len'] / 60.0
     exp = f"{f['n_sub']} x {f['sub_len']}"
     return {'red_exp': exp, 'blue_exp': exp, 'science_min': sci,
-            'total_min': sci, 'mode': 'longslit'}
+            'total_min': sci, 'mode': 'longslit',
+            'n_sub': f['n_sub'], 'sub_len_s': f['sub_len']}
 
 
 def estimate_mos_exposure(mag_r):
@@ -344,7 +413,8 @@ def estimate_mos_exposure(mag_r):
     }
 
 
-def estimate_lris_exposure(mag_r, mode='longslit', airmass=1.2):
+def estimate_lris_exposure(mag_r, mode='longslit', airmass=1.2, config=None,
+                           seeing=None, band='r'):
     """
     Estimate LRIS exposure times.
 
@@ -371,6 +441,13 @@ def estimate_lris_exposure(mag_r, mode='longslit', airmass=1.2):
     mode : str
     airmass : float
         Use the target's actual airmass at observation time.
+    config : dict, optional
+        Instrument configuration (grism, grating, dichroic, slit, binning);
+        defaults to instrument_params.DEFAULT_CONFIG['lris'] (M4, T3.1).
+    seeing : float, optional
+        FWHM arcsec; defaults to lris_etc.DEFAULT_SEEING (T3.2).
+    band : str
+        Band of mag_r, mapped to the ETC filter file (T3.5).
 
     Returns
     -------
@@ -393,7 +470,8 @@ def estimate_lris_exposure(mag_r, mode='longslit', airmass=1.2):
     if mag_r > LRIS_LONGSLIT_MAG_LIMIT:
         return estimate_mos_exposure(mag_r)
 
-    return estimate_lris_exposure_real(mag_r, airmass=airmass)
+    return estimate_lris_exposure_real(mag_r, airmass=airmass, config=config,
+                                       seeing=seeing, band=band)
 
 
 # Keck target-selection rule (10m aperture is wasted on targets Lick's 3m
@@ -481,6 +559,9 @@ def analyze_targets(targets_csv, date_str='2026-10-06', mapping=None,
         pox = row['pox']
         tags = row['tags'] if pd.notna(row['tags']) else ''
         dm = row['dm']
+        mag_band = row.get('mag_band', '') or ''
+        t_target = row.get('t_target', np.nan)
+        required = bool(row.get('required', False))
 
         # Calculate airmass at evening twilight
         am_eve, alt_eve, az_eve, ha_eve = calculate_airmass(
@@ -520,7 +601,11 @@ def analyze_targets(targets_csv, date_str='2026-10-06', mapping=None,
             # Never above the horizon at any sample: no min-airmass point to check
             valid, reason = False, 'Below horizon all night'
         else:
-            valid, reason = check_keck_limits(ra, dec, min_am_ha, min_am_alt, min_am_az)
+            # The best-airmass point of a near-zenith target is the keyhole
+            # itself; the keyhole is handled at placement (zenith_keyhole),
+            # so it mustn't reject the whole target here.
+            valid, reason = check_keck_limits(ra, dec, min_am_ha, min_am_alt,
+                                              min_am_az, ignore_zenith=True)
 
         # Also check if observable at some point during the night
         # Bright targets (mag < 17) can tolerate higher airmass
@@ -561,6 +646,10 @@ def analyze_targets(targets_csv, date_str='2026-10-06', mapping=None,
             'POx': pox,
             'tags': tags,
             'DM': dm,
+            'mag_band': mag_band,
+            't_target': t_target,
+            'required': required,
+            'priority': row.get('priority', 1.0),
             'lris_mode': lris_mode,
             'info': info,
             'min_airmass': min_am,
@@ -591,6 +680,40 @@ def analyze_targets(targets_csv, date_str='2026-10-06', mapping=None,
 # because that is exactly how precisely the edge is known.
 WINDOW_SAMPLE_MIN = 10
 
+def zenith_keyhole(ra, dec, twilight, step_min=2):
+    """
+    When a target is above the Keck I tracking limit (88.9°) tonight.
+
+    Only targets within ~1.1° of the zenith (|Dec - latitude| < 1.1) ever
+    get there, for a few minutes around transit.
+
+    Parameters
+    ----------
+    ra, dec : float, degrees
+    twilight : dict from calculate_twilight
+    step_min : float
+
+    Returns
+    -------
+    list of (start, end, reason) in HST, padded by one step either side;
+    empty for almost every target.
+    """
+    lat = KECK.lat.deg
+    if abs(dec - lat) >= 90.0 - KECK1_ZENITH_MAX:
+        return []
+    from night_planner.sky import track
+    start = twilight['evening_utc']
+    n = int(twilight['dark_hours'] * 60 / step_min) + 1
+    times = [start + timedelta(minutes=i * step_min) for i in range(n)]
+    alt = track(ra, dec, times, KECK)['alt']
+    hot = [t for t, a in zip(times, alt) if a > KECK1_ZENITH_MAX]
+    if not hot:
+        return []
+    pad = timedelta(minutes=step_min)
+    return [(utc_to_hst(hot[0] - pad), utc_to_hst(hot[-1] + pad),
+             f'zenith keyhole (> {KECK1_ZENITH_MAX}°)')]
+
+
 def find_observable_window(ra, dec, twilight, mag=20.0):
     """
     Find the time window when target is observable.
@@ -613,7 +736,8 @@ def find_observable_window(ra, dec, twilight, mag=20.0):
             minutes=i * WINDOW_SAMPLE_MIN)
         am, alt, az, ha = calculate_airmass(ra, dec, sample_utc)
 
-        if am < am_limit and check_keck_limits(ra, dec, ha, alt, az)[0]:
+        if am < am_limit and check_keck_limits(ra, dec, ha, alt, az,
+                                               ignore_zenith=True)[0]:
             if window_start is None:
                 window_start = sample_utc
             window_end = sample_utc
@@ -627,8 +751,67 @@ def find_observable_window(ra, dec, twilight, mag=20.0):
     return None, None, 0
 
 
+def _target_exposure(row, airmass, etc_opts=None):
+    """
+    Exposure dict for one results_df row, with the plan's ETC options.
+
+    Parameters
+    ----------
+    row : mapping
+        A results_df row ('mag_r', 'mag_band', ...).
+    airmass : float
+    etc_opts : dict, optional
+        {'config', 'seeing', 'mag_band'} from instrument_params.resolve_options.
+        The row's own mag_band wins over the plan-wide band.
+
+    Returns
+    -------
+    dict, as from estimate_lris_exposure.
+    """
+    from night_planner.instrument_params import ETC_FILTERS
+
+    if row['mag_r'] > LRIS_LONGSLIT_MAG_LIMIT:
+        return estimate_mos_exposure(row['mag_r'])
+    etc_opts = etc_opts or {}
+    plan_band = etc_opts.get('mag_band') or 'r'
+    band = row.get('mag_band')
+    band = '' if band is None or (not isinstance(band, str) and pd.isna(band)) \
+        else str(band).strip()
+    if band and band not in ETC_FILTERS:
+        print(f"  {row.get('TNS')}: mag_band {band!r} isn't an ETC band; "
+              f"using the plan's {plan_band!r}")
+        band = ''
+    band = band or plan_band
+
+    # Through the pluggable ETC interface (night_planner.etc, T3.4b): the
+    # UCO/Lick ETC by default, or whatever --etc names.
+    from night_planner import etc as etc_mod
+    from night_planner.instrument_params import DEFAULT_SEEING
+    e = etc_mod.exposure(etc_opts.get('etc') or 'lris', row['mag_r'], band,
+                         airmass, etc_opts.get('seeing') or DEFAULT_SEEING['lris'],
+                         etc_opts.get('config') or DEFAULT_CONFIG['lris'],
+                         etc_opts.get('target_sn') or etc_mod.TARGET_SN['lris'],
+                         etc_opts.get('n_sub_min') or etc_mod.N_SUB_MIN['lris'])
+    sn = e.pop('sn_sub', None) or {}
+    comb = e.pop('sn_combined', None) or {}
+    # The S/N spectrum is kept out of the row (it would land in
+    # selected_targets.csv) and handed to run() via etc_opts, which writes
+    # it to <plan>/etc/<target>.json for the viewer (T3.4a).
+    spectrum = {'wave': e.pop('wave', []), 's2n': e.pop('s2n', [])}
+    if etc_opts is not None and spectrum['wave']:
+        etc_opts.setdefault('_spectra', {})[row['TNS']] = {
+            **spectrum, 'airmass': airmass, 'sub_len_s': e.get('sub_len_s'),
+            'n_sub': e.get('n_sub'), 'target_sn': etc_opts.get('target_sn'),
+            'band': band}
+    return {**e, 'mode': 'longslit', 'total_min': round(e['science_min'] + 5, 1),
+            'achieved_sn_blue': sn.get('blue'), 'achieved_sn_red': sn.get('red'),
+            'sn_sub_blue': sn.get('blue'), 'sn_sub_red': sn.get('red'),
+            'sn_comb_blue': comb.get('blue'), 'sn_comb_red': comb.get('red'),
+            'band': band}
+
+
 def append_forced_targets(selected, results_df, twilight, forced, prev_dec,
-                           current_time, failures=None):
+                           current_time, failures=None, etc_opts=None):
     """
     Place explicitly-forced targets after the normal schedule, truncated.
 
@@ -677,8 +860,9 @@ def append_forced_targets(selected, results_df, twilight, forced, prev_dec,
             continue
         row = res.loc[tns]
         slew_min = keck_slew_minutes(prev_dec, row['Dec_deg'])
+        acq_min = keck_acquisition_minutes(row['lris_mode'])
         obs_start = current_time
-        science_start = obs_start + timedelta(minutes=slew_min)
+        science_start = obs_start + timedelta(minutes=slew_min + acq_min)
         obs_end = science_start + timedelta(minutes=minutes)
 
         am, alt, az, ha = calculate_airmass(
@@ -696,15 +880,17 @@ def append_forced_targets(selected, results_df, twilight, forced, prev_dec,
                   f"per the explicit request")
 
         exp = estimate_mos_exposure(row['mag_r']) if row['lris_mode'].startswith('MOS') \
-            else estimate_lris_exposure(row['mag_r'], airmass=am)
+            else _target_exposure(row, am, etc_opts)
         nominal = exp['science_min']
         entry = row.to_dict()
         entry.update(exp)
         entry.update({
             'TNS': tns,
             'slew_min': slew_min,
+            'slew_reason': keck_slew_reason(prev_dec, row['Dec_deg']),
+            'acq_min': acq_min,
             'on_target_min': float(minutes),
-            'total_min': slew_min + minutes,
+            'total_min': slew_min + acq_min + minutes,
             'scheduled_start': obs_start,
             'science_start': science_start,
             'scheduled_end': obs_end,
@@ -723,7 +909,7 @@ def append_forced_targets(selected, results_df, twilight, forced, prev_dec,
 
 
 def reserve_forced_targets(results_df, twilight, forced, start_time, blocks,
-                            failures=None):
+                            failures=None, etc_opts=None):
     """
     Place explicitly-forced targets inside their own windows, before the
     normal scheduling pass runs.
@@ -820,16 +1006,20 @@ def reserve_forced_targets(results_df, twilight, forced, start_time, blocks,
             continue
 
         exp = estimate_mos_exposure(row['mag_r']) if row['lris_mode'].startswith('MOS') \
-            else estimate_lris_exposure(row['mag_r'], airmass=am)
+            else _target_exposure(row, am, etc_opts)
         nominal = exp['science_min']
         entry = row.to_dict()
         entry.update(exp)
+        acq_min = keck_acquisition_minutes(row['lris_mode'])
         entry.update({
             'TNS': tns,
             'slew_min': KECK_SLEW_BASE_MIN,
+            'slew_reason': '',
+            'acq_min': acq_min,
             'on_target_min': got,
-            'total_min': KECK_SLEW_BASE_MIN + got,
-            'scheduled_start': science_start - timedelta(minutes=KECK_SLEW_BASE_MIN),
+            'total_min': KECK_SLEW_BASE_MIN + acq_min + got,
+            'scheduled_start': science_start - timedelta(
+                minutes=KECK_SLEW_BASE_MIN + acq_min),
             'science_start': science_start,
             'scheduled_end': obs_end,
             'window_start': window_start,
@@ -838,16 +1028,385 @@ def reserve_forced_targets(results_df, twilight, forced, start_time, blocks,
                       f"nominal ({got / nominal:.0%}), AM {am:.2f}"),
         })
         rows.append(entry)
-        reservations.append((science_start - pad, obs_end, f'forced {tns}'))
+        reservations.append((science_start - pad - timedelta(minutes=acq_min),
+                             obs_end, f'forced {tns}'))
         print(f"  Forced {tns}: {science_start.strftime('%H:%M')}-"
               f"{obs_end.strftime('%H:%M')} ({got:.0f} min of {nominal:g} nominal, "
               f"AM {am:.2f})")
     return rows, reservations
 
+def _flag_near_zenith(selected, step_min=5):
+    """
+    Warn about blocks that pass above the Keck guiding limit (T3.6).
+
+    Keck says stable guiding can't be guaranteed above ~85 deg elevation
+    (TelLimits page). Such a block is legal, since it stays below the 88.9 deg
+    tracking limit enforced in check_keck_limits, but the observer should
+    know. The warning is appended to the row's 'info', which becomes the
+    plan's notes.
+
+    Parameters
+    ----------
+    selected : list of row dicts (modified in place)
+    step_min : float
+
+    Returns
+    -------
+    int : number of rows flagged.
+    """
+    from night_planner.sky import track
+
+    n = 0
+    for row in selected:
+        t0, t1 = row.get('science_start'), row.get('scheduled_end')
+        if t0 is None or t1 is None:
+            continue
+        steps = max(1, int(((t1 - t0).total_seconds() / 60) // step_min))
+        times = [t0 + (t1 - t0) * i / steps for i in range(steps + 1)]
+        alt = max(track(row['RA_deg'], row['Dec_deg'], times, KECK)['alt'])
+        row['max_alt'] = alt
+        if alt > KECK1_GUIDE_WARN:
+            note = (f"passes {alt:.1f}° elevation (> {KECK1_GUIDE_WARN:g}°): "
+                    f"stable guiding not guaranteed near zenith")
+            row['info'] = f"{row.get('info') or ''} | {note}".strip(' |')
+            row['zenith_warning'] = True
+            n += 1
+    return n
+
+
+def _initial_exposure(row, etc_opts=None):
+    """
+    A target's first exposure guess and where its time comes from (T3.3).
+
+    Parameters
+    ----------
+    row : mapping (a results_df row with its window)
+    etc_opts : dict, optional
+
+    Returns
+    -------
+    (exp, time_source, etc_min)
+        exp : dict as from estimate_lris_exposure (science_min, recipes, ...)
+        time_source : 'user' (t_target wins), 'MOS block', 'fixed recipe'
+            or 'ETC' (sized at the night's best airmass for now)
+        etc_min : the ETC's estimate, kept beside a user time unless
+            --no-etc-for-user-times; None otherwise
+    """
+    user_t = row.get('t_target', np.nan)
+    user_t = float(user_t) if pd.notna(user_t) else None
+    etc_min = None
+    if row['TNS'] in LONGSLIT_FORCED:
+        exp, time_source = forced_longslit_exposure(row['TNS']), 'fixed recipe'
+    elif str(row['lris_mode']).startswith('MOS'):
+        exp, time_source = estimate_mos_exposure(row['mag_r']), 'MOS block'
+    elif user_t is not None and (etc_opts or {}).get('no_etc_for_user_times'):
+        exp, time_source = None, 'user'
+    else:
+        exp, time_source = _target_exposure(row, row['min_airmass'], etc_opts), 'ETC'
+        etc_min = exp['science_min']
+    if user_t is not None:
+        exp = {'red_exp': f'{user_t:g} min (user)', 'blue_exp': f'{user_t:g} min (user)',
+               'science_min': user_t, 'total_min': user_t,
+               'mode': (exp or {}).get('mode', 'longslit')}
+        time_source = 'user'
+    return exp, time_source, etc_min
+
+
+def _greedy_pass(observable, current_time, prev_dec, blocks, available_time,
+                 total_time, max_targets, skip, etc_opts=None):
+    """
+    The LRIS window-order greedy pass (refactored out of
+    select_targets_for_night for priority tiers, 2026-11-07, M8; the
+    single-tier schedule is pinned by tests/snapshots/lris_single_tier.json).
+
+    Parameters
+    ----------
+    observable : DataFrame with window_start / window_end
+    current_time : datetime, where the pass may start
+    prev_dec : float, where the telescope points first
+    blocks : list of (start, end, reason)
+    available_time, total_time : float minutes (budget, already used)
+    max_targets : int
+    skip : callable(tns, reason, window_start, window_end)
+    etc_opts : dict, optional
+
+    Returns
+    -------
+    (selected, total_time, current_time, prev_dec)
+    """
+    selected = []
+    scheduled_targets = set()
+    observable = observable.sort_values('window_start')
+
+    # Schedule targets in window order
+    for idx, row in observable.iterrows():
+        if row['TNS'] in scheduled_targets:
+            continue
+
+        exp, time_source, etc_min = _initial_exposure(row, etc_opts)
+        window_start = row['window_start']
+        window_end = row['window_end']
+
+        if window_start is None or window_end is None:
+            skip(row['TNS'], "no observable window")
+            continue
+
+        # Skip if window already completely passed
+        if current_time > window_end:
+            skip(row['TNS'], f"window already passed (ended "
+                              f"{window_end.strftime('%H:%M')}, now "
+                              f"{current_time.strftime('%H:%M')})",
+                 window_start, window_end)
+            continue
+
+        # Slew from the previous pointing (Keck rule, keck_overheads.py). The
+        # slew replaces the flat +5 min "slew/acquisition" in lris_etc's
+        # total_min, so on-target time is science_min (for MOS, science_min
+        # is the full allocated block, mask alignment included).
+        slew_min = keck_slew_minutes(prev_dec, row['Dec_deg'])
+        # Acquisition follows the slew, before science (2026-11-07, T1.2).
+        acq_min = keck_acquisition_minutes(row['lris_mode'])
+        pre_min = slew_min + acq_min
+
+        # Earliest the slew could start, ignoring blocks: slew and
+        # acquisition done and the target is in its window (or wait for
+        # the window to open).
+        raw_slew_start = max(current_time, window_start - timedelta(minutes=pre_min))
+
+        # Place, then re-run the ETC at the airmass the target actually gets
+        # over its science span (T1.3, --airmass-rule), and re-place if the
+        # exposure grew. The first guess uses the night's best airmass, and
+        # under 'worst' the exposure only grows as the block lengthens, so
+        # this settles within a few rounds. MOS blocks and fixed forced
+        # recipes don't depend on airmass.
+        airmass_aware = time_source == 'ETC'
+        rule = (etc_opts or {}).get('airmass_rule', 'worst')
+        am_used = row['min_airmass']
+        settled = False
+        tblocks = list(blocks) + list(row.get('keyhole') or [])
+        # The block is always re-fitted to the latest exposure, so the
+        # placement and the exposure can't disagree; iteration stops once
+        # a re-run changes the exposure by <= 0.5 min.
+        for _round in range(MAX_AIRMASS_ROUNDS + 1):
+            on_target_min = exp['science_min']
+            # Readout per frame (T1.1). None = NOT SET: charge nothing; the
+            # adapter flags it in the plan's assumptions. MOS blocks are
+            # allocations that already include readout.
+            readout_min = 0.0
+            if not str(row['lris_mode']).startswith('MOS'):
+                readout_min = readout_minutes(
+                    'lris', exp.get('red_exp'), exp.get('blue_exp'),
+                    (etc_opts or {}).get('config') or DEFAULT_CONFIG['lris']) or 0.0
+            block_min = on_target_min + readout_min
+            # find_observable_window() samples every WINDOW_SAMPLE_MIN, so the
+            # true edge of the airmass window lies somewhere inside the step
+            # beyond the last good sample. One step of grace is the honest
+            # width of that uncertainty -- it is not spare observing time,
+            # and widening it would schedule above the airmass limit.
+            obs_start, obs_end = fit_around_blocks(
+                raw_slew_start, pre_min + block_min,
+                window_end + timedelta(minutes=WINDOW_SAMPLE_MIN), tblocks)
+            if (obs_start is None or not airmass_aware or settled
+                    or _round == MAX_AIRMASS_ROUNDS):
+                break
+            sci0 = obs_start + timedelta(minutes=pre_min)
+            am = block_airmass(row['RA_deg'], row['Dec_deg'], sci0,
+                               sci0 + timedelta(minutes=on_target_min), rule,
+                               KECK)
+            if am is None:
+                break
+            new_exp = _target_exposure(row, am, etc_opts)
+            settled = abs(new_exp['science_min'] - exp['science_min']) <= 0.5
+            exp, am_used = new_exp, am
+
+        if obs_start is None:
+            reason = blocking_reason(raw_slew_start, pre_min + block_min, tblocks)
+            am_note = (f" (exposure at {rule} airmass {am_used:.2f}; best "
+                       f"{row['min_airmass']:.2f})"
+                       if airmass_aware and am_used != row['min_airmass'] else '')
+            if reason:
+                skip(row['TNS'], f"{reason} -- doesn't clear before its window "
+                                  f"closes ({window_end.strftime('%H:%M')})",
+                     window_start, window_end)
+            else:
+                skip(row['TNS'],
+                     f"needs {on_target_min:.0f} min on target{am_note} "
+                     f"(+{slew_min} min slew, +{acq_min} min acquisition, "
+                     f"+{readout_min:.0f} min readout) but only "
+                     f"{(window_end - raw_slew_start).total_seconds()/60:.0f} min left in its "
+                     f"AM<2.0 window ({window_start.strftime('%H:%M')}-{window_end.strftime('%H:%M')})",
+                     window_start, window_end)
+            continue
+
+        science_start = obs_start + timedelta(minutes=pre_min)
+
+        # Check if we have time budget
+        obs_duration = pre_min + block_min
+        if total_time + obs_duration > available_time:
+            skip(row['TNS'], f"no time budget left "
+                              f"({total_time:.0f}/{available_time:.0f} min used)",
+                 window_start, window_end)
+            continue
+
+        row_dict = row.to_dict()
+        row_dict.update(exp)
+        row_dict['slew_min'] = slew_min
+        row_dict['slew_reason'] = keck_slew_reason(prev_dec, row['Dec_deg'])
+        row_dict['acq_min'] = acq_min
+        row_dict['readout_min'] = readout_min
+        row_dict['on_target_min'] = on_target_min
+        row_dict['airmass_used'] = am_used
+        row_dict['airmass_rule'] = rule if airmass_aware else ''
+        row_dict['time_source'] = time_source
+        # The ETC's estimate at the airmass used (for 'user' rows, the
+        # first-guess estimate, shown beside the user's time).
+        row_dict['etc_min'] = (exp['science_min'] if time_source == 'ETC'
+                               else etc_min)
+        row_dict['required'] = bool(row.get('required', False))
+        row_dict['total_min'] = obs_duration
+        row_dict['scheduled_start'] = obs_start  # slew start
+        row_dict['science_start'] = science_start
+        row_dict['scheduled_end'] = obs_end
+        selected.append(row_dict)
+        scheduled_targets.add(row['TNS'])
+        total_time += obs_duration
+        current_time = obs_end
+        prev_dec = row['Dec_deg']
+
+        if len(selected) >= max_targets:
+            break
+
+    return selected, total_time, current_time, prev_dec
+
+
+def _insert_tier(pool, selected, tier, night_start, night_limit, blocks,
+                 available_time, total_time, max_targets, skip, etc_opts=None):
+    """
+    Place one lower priority tier into the gaps the tiers above left
+    (T1.6). Placed targets never move.
+
+    The fit test is exact, not padded: Keck slews depend on the previous
+    Dec, so putting X between A and B changes B's slew. X fits a gap when
+
+        A.end + slew(A->X) + acq(X) + X (exposure + readout)
+            + slew(X->B) + acq(B) <= B.science_start
+
+    and X's science ends inside its own window (plus one sample of grace,
+    as in the greedy pass). B's slew is then recomputed and its slew start
+    moved; its science time is untouched.
+
+    Parameters
+    ----------
+    pool : DataFrame, this tier's observable targets (with windows)
+    selected : list of row dicts already placed (modified copies returned)
+    tier : float
+    night_start : datetime, start of science
+    night_limit : datetime, latest end (morning twilight minus the
+        closing slew + standard)
+    blocks, available_time, total_time, max_targets, skip, etc_opts :
+        as for _greedy_pass
+
+    Returns
+    -------
+    (selected, total_time)
+    """
+    selected = [dict(r) for r in selected]
+    for _, row in pool.sort_values('window_start').iterrows():
+        ws, we = row['window_start'], row['window_end']
+        if ws is None or we is None:
+            skip(row['TNS'], f'priority P{tier:g}: no observable window')
+            continue
+        if len(selected) >= max_targets:
+            skip(row['TNS'], f'priority P{tier:g}: max targets reached', ws, we)
+            continue
+        exp, time_source, etc_min = _initial_exposure(row, etc_opts)
+        acq_x = keck_acquisition_minutes(row['lris_mode'])
+        aware = time_source == 'ETC'
+        rule = (etc_opts or {}).get('airmass_rule', 'worst')
+        placed = sorted(selected, key=lambda r: r['scheduled_start'])
+        prevs = [None] + placed
+        nexts = placed + [None]
+        done = False
+        for a, b in zip(prevs, nexts):
+            gap_start = a['scheduled_end'] if a else night_start
+            prev_dec = a['Dec_deg'] if a else EVENING_STANDARD_DEC
+            slew_x = keck_slew_minutes(prev_dec, row['Dec_deg'])
+            pre_x = slew_x + acq_x
+            if b is not None:
+                slew_b = keck_slew_minutes(row['Dec_deg'], b['Dec_deg'])
+                acq_b = b.get('acq_min', keck_acquisition_minutes(b.get('lris_mode')))
+                latest = b['science_start'] - timedelta(minutes=slew_b + acq_b)
+            else:
+                slew_b = acq_b = 0
+                latest = night_limit
+            limit = min(latest, we + timedelta(minutes=WINDOW_SAMPLE_MIN))
+            earliest = max(gap_start, ws - timedelta(minutes=pre_x))
+            if earliest >= limit:
+                continue
+            e, am_used, settled = exp, row['min_airmass'], False
+            for _round in range(MAX_AIRMASS_ROUNDS + 1):
+                readout = 0.0
+                if not str(row['lris_mode']).startswith('MOS'):
+                    readout = readout_minutes(
+                        'lris', e.get('red_exp'), e.get('blue_exp'),
+                        (etc_opts or {}).get('config') or DEFAULT_CONFIG['lris']) or 0.0
+                block = e['science_min'] + readout
+                start, end = fit_around_blocks(
+                    earliest, pre_x + block, limit,
+                    list(blocks) + list(row.get('keyhole') or []))
+                if start is None or not aware or settled or _round == MAX_AIRMASS_ROUNDS:
+                    break
+                sci0 = start + timedelta(minutes=pre_x)
+                am = block_airmass(row['RA_deg'], row['Dec_deg'], sci0,
+                                   sci0 + timedelta(minutes=e['science_min']), rule, KECK)
+                if am is None:
+                    break
+                new = _target_exposure(row, am, etc_opts)
+                settled = abs(new['science_min'] - e['science_min']) <= 0.5
+                e, am_used = new, am
+            if start is None:
+                continue
+            # B's new slew must not run into a blocked window either.
+            if b is not None and _overlapping_block(
+                    b['science_start'] - timedelta(minutes=slew_b + acq_b),
+                    b['science_start'], blocks) is not None:
+                continue
+            delta_b = (slew_b - b['slew_min']) if b is not None else 0
+            duration = pre_x + block
+            if total_time + duration + delta_b > available_time:
+                continue
+            x = row.to_dict()
+            x.update(e)
+            x.update({
+                'slew_min': slew_x, 'slew_reason': keck_slew_reason(prev_dec, row['Dec_deg']),
+                'acq_min': acq_x, 'readout_min': readout,
+                'on_target_min': e['science_min'], 'total_min': duration,
+                'scheduled_start': start, 'science_start': start + timedelta(minutes=pre_x),
+                'scheduled_end': end, 'airmass_used': am_used,
+                'airmass_rule': rule if aware else '', 'time_source': time_source,
+                'etc_min': e['science_min'] if time_source == 'ETC' else etc_min,
+                'required': bool(row.get('required', False)),
+            })
+            if b is not None:
+                b['slew_min'] = slew_b
+                b['slew_reason'] = keck_slew_reason(row['Dec_deg'], b['Dec_deg'])
+                b['scheduled_start'] = b['science_start'] - timedelta(minutes=slew_b + acq_b)
+                b['total_min'] = b['total_min'] + delta_b
+            selected.append(x)
+            total_time += duration + delta_b
+            done = True
+            break
+        if not done:
+            skip(row['TNS'], f'priority P{tier:g}: no gap left by the higher tier(s) '
+                             f'fits its {exp["science_min"]:.0f} min (+slew/acq) inside '
+                             f'its window {ws:%H:%M}-{we:%H:%M}', ws, we)
+    return selected, total_time
+
+
 def select_targets_for_night(results_df, twilight, max_targets=8,
                               start_override=None, blocks=None, skip_log=None,
                               forced=None, forced_failures=None,
-                              reserved=None, reservations=None):
+                              reserved=None, reservations=None, etc_opts=None):
     """
     Select targets for observation based on priority rules.
 
@@ -910,7 +1469,10 @@ def select_targets_for_night(results_df, twilight, max_targets=8,
         windows.append({
             'window_start': start,
             'window_end': end,
-            'window_hours': duration
+            'window_hours': duration,
+            # Minutes near transit when it's above the tracking limit; a
+            # block may not straddle them (T3.6).
+            'keyhole': zenith_keyhole(row['RA_deg'], row['Dec_deg'], twilight),
         })
 
     window_df = pd.DataFrame(windows, index=observable.index)
@@ -936,7 +1498,7 @@ def select_targets_for_night(results_df, twilight, max_targets=8,
         current_time = push_past_blocks(current_time, blocks)
         observable = observable[~observable['TNS'].isin(
             {r['TNS'] for r in reserved})]
-    available_time = twilight['dark_hours'] * 60 - 30  # Reserve 30 min for calibrations
+    available_time = twilight['dark_hours'] * 60 - MORNING_RESERVE_MIN
     total_time = 0
     scheduled_targets = set()
     # Telescope is left pointed at the evening standard after standard + focus
@@ -945,90 +1507,36 @@ def select_targets_for_night(results_df, twilight, max_targets=8,
     # Sort by window start for proper ordering
     observable = observable.sort_values('window_start')
 
-    # Schedule targets in window order
-    for idx, row in observable.iterrows():
-        if row['TNS'] in scheduled_targets:
-            continue
-
-        if row['TNS'] in LONGSLIT_FORCED:
-            exp = forced_longslit_exposure(row['TNS'])
-        else:
-            exp = estimate_lris_exposure(row['mag_r'], airmass=row['min_airmass'])
-        window_start = row['window_start']
-        window_end = row['window_end']
-
-        if window_start is None or window_end is None:
-            skip(row['TNS'], "no observable window")
-            continue
-
-        # Skip if window already completely passed
-        if current_time > window_end:
-            skip(row['TNS'], f"window already passed (ended "
-                              f"{window_end.strftime('%H:%M')}, now "
-                              f"{current_time.strftime('%H:%M')})",
-                 window_start, window_end)
-            continue
-
-        # Slew from the previous pointing (Keck rule, keck_overheads.py). The
-        # slew replaces the flat +5 min "slew/acquisition" in lris_etc's
-        # total_min, so on-target time is science_min (for MOS, science_min
-        # is the full allocated block, mask alignment included).
-        slew_min = keck_slew_minutes(prev_dec, row['Dec_deg'])
-        on_target_min = exp['science_min']
-
-        # Earliest the slew could start, ignoring blocks: slew done and the
-        # target is in its window (or wait for the window to open).
-        raw_slew_start = max(current_time, window_start - timedelta(minutes=slew_min))
-        # find_observable_window() samples every WINDOW_SAMPLE_MIN, so the
-        # true edge of the airmass window lies somewhere inside the step
-        # beyond the last good sample. One step of grace is the honest
-        # width of that uncertainty -- it is not spare observing time,
-        # and widening it would schedule above the airmass limit.
-        obs_start, obs_end = fit_around_blocks(
-            raw_slew_start, slew_min + on_target_min,
-            window_end + timedelta(minutes=WINDOW_SAMPLE_MIN), blocks)
-
-        if obs_start is None:
-            reason = blocking_reason(raw_slew_start, slew_min + on_target_min, blocks)
-            if reason:
-                skip(row['TNS'], f"{reason} -- doesn't clear before its window "
-                                  f"closes ({window_end.strftime('%H:%M')})",
-                     window_start, window_end)
-            else:
-                skip(row['TNS'],
-                     f"needs {on_target_min:.0f} min on target "
-                     f"(+{slew_min} min slew) but only "
-                     f"{(window_end - raw_slew_start).total_seconds()/60:.0f} min left in its "
-                     f"AM<2.0 window ({window_start.strftime('%H:%M')}-{window_end.strftime('%H:%M')})",
-                     window_start, window_end)
-            continue
-
-        science_start = obs_start + timedelta(minutes=slew_min)
-
-        # Check if we have time budget
-        obs_duration = slew_min + on_target_min
-        if total_time + obs_duration > available_time:
-            skip(row['TNS'], f"no time budget left "
-                              f"({total_time:.0f}/{available_time:.0f} min used)",
-                 window_start, window_end)
-            continue
-
-        row_dict = row.to_dict()
-        row_dict.update(exp)
-        row_dict['slew_min'] = slew_min
-        row_dict['on_target_min'] = on_target_min
-        row_dict['total_min'] = obs_duration
-        row_dict['scheduled_start'] = obs_start  # slew start
-        row_dict['science_start'] = science_start
-        row_dict['scheduled_end'] = obs_end
-        selected.append(row_dict)
-        scheduled_targets.add(row['TNS'])
-        total_time += obs_duration
-        current_time = obs_end
-        prev_dec = row['Dec_deg']
-
-        if len(selected) >= max_targets:
-            break
+    # Priority tiers (T1.6, 2026-11-07): the top tier is scheduled over the
+    # whole night exactly as before; each lower tier only gets the gaps the
+    # tiers above left, with every placed target immovable. One tier (no
+    # priorities set) is the old behaviour unchanged.
+    tiers = (sorted(observable['priority'].dropna().unique())
+             if 'priority' in observable.columns else [])
+    if len(tiers) <= 1:
+        selected, total_time, current_time, prev_dec = _greedy_pass(
+            observable, current_time, prev_dec, blocks, available_time,
+            total_time, max_targets, skip, etc_opts)
+    else:
+        print(f"Scheduling in {len(tiers)} priority tiers: "
+              + ', '.join(f'P{t:g}' for t in tiers))
+        night_start = current_time
+        selected, total_time, current_time, prev_dec = _greedy_pass(
+            observable[observable['priority'] == tiers[0]], current_time,
+            prev_dec, blocks, available_time, total_time, max_targets, skip,
+            etc_opts)
+        print(f"  P{tiers[0]:g}: {len(selected)} scheduled (whole night)")
+        night_limit = twilight['morning_hst'] - timedelta(minutes=MORNING_RESERVE_MIN)
+        for tier in tiers[1:]:
+            before = len(selected)
+            selected, total_time = _insert_tier(
+                observable[observable['priority'] == tier], selected, tier,
+                night_start, night_limit, blocks, available_time, total_time,
+                max_targets, skip, etc_opts)
+            print(f"  P{tier:g}: {len(selected) - before} inserted into gaps")
+        if selected:
+            last = max(selected, key=lambda r: r['scheduled_end'])
+            current_time, prev_dec = last['scheduled_end'], last['Dec_deg']
 
     # Forced targets: append after the schedule if they are still up, which
     # costs nothing. Anything that cannot be appended -- the setting target
@@ -1039,7 +1547,7 @@ def select_targets_for_night(results_df, twilight, max_targets=8,
         append_failures = []
         appended = append_forced_targets(
             selected, results_df, twilight, forced, prev_dec, current_time,
-            failures=append_failures)
+            failures=append_failures, etc_opts=etc_opts)
         selected += appended
         placed = {r['TNS'] for r in appended}
         unplaced = [(tns, minutes) for tns, minutes in forced
@@ -1050,7 +1558,7 @@ def select_targets_for_night(results_df, twilight, max_targets=8,
                 results_df, twilight, unplaced,
                 push_past_blocks(resolve_start(default_start, start_override),
                                   blocks),
-                blocks, failures=forced_failures)
+                blocks, failures=forced_failures, etc_opts=etc_opts)
             if rows:
                 # Pass 1's skips described a night that no longer exists.
                 if skip_log is not None:
@@ -1062,10 +1570,11 @@ def select_targets_for_night(results_df, twilight, max_targets=8,
                     forced=[f for f in forced
                             if f[0] not in {r['TNS'] for r in rows}],
                     forced_failures=forced_failures,
-                    reserved=rows, reservations=slots)
+                    reserved=rows, reservations=slots, etc_opts=etc_opts)
         elif unplaced and forced_failures is not None:
             forced_failures.extend(append_failures)
     selected += reserved
+    _flag_near_zenith(selected)
 
     # Sort selected by scheduled start time
     selected_df = pd.DataFrame(selected)
@@ -1180,13 +1689,13 @@ def print_night_plan(selected_df, twilight, start_hst):
         mode_tag = " [MOS - MASK REQUIRED]" if row.get('lris_mode') == 'MOS (mask required)' else ""
         print(f"\n{obs_start.strftime('%H:%M')}-{obs_end.strftime('%H:%M')} HST: "
               f"{row['TNS']}{mode_tag}")
-        print(f"  Slew: {row['slew_min']} min, on target from "
+        print(f"  Slew: {row['slew_min']} min, acquisition: {row.get('acq_min', 0)} min, on target from "
               f"{row['science_start'].strftime('%H:%M')} ({row['on_target_min']} min)")
         print(f"  RA: {row['RA_hours']:.2f}h  Dec: {row['Dec_deg']:.1f}°  "
               f"mag_r: {row['mag_r']:.1f}")
         print(f"  HA: {ha:+.1f}h  Airmass: {am:.2f}  Alt: {alt:.0f}°")
         print(f"  Exposure: {row['red_exp']} (red), {row['blue_exp']} (blue)")
-        print(f"  Duration: {row['total_min']} min (incl. slew)")
+        print(f"  Duration: {row['total_min']} min (incl. slew + acquisition)")
         print(f"  Window: {row['window_start'].strftime('%H:%M')}-{row['window_end'].strftime('%H:%M')} HST")
 
         current_time = obs_end
@@ -1196,11 +1705,11 @@ def print_night_plan(selected_df, twilight, start_hst):
     slew = keck_slew_minutes(last_dec, MORNING_STANDARD_DEC)
     print(f"\n{current_time.strftime('%H:%M')} HST - Slew to Feige110 - {slew} min")
     current_time += timedelta(minutes=slew)
-    print(f"{current_time.strftime('%H:%M')} HST - Flux standard (Feige110) - 5 min")
-    current_time += timedelta(minutes=5)
+    print(f"{current_time.strftime('%H:%M')} HST - Flux standard (Feige110) - "
+          f"{MORNING_STANDARD_MIN} min")
+    current_time += timedelta(minutes=MORNING_STANDARD_MIN)
 
-    # Calibrations
-    print(f"{current_time.strftime('%H:%M')} HST - Calibrations (arcs, flats) - 20 min")
+    print("Calibrations: see the Observing log page (not scheduled).")
 
     print("\n" + "="*70)
 
@@ -1209,6 +1718,7 @@ def print_recommendations(selected_df, twilight, n_mos=0):
     """Print LRIS recommendations and night summary."""
     total_science_min = sum(row['on_target_min'] for _, row in selected_df.iterrows())
     total_slew_min = sum(row['slew_min'] for _, row in selected_df.iterrows())
+    total_acq_min = sum(row.get('acq_min', 0) or 0 for _, row in selected_df.iterrows())
     dark_min = twilight['dark_hours'] * 60
 
     print("\n" + "="*70)
@@ -1222,7 +1732,8 @@ LRIS Mode Summary:
 
 Night Utilization:
   - Science time: {total_science_min/60:.1f}h of {dark_min/60:.1f}h available ({100*total_science_min/dark_min:.0f}%)
-  - Slew time: {total_slew_min:.0f} min (Keck rule: 10 min base, 20 min Dec<+20 -> Dec>+20)
+  - Slew time: {total_slew_min:.0f} min (Keck rule: {KECK_SLEW_BASE_MIN} min base, {KECK_SLEW_DEC_CROSS_MIN} min Dec<+20 -> Dec>+20)
+  - Acquisition: {total_acq_min:.0f} min (5 min longslit, 10 min mask)
   - Gaps in schedule: Could fill with imaging or backup targets
 
 Target Recommendations:
@@ -1273,6 +1784,11 @@ def parse_args(argv=None):
     p.add_argument('--output-dir')
     p.add_argument('--date')
     p.add_argument('--max-targets', type=int)
+    add_config_args(p, 'lris')
+    p.add_argument('--no-etc-for-user-times', action='store_true',
+                   help='Skip the ETC for rows with a t_target (saves the '
+                        'network calls; the plan then shows no ETC estimate '
+                        'beside the user time).')
     return p.parse_args(argv)
 
 
@@ -1307,6 +1823,11 @@ def run(args):
     output_dir = (args.output_dir or (cfg.output_dir if cfg else None)
                   or f'{_PLANS}/Keck-2026B-02')
     max_targets = args.max_targets or (cfg.max_targets if cfg else None) or 20
+    try:
+        etc_opts = resolve_options(args, cfg, 'lris')
+    except ConfigError as err:
+        raise SystemExit(f'error: {err}')
+    etc_opts['no_etc_for_user_times'] = getattr(args, 'no_etc_for_user_times', False)
 
     start_spec = args.start or (cfg.start_override if cfg else None)
     block_specs = list(cfg.blocks) if cfg else []
@@ -1366,7 +1887,11 @@ def run(args):
     selected = select_targets_for_night(
         results_df, twilight, max_targets=max_targets,
         start_override=science_start_override, blocks=blocks,
-        skip_log=skip_log, forced=forced, forced_failures=forced_failures)
+        skip_log=skip_log, forced=forced, forced_failures=forced_failures,
+        etc_opts=etc_opts)
+    from night_planner.etc import write_spectra
+    write_spectra(output_dir, list(selected['TNS']) if len(selected) else [],
+                  etc_opts.pop('_spectra', {}))
 
     if len(selected) > 0:
         # Print night plan
@@ -1406,6 +1931,11 @@ def run(args):
         'targets_csv': targets_csv,
         'output_dir': output_dir,
         'date': date,
+        'config': etc_opts['config'],
+        'seeing': etc_opts['seeing'],
+        'mag_band': etc_opts['mag_band'],
+        'etc_opts': {k: etc_opts[k] for k in ('etc', 'target_sn', 'n_sub_min',
+                                              'airmass_rule')},
     }
 
 

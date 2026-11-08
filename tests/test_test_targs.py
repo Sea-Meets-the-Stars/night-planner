@@ -71,7 +71,7 @@ def test_seasonal_tables_cluster_where_the_readme_says():
 FFFFPZ_TABLES = {
     'autumn_ffffpz.csv', 'winter_ffffpz.csv', 'spring_ffffpz.csv',
     'summer_ffffpz.csv', 'allsky_frb_ffffpz.csv', 'dec_limits.csv',
-    'faint_mos_split.csv',
+    'faint_mos_split.csv', 't_target_required.csv',
 }
 
 
@@ -178,9 +178,11 @@ def test_a_night_crossing_a_dst_change_keeps_time_moving_forward(tmp_path):
         assert utc(target.end) > utc(target.science_start)
         elapsed = (utc(target.end)
                    - utc(target.science_start)).total_seconds() / 60
-        assert elapsed == pytest.approx(target.on_target_min, abs=1), (
+        # The block holds the exposures and their readout (T1.1, 2026-11-07).
+        expected = target.on_target_min + target.readout_min
+        assert elapsed == pytest.approx(expected, abs=1), (
             f'{target.name}: {elapsed:.0f} min elapsed for a '
-            f'{target.on_target_min:.0f} min exposure')
+            f'{expected:.0f} min exposure + readout')
         if previous is not None:
             assert utc(target.start) >= utc(previous.end)
         previous = target

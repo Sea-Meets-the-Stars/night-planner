@@ -21,6 +21,7 @@ python scripts/make_test_target_tables.py
 | `allsky_frb_ffffpz.csv` | 40 | FFFF-PZ format, all RAs -- the table to test the two-candidate slit against |
 | `dec_limits.csv` | 18 | Dec +83..+89 (above the Shane limit), +75..+82 (just under), and -35..-20 (never up) -- rejection paths |
 | `faint_mos_split.csv` | 10 | mag 19.5..23.4 across the mag-21 longslit/MOS boundary |
+| `t_target_required.csv` | 18 | the autumn table plus `t_target` / `required` columns: one row with a user time (25 min), one required row whose 500 min can never fit (must be rejected, never truncated), one `required = no` |
 | `bad_ambiguous_ra_units.csv` | 8 | MUST FAIL: bare numeric "ra", all values <= 24 |
 | `bad_burst_position_only.csv` | 8 | MUST FAIL: FRB_RA/FRB_Dec only, no host position |
 | `bad_odd_headers.csv` | 8 | MUST FAIL: "R.A. (J2000)" style headers |

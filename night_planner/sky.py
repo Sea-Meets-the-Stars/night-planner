@@ -16,6 +16,7 @@ turns a page load into seconds of AltAz setup repeated per sample.
 Created by JXP and Claude
 """
 
+import math
 from datetime import timedelta, timezone
 
 import numpy as np
@@ -196,3 +197,48 @@ def separation_deg(ra_deg, dec_deg, other):
     """
     coord = SkyCoord(ra=ra_deg * u.deg, dec=dec_deg * u.deg)
     return float(coord.separation(other).deg)
+
+
+AIRMASS_RULES = ('worst', 'mid', 'best')
+
+
+def block_airmass(ra_deg, dec_deg, t0, t1, rule, location, step_min=5):
+    """
+    The airmass to run the ETC at for a block of science (T1.3).
+
+    Created by JXP and Claude
+
+    Parameters
+    ----------
+    ra_deg, dec_deg : float
+    t0, t1 : datetime (tz-aware)
+        The science span, science_start to end.
+    rule : str
+        'worst' (highest airmass in the span; conservative, the default),
+        'mid' (at the midpoint) or 'best' (lowest in the span).
+    location : astropy EarthLocation
+    step_min : float
+        Sampling step; both ends are always sampled.
+
+    Returns
+    -------
+    float, or None if the target is never usefully up in the span. Samples
+    below the horizon or past MAX_USEFUL_AIRMASS count as MAX_USEFUL_AIRMASS
+    for 'worst', so a span that dips out of view is never called good.
+    """
+    if rule not in AIRMASS_RULES:
+        raise ValueError(f'airmass rule must be one of {", ".join(AIRMASS_RULES)}')
+    if rule == 'mid':
+        times = [t0 + (t1 - t0) / 2]
+    else:
+        n = max(1, int(math.ceil((t1 - t0).total_seconds() / 60 / step_min)))
+        times = [t0 + (t1 - t0) * i / n for i in range(n + 1)]
+    values = track(ra_deg, dec_deg, times, location)['airmass']
+    good = [v for v in values if v is not None]
+    if not good:
+        return None
+    if rule == 'best':
+        return min(good)
+    if rule == 'worst' and len(good) < len(values):
+        return MAX_USEFUL_AIRMASS
+    return max(good)
