@@ -1,0 +1,12 @@
+{
+  "observatory": "lick",
+  "date": "2026-09-15",
+  "targets_csv": "/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-02/Lick-2026B-02_targets.csv",
+  "output_dir": "/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-02",
+  "max_targets": 20,
+  "start_override": null,
+  "blocks": [
+    {"start": "22:30", "end": "23:20", "reason": "ToO_interrupt"}
+  ],
+  "notes": "Worked example for lick_2026b02_night2_calculations.py. start_override and blocks are read and applied (DST-aware: America/Los_Angeles, so this resolves as PDT in September); targets_csv/output_dir/max_targets are recorded here for schema consistency but this particular script's target pool is still hardcoded (repeats + author-supplied spares), not yet read from this file."
+}

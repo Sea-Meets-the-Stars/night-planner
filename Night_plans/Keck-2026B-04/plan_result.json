@@ -1,0 +1,327 @@
+{
+  "instrument": "lris",
+  "telescope": "Keck I",
+  "date": "2026-11-07",
+  "output_dir": "/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-04",
+  "timezone": "Pacific/Honolulu",
+  "sun": {
+    "sunset": "2026-11-07T17:45:00-10:00",
+    "dusk_nautical": "2026-11-07T18:34:00-10:00",
+    "dusk_astronomical": "2026-11-07T19:00:00-10:00",
+    "dawn_astronomical": "2026-11-08T05:11:00-10:00",
+    "dawn_nautical": "2026-11-08T05:38:00-10:00",
+    "sunrise": "2026-11-08T06:27:00-10:00"
+  },
+  "night_start": "2026-11-07T20:00:00-10:00",
+  "night_end": "2026-11-08T05:12:00-10:00",
+  "schedule": [
+    {
+      "name": "FRB20230702A",
+      "ra_deg": 132.1246969645,
+      "dec_deg": 26.3915264281,
+      "mag": 22.2,
+      "mode": "MOS (mask required)",
+      "start": "2026-11-08T01:51:00-10:00",
+      "science_start": "2026-11-08T02:01:00-10:00",
+      "end": "2026-11-08T03:06:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 65.0,
+      "exposure_red": "MOS mask required",
+      "exposure_blue": "MOS mask required",
+      "airmass": 1.0536063232534192,
+      "window_start": "2026-11-08T02:01:00-10:00",
+      "window_end": "2026-11-08T05:01:00-10:00",
+      "notes": "Mag 22.2 > 21: MOS mask required (~1.1h once milled) | MASK TO BE MILLED: scheduled on the commitment that a mask exists by the run"
+    },
+    {
+      "name": "FRB20260702A",
+      "ra_deg": 137.8468613589,
+      "dec_deg": 41.9330358117,
+      "mag": 22.5,
+      "mode": "MOS (mask required)",
+      "start": "2026-11-08T03:06:00-10:00",
+      "science_start": "2026-11-08T03:16:00-10:00",
+      "end": "2026-11-08T04:21:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 65.0,
+      "exposure_red": "MOS mask required",
+      "exposure_blue": "MOS mask required",
+      "airmass": 1.1569653478213815,
+      "window_start": "2026-11-08T02:21:00-10:00",
+      "window_end": "2026-11-08T05:01:00-10:00",
+      "notes": "Mag 22.5 > 21: MOS mask required (~1.1h once milled) | MASK TO BE MILLED: scheduled on the commitment that a mask exists by the run"
+    },
+    {
+      "name": "FRB20260514A",
+      "ra_deg": 127.1275614616,
+      "dec_deg": 69.2396522182,
+      "mag": 20.27,
+      "mode": "longslit",
+      "start": "2026-11-08T04:21:00-10:00",
+      "science_start": "2026-11-08T04:31:00-10:00",
+      "end": "2026-11-08T04:52:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 21.0,
+      "exposure_red": "3 x 420",
+      "exposure_blue": "3 x 420",
+      "airmass": 1.5577014237881546,
+      "window_start": "2026-11-08T02:41:00-10:00",
+      "window_end": "2026-11-08T05:01:00-10:00",
+      "notes": ""
+    },
+    {
+      "name": "FRB20250819A",
+      "ra_deg": 139.64978207,
+      "dec_deg": 44.746763588,
+      "mag": 24.83,
+      "mode": "MOS (mask required)",
+      "start": "2026-11-08T04:52:00-10:00",
+      "science_start": "2026-11-08T05:02:00-10:00",
+      "end": "2026-11-08T05:42:00-10:00",
+      "slew_min": 10.0,
+      "on_target_min": 40.0,
+      "exposure_red": "MOS mask required",
+      "exposure_blue": "MOS mask required",
+      "airmass": 1.1924088985197951,
+      "window_start": "2026-11-08T05:02:00-10:00",
+      "window_end": "2026-11-08T05:42:00-10:00",
+      "notes": "FORCED truncated exposure: 40 of 125 min nominal (32%), AM 1.17"
+    }
+  ],
+  "decisions": [
+    {
+      "name": "FRB20230702A",
+      "ra_deg": 132.1246969645,
+      "dec_deg": 26.3915264281,
+      "mag": 22.2,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 01:51 (10 min), on target 02:01-03:06 (65 min, MOS (mask required))",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20250404B",
+      "ra_deg": 167.41932175,
+      "dec_deg": 4.9650702222,
+      "mag": 23.57,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Below horizon all night (min AM 1.72, 0.50 h at AM<2.0; need >0.5 h)",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20250331A",
+      "ra_deg": 172.03762137,
+      "dec_deg": 66.212513739,
+      "mag": 23.72,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Vignetted by Keck I Nasmyth deck (az 24\u00b0, alt 31\u00b0 - needs 33\u00b0 in az 5-146\u00b0) (min AM 1.97, 0.25 h at AM<2.0; need >0.5 h)",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20250819A",
+      "ra_deg": 139.64978207,
+      "dec_deg": 44.746763588,
+      "mag": 24.83,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 04:52 (10 min), on target 05:02-05:42 (40 min, MOS (mask required))",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20240901A",
+      "ra_deg": 147.2572772265,
+      "dec_deg": 75.188948964,
+      "mag": 19.05,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Vignetted by Keck I Nasmyth deck (az 10\u00b0, alt 32\u00b0 - needs 33\u00b0 in az 5-146\u00b0) (min AM 1.89, 0.75 h at AM<2.0; need >0.5 h)",
+      "window_start": null,
+      "window_end": null
+    },
+    {
+      "name": "FRB20260418A",
+      "ra_deg": 140.1851271232,
+      "dec_deg": 36.3545271248,
+      "mag": 21.2,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 65 min on target (+10 min slew) but only 40 min left in its AM<2.0 window (02:31-05:01)",
+      "window_start": "2026-11-08T02:31:00-10:00",
+      "window_end": "2026-11-08T05:01:00-10:00"
+    },
+    {
+      "name": "FRB20260514A",
+      "ra_deg": 127.1275614616,
+      "dec_deg": 69.2396522182,
+      "mag": 20.27,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 04:21 (10 min), on target 04:31-04:52 (21 min, longslit)",
+      "window_start": "2026-11-08T02:31:00-10:00",
+      "window_end": "2026-11-08T05:01:00-10:00"
+    },
+    {
+      "name": "FRB20260613B",
+      "ra_deg": 167.907819384,
+      "dec_deg": 4.0196671222,
+      "mag": 20.57,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Below horizon all night (min AM 1.76, 0.50 h at AM<2.0; need >0.5 h)",
+      "window_start": "2026-11-08T02:31:00-10:00",
+      "window_end": "2026-11-08T05:01:00-10:00"
+    },
+    {
+      "name": "FRB20260708D",
+      "ra_deg": 284.5395927391,
+      "dec_deg": 49.7823872865,
+      "mag": 20.42,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 24 min on target (+10 min slew) but only 21 min left in its AM<2.0 window (19:01-20:31)",
+      "window_start": "2026-11-07T19:01:00-10:00",
+      "window_end": "2026-11-07T20:31:00-10:00"
+    },
+    {
+      "name": "FRB20260702A",
+      "ra_deg": 137.8468613589,
+      "dec_deg": 41.9330358117,
+      "mag": 22.5,
+      "status": "scheduled",
+      "stage": "3. Scheduling",
+      "reason": "slew 03:06 (10 min), on target 03:16-04:21 (65 min, MOS (mask required))",
+      "window_start": "2026-11-07T19:01:00-10:00",
+      "window_end": "2026-11-07T20:31:00-10:00"
+    },
+    {
+      "name": "FRB20260726A",
+      "ra_deg": 168.4752724807,
+      "dec_deg": 61.711273527,
+      "mag": 22.5,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "needs 65 min on target (+10 min slew) but only 9 min left in its AM<2.0 window (04:51-05:01)",
+      "window_start": "2026-11-08T04:51:00-10:00",
+      "window_end": "2026-11-08T05:01:00-10:00"
+    },
+    {
+      "name": "FRB20260825B",
+      "ra_deg": 173.7416566951,
+      "dec_deg": 65.0822166104,
+      "mag": 22.07,
+      "status": "rejected",
+      "stage": "2. Sky",
+      "reason": "Vignetted by Keck I Nasmyth deck (az 25\u00b0, alt 30\u00b0 - needs 33\u00b0 in az 5-146\u00b0) (min AM 1.98, 0.25 h at AM<2.0; need >0.5 h)",
+      "window_start": "2026-11-08T04:51:00-10:00",
+      "window_end": "2026-11-08T05:01:00-10:00"
+    },
+    {
+      "name": "FRB20260829B",
+      "ra_deg": 279.0775832694,
+      "dec_deg": 57.0301323105,
+      "mag": 21.78,
+      "status": "rejected",
+      "stage": "3. Scheduling",
+      "reason": "window already passed (ended 20:01, now 20:10)",
+      "window_start": "2026-11-07T19:01:00-10:00",
+      "window_end": "2026-11-07T20:01:00-10:00"
+    }
+  ],
+  "blocks": [],
+  "overheads": [
+    {
+      "start": "2026-11-07T20:00:00-10:00",
+      "end": "2026-11-07T20:05:00-10:00",
+      "label": "Evening standard (BD+28 4211)"
+    },
+    {
+      "start": "2026-11-07T20:05:00-10:00",
+      "end": "2026-11-07T20:10:00-10:00",
+      "label": "Focus check"
+    },
+    {
+      "start": "2026-11-08T05:42:00-10:00",
+      "end": "2026-11-08T05:52:00-10:00",
+      "label": "Slew to Feige 110"
+    },
+    {
+      "start": "2026-11-08T05:52:00-10:00",
+      "end": "2026-11-08T05:57:00-10:00",
+      "label": "Morning standard (Feige 110)"
+    },
+    {
+      "start": "2026-11-08T05:57:00-10:00",
+      "end": "2026-11-08T06:07:00-10:00",
+      "label": "Arc lamps"
+    },
+    {
+      "start": "2026-11-08T06:07:00-10:00",
+      "end": "2026-11-08T06:17:00-10:00",
+      "label": "Internal flats"
+    }
+  ],
+  "idle_gaps": [
+    {
+      "start": "2026-11-07T20:10:00-10:00",
+      "end": "2026-11-08T01:51:00-10:00"
+    }
+  ],
+  "overruns": [
+    {
+      "label": "Slew to Feige 110",
+      "start": "2026-11-08T05:42:00-10:00",
+      "end": "2026-11-08T05:52:00-10:00",
+      "minutes_past_end": 40.0
+    },
+    {
+      "label": "Morning standard (Feige 110)",
+      "start": "2026-11-08T05:52:00-10:00",
+      "end": "2026-11-08T05:57:00-10:00",
+      "minutes_past_end": 45.0
+    },
+    {
+      "label": "Arc lamps",
+      "start": "2026-11-08T05:57:00-10:00",
+      "end": "2026-11-08T06:07:00-10:00",
+      "minutes_past_end": 55.0
+    },
+    {
+      "label": "Internal flats",
+      "start": "2026-11-08T06:07:00-10:00",
+      "end": "2026-11-08T06:17:00-10:00",
+      "minutes_past_end": 65.0
+    }
+  ],
+  "request": {
+    "instrument": "lris",
+    "argv": [
+      "--targets-csv",
+      "/tmp/night-planner-uploads/Keck-2026B-04_targets.csv",
+      "--output-dir",
+      "/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-04",
+      "--date",
+      "2026-11-07",
+      "--start",
+      "20:00",
+      "--assume-masks",
+      "--force",
+      "FRB20250819A@40"
+    ]
+  },
+  "summary": {
+    "n_scheduled": 4,
+    "n_rejected": 9,
+    "on_target_min": 191.0,
+    "slew_min": 40.0,
+    "overhead_min": 45.0,
+    "idle_min": 341.0,
+    "night_min": 552.0,
+    "utilization": 0.34601449275362317
+  }
+}

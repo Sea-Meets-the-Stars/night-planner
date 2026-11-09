@@ -1,0 +1,15 @@
+{
+  "name": "FRB20260514A",
+  "slit_pa": 17.927194268969664,
+  "pa_swing": 3.0679764356581245,
+  "pa_weighted_offset": 1.8311367346425091,
+  "primary_ra": 127.1275614616,
+  "primary_dec": 69.2396522182,
+  "offset_star_ra": 127.10811165773,
+  "offset_star_dec": 69.23075284435,
+  "offset_star_mag": 17.175755,
+  "offset_star_offset": 40.52966768826613,
+  "offset_ra": 24.819033230277274,
+  "offset_dec": 32.041684684021824,
+  "error": "ConnectTimeout: HTTPSConnectionPool(host='alasky.cds.unistra.fr', port=443): Max retries exceeded with url: /hips-image-services/hips2fits?width=600&height=600&projection=TAN&coordsys=icrs&rotation_angle=0.0&ra=127.1"
+}

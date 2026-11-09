@@ -1,0 +1,9 @@
+{
+  "name": "FRB20260702A",
+  "slit_pa": 68.02463878912064,
+  "pa_swing": 9.50404348141204,
+  "pa_weighted_offset": 4.416391578601821,
+  "primary_ra": 137.8468613589,
+  "primary_dec": 41.9330358117,
+  "error": "ConnectTimeout: HTTPSConnectionPool(host='alasky.cds.unistra.fr', port=443): Max retries exceeded with url: /hips-image-services/hips2fits?width=600&height=600&projection=TAN&coordsys=icrs&rotation_angle=0.0&ra=137.8"
+}

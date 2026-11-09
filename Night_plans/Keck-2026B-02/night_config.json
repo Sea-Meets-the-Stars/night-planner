@@ -1,0 +1,10 @@
+{
+  "observatory": "keck",
+  "date": "2026-10-06",
+  "targets_csv": "/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02/Keck-2026B-02_targets.csv",
+  "output_dir": "/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02",
+  "max_targets": 20,
+  "start_override": "20:00",
+  "blocks": [],
+  "notes": "2026-10-06 ToO: telescope handed back at 20:00 HST. Standard star + focus run first; science begins 10 min later. Add a {\"start\":\"HH:MM\",\"end\":\"HH:MM\",\"reason\":\"...\"} entry to blocks for a mid-night interrupt instead of (or in addition to) a delayed start."
+}

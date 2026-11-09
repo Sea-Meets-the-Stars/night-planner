@@ -1,0 +1,17 @@
+# Keck/LRIS starlist for Oct 6, 2026
+# Created by JXP and Claude
+
+# === Standard Stars ===
+BD28d4211  21 51 11.02 +28 51 50.4 2000.0 vmag=10.5 # Flux standard
+Feige110   23 19 58.40 -05 09 56.2 2000.0 vmag=11.8 # Flux standard
+
+# === Science Targets ===
+FRB20260518B      17 46 48.45  +41 14 16.9  2000.0  vmag=20.0  # CHIME-Unbiased
+FRB20260611G      18 26 36.45  +61 09 01.7  2000.0  vmag=20.6  # CHIME-Unbiased
+FRB20260502A      18 33 56.81  +46 51 41.4  2000.0  vmag=22.4  # MASK REQUIRED | CHIME-Unbiased
+FRB20260603D      23 38 15.16  +30 52 55.3  2000.0  vmag=22.6  # CHIME-Unbiased
+FRB20260831H      23 41 00.89  +41 46 00.7  2000.0  vmag=20.2  # CHIME-Lowz
+FRB20260102A      01 56 29.02  +13 51 58.5  2000.0  vmag=21.2  # MASK REQUIRED | CHIME-Blind
+FRB20260418B      06 11 02.72  +39 21 33.4  2000.0  vmag=20.2  # CHIME-Lowz
+FRB20240106A      06 43 36.02  +60 21 01.5  2000.0  vmag=22.5  # MASK REQUIRED | CHIME-Blind,CHIME-HighDM
+FRB20250411A      07 30 36.48  +31 13 35.8  2000.0  vmag=25.6  # MASK REQUIRED | CHIME-Unbiased,CHIME-Unseen-Medium

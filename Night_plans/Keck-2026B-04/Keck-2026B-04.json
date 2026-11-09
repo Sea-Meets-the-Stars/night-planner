@@ -1,0 +1,19 @@
+{
+    "instrument": "LRIS",
+    "name": "Keck-2026B-04",
+    "valid_start": "2026-11-08T04:34:00Z",
+    "valid_stop": "2026-11-08T15:38:00Z",
+    "num_targ_img": 0,
+    "num_targ_mask": 10,
+    "num_targ_longslit": 20,
+    "max_AM": 2.0,
+    "frb_surveys": "all",
+    "obs_type": null,
+    "Program": null,
+    "Period": null,
+    "min_POx": null,
+    "frb_tags": null,
+    "frb_statuses": null,
+    "min_mag": 19.0,
+    "max_mag": null
+}
