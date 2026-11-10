@@ -6,11 +6,11 @@ Uses chime_ffff_pz's own API layer
 `api/frbresources/` with HTTP Basic auth) rather than re-implementing the
 request, so URL fixups and auth stay in one place.
 
-That package lives in the `frb_env` conda environment, not this one, so
-run this with that interpreter:
+`chime_ffff_pz` may live in a different conda environment than this one
+(both authors keep it in an `frb_env`). Run this with that interpreter,
+whatever it is called on your machine:
 
-    /home/lordrick/miniconda3/envs/frb_env/bin/python \\
-        scripts/fetch_ffffpz_resource.py Keck-2026B-03
+    conda run -n frb_env python scripts/fetch_ffffpz_resource.py Keck-2026B-03
 
 Read-only: it fetches and writes a local JSON, and never PUTs anything
 back to the server.

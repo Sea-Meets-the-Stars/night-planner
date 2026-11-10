@@ -3,7 +3,7 @@
 Fix HA limit violations in night plan.
 Created by JXP and Claude.
 
-Clips observable windows to Shane pointing limits: -5.0h ≤ HA ≤ +3.75h
+Clips observable windows to Shane pointing limits: -5:40 ≤ HA ≤ +3:45
 """
 
 import pandas as pd
@@ -21,9 +21,11 @@ lick = EarthLocation.from_geodetic(
     height=1283 * u.m
 )
 
-# HA limits (hours)
-HA_MIN = -5.0
-HA_MAX = +3.75
+# HA limits (hours). Canonical values live in
+# lick_2026b02_calculations; kept as literals here because this
+# script is a standalone one-off.
+HA_MIN = -(5 + 40 / 60)   # -05:40, adopted 2026-10-14
+HA_MAX = 3 + 45 / 60      # +03:45
 
 # Night parameters for 2026-08-13/14
 PST = pytz.timezone('US/Pacific')

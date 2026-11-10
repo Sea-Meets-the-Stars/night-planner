@@ -48,9 +48,12 @@ class ScheduledTarget:
     """One target as actually placed in the night.
 
     `start` is when the telescope starts moving (slew), `science_start`
-    when photons start being collected, `end` when they stop. On
-    instruments whose scheduler doesn't model slew as its own interval,
-    `slew_min` is 0 and `science_start == start`.
+    when photons start being collected, `end` when they stop. Between
+    them: `slew_min` of slew, then `acq_min` of acquisition, so
+    `science_start - start == slew_min + acq_min`. On instruments whose
+    scheduler doesn't model slew as its own interval, both are 0 and
+    `science_start == start`. `slew_reason` explains a slew longer than the
+    base one (e.g. the Keck Dec +20 crossing), '' otherwise.
     """
     name: str
     ra_deg: float
@@ -68,6 +71,33 @@ class ScheduledTarget:
     window_start: Optional[datetime] = None
     window_end: Optional[datetime] = None
     notes: str = ''
+    # Defaulted so a plan_result.json written before 2026-11-07 still loads.
+    acq_min: float = 0.0
+    slew_reason: str = ''
+    # Detector readout inside [science_start, end], after the exposures:
+    # end - science_start = on_target_min + readout_min (T1.1, 2026-11-07).
+    readout_min: float = 0.0
+    # Milestone 5 (T1.3, T3.4a). `airmass` is the airmass the ETC was run at
+    # under `airmass_rule` ('' when no ETC was involved: MOS blocks, fixed
+    # recipes, the empirical Kast rule); `airmass_min` the night's best.
+    # S/N is median continuum per pixel: one sub-exposure, and all n_sub
+    # combined (sqrt(n) x per-sub). None when the ETC reports none.
+    airmass_min: Optional[float] = None
+    airmass_rule: str = ''
+    sn_sub_blue: Optional[float] = None
+    sn_sub_red: Optional[float] = None
+    sn_comb_blue: Optional[float] = None
+    sn_comb_red: Optional[float] = None
+    # Milestone 6 (T3.3): where on_target_min came from ('ETC', 'user',
+    # 'empirical', 'MOS block', 'fixed recipe'), the ETC's own estimate
+    # (shown beside a user time), and whether the target was required (full
+    # time or nothing).
+    time_source: str = ''
+    etc_min: Optional[float] = None
+    required: bool = False
+    # FFFF-PZ tags and DM, for the plan table (T2.5).
+    tags: str = ''
+    dm: Optional[float] = None
 
     def to_dict(self):
         d = asdict(self)
@@ -96,6 +126,10 @@ class TargetDecision:
     # "set hours ago", which decides whether forcing it can work at all.
     window_start: Optional[datetime] = None
     window_end: Optional[datetime] = None
+    # Defaulted, not required: from_dict() splats a saved row straight into
+    # this constructor, so a plan_result.json written before priority existed
+    # must still load.
+    priority: Optional[float] = None
 
     def to_dict(self):
         d = asdict(self)
@@ -123,13 +157,21 @@ class PlanResult:
     # a plan can be re-run with one thing changed (force a rejected target,
     # say) without the caller having to remember the original inputs.
     request: dict = field(default_factory=dict)
+    # What this plan assumed (readout per frame, ETC configuration, ...),
+    # for the plan page's assumptions panel. A value nobody has given us is
+    # recorded as 'NOT SET', never silently 0.
+    assumptions: dict = field(default_factory=dict)
+    # The instrument configuration the plan was made with (grism, grating,
+    # dichroic, slit, binning), plus 'seeing' and 'mag_band'. Empty for
+    # plans written before 2026-11-07 (M4).
+    config: dict = field(default_factory=dict)
 
     def idle_gaps(self):
         """Stretches of the night with nothing scheduled and nothing blocking.
 
         Computed from the schedule rather than tracked by the schedulers,
         because 'idle' is the complement of everything else and only the
-        assembled plan knows all of it. Standards, focus and calibrations
+        assembled plan knows all of it. Standards and focus
         count as busy -- they're planned work, not dead time, and counting
         them as idle overstates what could have held another target.
         Returns [(start, end)] tz-aware, bounded by night_start/night_end.
@@ -153,9 +195,9 @@ class PlanResult:
         """Planned overheads that extend past the end of the night.
 
         A tight plan can leave less time after the last target than the
-        morning standard and calibrations need. That's often fine (internal
-        flats don't care about the sky) but it should be visible rather
-        than silently clipped.
+        closing slew and morning standard need. It should be visible
+        rather than silently clipped. (Calibrations aren't planned blocks;
+        they live on the Observing log page.)
         """
         return [{'label': label, 'start': start, 'end': end,
                  'minutes_past_end': (end - self.night_end).total_seconds() / 60}
@@ -166,6 +208,8 @@ class PlanResult:
         """Headline numbers for the plan viewer."""
         on_target = sum(t.on_target_min for t in self.schedule)
         slew = sum(t.slew_min for t in self.schedule)
+        acq = sum(t.acq_min for t in self.schedule)
+        readout = sum(t.readout_min for t in self.schedule)
         overhead = sum((o[1] - o[0]).total_seconds() / 60 for o in self.overheads)
         idle = sum((g[1] - g[0]).total_seconds() / 60 for g in self.idle_gaps())
         night = (self.night_end - self.night_start).total_seconds() / 60
@@ -174,6 +218,8 @@ class PlanResult:
             'n_rejected': sum(d.status == 'rejected' for d in self.decisions),
             'on_target_min': on_target,
             'slew_min': slew,
+            'acq_min': acq,
+            'readout_min': readout,
             'overhead_min': overhead,
             'idle_min': idle,
             'night_min': night,
@@ -202,6 +248,8 @@ class PlanResult:
             'overruns': [{**o, 'start': _iso(o['start']), 'end': _iso(o['end'])}
                          for o in self.overruns()],
             'request': dict(self.request),
+            'assumptions': dict(self.assumptions),
+            'config': dict(self.config),
             'summary': self.summary(),
         }
 
@@ -239,4 +287,6 @@ class PlanResult:
             overheads=[(_dt(o['start']), _dt(o['end']), o['label'])
                        for o in data.get('overheads', [])],
             request=dict(data.get('request') or {}),
+            assumptions=dict(data.get('assumptions') or {}),
+            config=dict(data.get('config') or {}),
         )

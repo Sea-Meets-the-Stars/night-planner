@@ -10,13 +10,17 @@ Created by JXP and Claude
 
 ### General Documentation
 
+- **[Install Guide](../INSTALL.md)** - Conda environment, environment variables, first run, troubleshooting
 - **[Shane Telescope Constraints](Shane_telescope_constraints.md)** - Shane 3m pointing limits, HA ranges, observable RA windows
+- **[Target CSV Guide](target_csv_guide.md)** - How to build a target table that loads cleanly and makes a good night: columns, units, magnitudes, priorities
 - **[Testing Guide](Testing_guide.md)** - How to use the test suite and edge case datasets
+- **[Priority System](priority_system.md)** - What the planner does with a priority column: the float contract, tiered scheduling, what outranks priority, and what it never touches
+- **[Priority: night-planner vs AstroScheduler](priority_comparison_astroscheduler.md)** - Comparison with the UCSC AstroScheduler priority-sequential Branch and Bound solver
 
 ### Run-Specific Documentation
 
-- **[Lick-2026B-01 HOWTO](../Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md)** - Complete step-by-step guide for Aug 13-14, 2026 night plan
-- **[Lick-2026B-01 Corrections](../Night_plans/Lick-2026B-01/CORRECTIONS_SUMMARY.md)** - Critical corrections to HA limit understanding
+- **[Lick-2026B-01 HOWTO](Lick-2026B-01_HOWTO_night_plan_creation.md)** - Complete step-by-step guide for Aug 13-14, 2026 night plan
+- **[Lick-2026B-01 Corrections](Lick-2026B-01_CORRECTIONS_SUMMARY.md)** - Critical corrections to HA limit understanding
 
 ### Testing
 
@@ -133,7 +137,7 @@ Window shifts ~2h/month as Earth orbits sun.
 | `lick_2026b01_calculations.py` | Ephemeris, twilight, airmass, target selection |
 | `build_night_plan.py` | Generate Excel night plan from selected targets |
 | `observable_ra_calculator.py` | Calculate observable RAs for any date, generate year plot |
-| `check_deadtime_lick_2026b01.py` | Analyze timeline for deadtime gaps |
+| `check_target_csv.py` | Validate a target table and report airmass, exposure and total hours |
 | `generate_test_frbs.py` | Generate 17 synthetic test cases |
 | `run_all_tests.py` | Run observability analysis on all test cases |
 
@@ -173,7 +177,8 @@ Targets aren't "observable" or "not" universally - they're observable at **speci
 
 ## Getting Help
 
-- Read the [Lick-2026B-01 HOWTO](../Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md) for a complete worked example
+- Building a target list? Start with the [Target CSV Guide](target_csv_guide.md)
+- Read the [Lick-2026B-01 HOWTO](Lick-2026B-01_HOWTO_night_plan_creation.md) for a complete worked example
 - Check [Testing Guide](Testing_guide.md) for edge case scenarios
 - Review [Shane constraints](Shane_telescope_constraints.md) for telescope limits
 - Consult `context/claudes_brain.md` for accumulated knowledge

@@ -20,7 +20,7 @@ from astropy import units as u
 
 LICK = EarthLocation(lat=37.3414 * u.deg, lon=-121.6429 * u.deg, height=1283 * u.m)
 PST = timezone(timedelta(hours=-8))  # Lick calendar convention: fixed PST year-round
-LICK_HA_MIN, LICK_HA_MAX = -5.0, 3.75  # Shane 3m mount limits (hours)
+LICK_HA_MIN, LICK_HA_MAX = -(5 + 40 / 60), 3 + 45 / 60  # -05:40..+03:45
 
 # Verified against astropy's EarthLocation.of_site('keck') (IRAF Observatory
 # Database): lat 19.828333 deg, lon -155.478333 deg, height 4160 m.

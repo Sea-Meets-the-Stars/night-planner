@@ -21,6 +21,7 @@ help when it would otherwise have to guess -- see detect_mapping().
 Created by JXP and Claude
 """
 
+import os
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -30,7 +31,14 @@ from astropy.coordinates import Angle
 from astropy import units as u
 
 REQUIRED_FIELDS = ('name', 'ra', 'dec', 'mag')
-OPTIONAL_FIELDS = ('pox', 'tags', 'dm')
+OPTIONAL_FIELDS = ('pox', 'tags', 'dm', 'priority', 'mag_band', 't_target',
+                   'required')
+
+# Priority convention, shared with the UCSC AstroScheduler so the two stay
+# comparable: a float, lower = more important. Every target defaults to the
+# same value, which puts them all in one tier -- and one tier schedules
+# exactly as the pipeline did before priority existed.
+DEFAULT_PRIORITY = 1.0
 
 # Candidate source-column spellings per field, highest priority first.
 #
@@ -49,7 +57,98 @@ ALIASES = {
     'pox': ['pri_pox', 'pox', 'p_ox'],
     'tags': ['frb_tags', 'tags', 'tag'],
     'dm': ['frb_dm', 'dm'],
+    'priority': ['priority', 'prio', 'rank'],
+    # Band of the mag column for this row (T3.5, 2026-11-07); beats the
+    # plan-wide --mag-band. 'filter' is deliberately not an alias: too many
+    # tables use it for something else.
+    # FFFF-PZ's Pri_filter is the band of Pri_mag, written as
+    # 'Survey:Instrument-band' (e.g. 'Blanco:DECam-r'); normalize_band()
+    # keeps just the band.
+    'mag_band': ['mag_band', 'band', 'mag_filter', 'pri_filter'],
+    # Milestone 6 (T3.3): minutes on target set by the user (the ETC is then
+    # only shown alongside), and whether a target must get its full time or
+    # nothing (never truncated into a partial).
+    't_target': ['t_target', 't_obs', 'exptime_min'],
+    'required': ['required'],
 }
+
+_TRUE = {'true', 'yes', 'y', '1', 't'}
+_FALSE = {'false', 'no', 'n', '0', 'f', ''}
+
+
+def parse_required(value):
+    """
+    A `required` cell as a bool.
+
+    Parameters
+    ----------
+    value : any
+        true/false, yes/no, y/n, 1/0 (any case), a bool, or empty/NaN.
+
+    Returns
+    -------
+    bool or None : None for a value that isn't recognisably either (the
+    caller treats it as False and reports it).
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return False
+    text = str(value).strip().lower()
+    if text.endswith('.0'):
+        text = text[:-2]
+    if text in _TRUE:
+        return True
+    if text in _FALSE:
+        return False
+    return None
+
+
+def parse_t_target(value):
+    """
+    A `t_target` cell as minutes.
+
+    Parameters
+    ----------
+    value : any
+
+    Returns
+    -------
+    float, NaN for an empty cell, or None for a value that isn't a positive
+    number (the caller treats it as unset and reports it).
+    """
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return np.nan
+    if isinstance(value, str) and not value.strip():
+        return np.nan
+    try:
+        minutes = float(value)
+    except (TypeError, ValueError):
+        return None
+    return minutes if minutes > 0 else None
+
+
+def normalize_band(value):
+    """
+    The photometric band in a table cell.
+
+    Parameters
+    ----------
+    value : any
+        e.g. 'r', ' g ', 'Blanco:DECam-r', 'Pan-STARRS1:GPC1-r', NaN.
+
+    Returns
+    -------
+    str : the band after the last '-' or ':' (case kept, since R/I are
+    Cousins and r/i are SDSS), or '' for an empty cell.
+    """
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return ''
+    text = str(value).strip()
+    for sep in ('-', ':'):
+        if sep in text:
+            text = text.rsplit(sep, 1)[1].strip()
+    return text
 
 # Source columns whose name already settles the unit question. Anything
 # outside these two sets is "bare" (e.g. plain 'ra') and gets the
@@ -150,6 +249,57 @@ def detect_mapping(df):
     return mapping
 
 
+# An FFFF-PZ pull is recognisable by what only it carries: the *burst*
+# position and DM alongside PATH's ranked host candidates with their
+# probabilities. No hand-made observing list has that combination, and
+# no other source produces Pri_POx/Sec_POx at all.
+FFFFPZ_SIGNATURE = {
+    'burst': ('frb_ra', 'frb_dec', 'frb_dm'),
+    'primary': ('pri_ra', 'pri_dec', 'pri_pox'),
+    'secondary': ('sec_ra', 'sec_dec', 'sec_pox'),
+}
+
+
+def detect_format(df):
+    """
+    Decide whether a table is an FFFF-PZ pull or a generic target list.
+
+    This matters because PATH ranks the host candidates of a *burst*. A
+    second candidate is meaningful for a localised FRB and meaningless
+    for a supernova or a DLA sightline, so "may I fit the slit through
+    two candidates?" is a question about where the table came from, not
+    about any individual row. Deciding it once, at inspection, beats
+    guessing per row from object names.
+
+    Parameters
+    ----------
+    df : DataFrame
+
+    Returns
+    -------
+    dict with
+        format   : 'ffff-pz' or 'generic'
+        groups   : which signature groups were found
+        missing  : which were not
+        has_candidates : True when a second candidate can be used for a
+                         slit angle
+    """
+    present = {_norm(c) for c in df.columns}
+    found = {group: all(col in present for col in cols)
+             for group, cols in FFFFPZ_SIGNATURE.items()}
+
+    # Burst position plus ranked primary is the minimum that identifies
+    # the format; the secondary group is what makes candidates mode
+    # possible, and an FFFF-PZ table can legitimately lack it.
+    is_ffffpz = found['burst'] and found['primary']
+    return {
+        'format': 'ffff-pz' if is_ffffpz else 'generic',
+        'groups': sorted(g for g, ok in found.items() if ok),
+        'missing': sorted(g for g, ok in found.items() if not ok),
+        'has_candidates': bool(is_ffffpz and found['secondary']),
+    }
+
+
 def _angle_to_deg(series, unit, is_ra):
     """Convert a coordinate column to degrees, sexagesimal or numeric."""
     if _looks_sexagesimal(series):
@@ -167,7 +317,7 @@ def load_targets(source, mapping=None):
 
     Parameters
     ----------
-    source : str or DataFrame
+    source : str, Path or DataFrame
         CSV path, or an already-loaded frame.
     mapping : ColumnMapping, optional
         Supply this to override/complete auto-detection (what the GUI
@@ -186,7 +336,10 @@ def load_targets(source, mapping=None):
         If the table can't be read without guessing. The partial mapping
         is attached to the exception.
     """
-    df = pd.read_csv(source) if isinstance(source, str) else source.copy()
+    # A Path is the natural thing for a caller to hold, so accept it
+    # alongside str rather than failing on .copy() deep inside pandas.
+    df = (pd.read_csv(source) if isinstance(source, (str, os.PathLike))
+          else source.copy())
 
     if mapping is None:
         mapping = detect_mapping(df)
@@ -206,6 +359,28 @@ def load_targets(source, mapping=None):
     for fieldname, empty in (('pox', np.nan), ('tags', ''), ('dm', np.nan)):
         source_col = mapping.columns.get(fieldname)
         out[fieldname] = df[source_col] if source_col else empty
+    source_col = mapping.columns.get('mag_band')
+    out['mag_band'] = (df[source_col].map(normalize_band) if source_col else '')
+    # Unreadable t_target / required values fall back to unset / False, like
+    # priority; field_coercions() reports them.
+    source_col = mapping.columns.get('t_target')
+    out['t_target'] = (df[source_col].map(parse_t_target).map(
+        lambda v: np.nan if v is None else v).astype(float)
+        if source_col else np.nan)
+    source_col = mapping.columns.get('required')
+    out['required'] = (df[source_col].map(parse_required).map(bool)
+                       if source_col else False)
+
+    # Priority is handled apart from the loop above because it is the one
+    # optional field the scheduler *computes with*: every consumer may assume
+    # a float. A value that isn't a number falls back to the default rather
+    # than raising -- a table whose priority column reads 'A'/'B' is still a
+    # perfectly good target table, it just has no usable ranking. Callers that
+    # need to tell the user so should use priority_coercions().
+    source_col = mapping.columns.get('priority')
+    out['priority'] = (
+        pd.to_numeric(df[source_col], errors='coerce').fillna(DEFAULT_PRIORITY)
+        if source_col else DEFAULT_PRIORITY)
 
     bad = out['ra_deg'].isna() | out['dec_deg'].isna()
     if bad.any():
@@ -213,4 +388,99 @@ def load_targets(source, mapping=None):
         raise TargetTableError(
             f'{int(bad.sum())} row(s) have unreadable coordinates: {names}',
             mapping)
+
+    # A repeated name is almost always a merge that went wrong, and the
+    # scheduler has no way to know: it happily books the same object
+    # twice and spends the night observing it. Tables built by merging
+    # two sources -- which is how the baseband targets reached
+    # Lick-2026B-03 -- are exactly where this happens.
+    duplicated = out['name'][out['name'].duplicated(keep=False)]
+    if len(duplicated):
+        names = ', '.join(sorted(set(duplicated))[:5])
+        raise TargetTableError(
+            f'{duplicated.nunique()} target name(s) appear more than once: '
+            f'{names} -- each target must be one row, or it will be '
+            f'scheduled twice', mapping)
+    return out
+
+
+def priority_coercions(source, mapping=None):
+    """
+    Count priority values that are not numbers, for reporting to the user.
+
+    Created by JXP and Claude
+
+    `load_targets` quietly falls back to DEFAULT_PRIORITY for anything it
+    cannot read as a float, because an unreadable ranking is not a reason
+    to refuse a target table. Quiet is not the same as hidden, though:
+    dropping a priority column on the floor without saying so is the exact
+    behaviour this field was added to fix. Callers that have somewhere to
+    put a warning -- the GUI's inspect step -- ask here.
+
+    Inputs
+    ------
+    source : str, Path or pandas.DataFrame
+        The target table, as given to load_targets.
+    mapping : ColumnMapping, optional
+        A mapping already detected for this table; re-detected if omitted.
+
+    Outputs
+    -------
+    dict with keys:
+        'column'  -- the source column priority was read from, or None if
+                     the table has no priority column at all
+        'n_total' -- rows in the table
+        'n_coerced' -- rows whose priority was not a number and therefore
+                     fell back to DEFAULT_PRIORITY
+        'examples' -- up to 3 distinct offending values, as strings
+    """
+    df = (pd.read_csv(source) if isinstance(source, (str, os.PathLike))
+          else source)
+    if mapping is None:
+        mapping = detect_mapping(df)
+
+    column = mapping.columns.get('priority')
+    if not column:
+        return {'column': None, 'n_total': len(df), 'n_coerced': 0,
+                'examples': []}
+
+    numeric = pd.to_numeric(df[column], errors='coerce')
+    # A blank cell is a missing value, not a typo: the user left it to the
+    # default on purpose, so it is not worth warning about.
+    bad = numeric.isna() & df[column].notna()
+    examples = [str(v) for v in df.loc[bad, column].drop_duplicates().head(3)]
+    return {'column': column, 'n_total': len(df),
+            'n_coerced': int(bad.sum()), 'examples': examples}
+
+
+def field_coercions(source, mapping=None):
+    """
+    Unreadable t_target / required values, for reporting to the user
+    (the same idea as priority_coercions).
+
+    Created by JXP and Claude
+
+    Inputs
+    ------
+    source : str, Path or pandas.DataFrame
+    mapping : ColumnMapping, optional
+
+    Outputs
+    -------
+    dict field -> {'column', 'n_coerced', 'examples'} for t_target and
+    required; fields the table doesn't have are left out.
+    """
+    df = (pd.read_csv(source) if isinstance(source, (str, os.PathLike))
+          else source)
+    if mapping is None:
+        mapping = detect_mapping(df)
+    out = {}
+    for field, parse in (('t_target', parse_t_target),
+                         ('required', parse_required)):
+        column = mapping.columns.get(field)
+        if not column:
+            continue
+        bad = [v for v in df[column] if parse(v) is None]
+        out[field] = {'column': column, 'n_coerced': len(bad),
+                      'examples': sorted({str(v) for v in bad})[:3]}
     return out

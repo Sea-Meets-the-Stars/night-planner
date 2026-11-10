@@ -162,7 +162,7 @@ tests/
 ### Run Full Suite
 
 ```bash
-cd /home/lordrick/Projects/night-planner
+cd /path/to/night-planner
 python tests/test_data/run_all_tests.py
 ```
 

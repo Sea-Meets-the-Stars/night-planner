@@ -156,7 +156,8 @@ def required_exptime(mag_r, target_sn=5.0, window=RED_WINDOW, airmass=1.2,
 
 
 def estimate_lris_exposure_real(mag_r, airmass=1.2, target_sn=10.0,
-                                 seeing=DEFAULT_SEEING, n_sub_min=3):
+                                 seeing=DEFAULT_SEEING, n_sub_min=3,
+                                 config=None, band='r'):
     """
     Real-ETC replacement for the old magnitude-bucket LRIS exposure
     heuristic. Computes the exptime needed for *one* exposure in each arm
@@ -184,20 +185,35 @@ def estimate_lris_exposure_real(mag_r, airmass=1.2, target_sn=10.0,
     seeing : float
     n_sub_min : int
         Minimum number of sub-exposures (default 3, per the author).
+    config : dict, optional
+        grism / grating / dichroic / slit / binning; missing keys fall back
+        to this module's defaults (added 2026-11-07, T3.1).
+    band : str
+        Band of mag_r, mapped to the ETC filter file through
+        night_planner.instrument_params.ETC_FILTERS (T3.5).
 
     Returns
     -------
     dict with 'red_exp', 'blue_exp', 'science_min', 'total_min', 'mode',
-    'achieved_sn_blue', 'achieved_sn_red'
+    'achieved_sn_blue', 'achieved_sn_red', and the recipe as numbers,
+    'n_sub' and 'sub_len_s' (so callers needn't parse "3 x 600").
     """
+    from night_planner.instrument_params import etc_filter
+
+    config = config or {}
+    seeing = DEFAULT_SEEING if seeing is None else seeing
+    etc_kwargs = dict(grism=config.get('grism', DEFAULT_GRISM),
+                      grating=config.get('grating', DEFAULT_GRATING),
+                      dichroic=config.get('dichroic', DEFAULT_DICHROIC),
+                      slitwidth=config.get('slit', DEFAULT_SLITWIDTH),
+                      binning=config.get('binning', DEFAULT_BINNING),
+                      ffilter=etc_filter(band))
     t_blue, sn_blue = required_exptime(mag_r, target_sn=target_sn,
                                         window=BLUE_WINDOW, airmass=airmass,
-                                        seeing=seeing, grism=DEFAULT_GRISM,
-                                        grating=DEFAULT_GRATING)
+                                        seeing=seeing, **etc_kwargs)
     t_red, sn_red = required_exptime(mag_r, target_sn=target_sn,
                                       window=RED_WINDOW, airmass=airmass,
-                                      seeing=seeing, grism=DEFAULT_GRISM,
-                                      grating=DEFAULT_GRATING)
+                                      seeing=seeing, **etc_kwargs)
 
     sub_len = int(np.ceil(max(t_blue, t_red) / 10.0) * 10)  # round to 10s
     n_sub = n_sub_min
@@ -216,4 +232,6 @@ def estimate_lris_exposure_real(mag_r, airmass=1.2, target_sn=10.0,
         "mode": "longslit",
         "achieved_sn_blue": round(sn_blue, 1),
         "achieved_sn_red": round(sn_red, 1),
+        "n_sub": n_sub,
+        "sub_len_s": sub_len,
     }

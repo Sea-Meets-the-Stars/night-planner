@@ -1,0 +1,14 @@
+Slit angles for 2026-10-23 (Lick-2026A-03_test2)
+Requested: candidates
+Created by JXP and Claude -- night-planner
+
+SIMDLA45229: both candidates, PA 0.85 deg (69.5 deg off parallactic; secondary 9.2" away)
+SIMTDE34840: both candidates, PA 161.76 deg (56.4 deg off parallactic; secondary 33.5" away)
+SIMDLA38651: both candidates, PA 169.24 deg (43.8 deg off parallactic; secondary 36.6" away)
+SIMSN58670: both candidates, PA 73.00 deg (35.5 deg off parallactic; secondary 7.7" away)
+SIMSN49713: both candidates, PA 61.83 deg (14.0 deg off parallactic; secondary 22.3" away)
+SIMSN49745: both candidates, PA 111.02 deg (21.3 deg off parallactic; secondary 6.1" away)
+SIMDLA37535: both candidates, PA 94.22 deg (30.6 deg off parallactic; secondary 9.3" away)
+SIMSN16802: both candidates, PA 31.71 deg (8.4 deg off parallactic; secondary 44.8" away)
+SIMDLA26366: both candidates, PA 70.27 deg (66.9 deg off parallactic; secondary 35.7" away)
+SIMSN72403: both candidates, PA 2.69 deg (34.3 deg off parallactic; secondary 24.3" away)

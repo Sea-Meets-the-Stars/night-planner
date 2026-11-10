@@ -1,0 +1,10 @@
+Slit angles for 2026-11-11 (Lick-2026A-07_host_wg)
+Requested: parallactic
+Created by JXP and Claude -- night-planner
+
+SIMFRB76476: parallactic 134.75 deg
+SIMFRB11987: parallactic 75.63 deg
+SIMFRB86183: parallactic 0.02 deg
+SIMFRB54549: parallactic 19.91 deg
+SIMFRB74020: parallactic 76.88 deg
+SIMFRB31635: parallactic 10.81 deg

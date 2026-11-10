@@ -23,27 +23,33 @@ Night 1 (2026-09-14) results, per the author:
     precedent as FRB20260627D's forced-first override on night 1).
 
 Reuses the HA-window-first machinery from lick_2026b02_calculations.py
-(target_window computes each target's -5.0h<=HA<=+3.75h window, clipped to
+(target_window computes each target's -05:40<=HA<=+03:45 window, clipped to
 the twilight-bounded night, *before* scheduling -- see that module's
 docstring for why).
 """
 
 import sys
+from pathlib import Path
 from datetime import timedelta
 
 import pandas as pd
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
 from scripts.lick_2026b02_calculations import (
     HA_MAX, HA_MIN, DEC_LIMIT, find_twilight, target_window, ha_at, time_at_lst,
 )
 from night_planner.estimate_kast_exposures import estimate_exposure
-from schedule_overrides import resolve_start, fit_around_blocks, blocking_reason, push_past_blocks
+from schedule_overrides import (advance, resolve_start, fit_around_blocks,
+                                 blocking_reason, push_past_blocks)
 from night_plan_io import load_config, resolve_local_dt, resolve_blocks, save_night_meta, OBSERVATORY_TZ
 
-OUT_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-02'
+OUT_DIR = f'{_PLANS}/Lick-2026B-02'
 PRIMARY_TARGETS_CSV = f'{OUT_DIR}/Lick-2026B-02_targets.csv'
 EXTRAS_ANALYSIS_CSV = f'{OUT_DIR}/extras_analysis.csv'
 DATE = '2026-09-15'
@@ -71,7 +77,7 @@ SPARE_TARGETS = [
 # interesting, but it's rising right now. You can definitely get it in
 # twilight." Checked directly (see never_legal_diagnostic() below):
 # 2026sqf is circumpolar from Lick (Dec 53.51 > 90-lat 52.66) but the
-# Shane's HA mount limit is not a horizon limit -- its -5.0h<=HA<=+3.75h
+# Shane's HA mount limit is not a horizon limit -- its -05:40<=HA<=+03:45
 # window this specific night does not open until 07:03 PDT, 13 min AFTER
 # sunrise (06:50 PDT). Unlike FRB20260627D's forced-first override on
 # night 1 (a legal-but-short window, exposure truncated), this is not a
@@ -145,7 +151,8 @@ def analyze(df, twilight):
     return pd.DataFrame(rows).sort_values('RA_hours').reset_index(drop=True)
 
 
-def schedule_greedy(observable_df, start_time, end_time, forced_first=None, blocks=None):
+def schedule_greedy(observable_df, start_time, end_time, forced_first=None, blocks=None,
+                    slew_min=SLEW_MINUTES, readout=None, exposure=None):
     """Earliest-window-close-first greedy scheduler over a single
     continuous time span [start_time, end_time) (mirrors schedule_night()
     in lick_2026b02_calculations.py).
@@ -167,7 +174,37 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
         Called on every sub-window (the main FRB pass and each spare
         gap-fill pass in main()), so a block is honored everywhere this
         function is used, not just on the first call.
+    slew_min : float
+        Gap left after each target before the next can start. Defaults to
+        this run's SLEW_MINUTES; the general Kast path
+        (kast_calculations) passes instrument_params.lick_gap_minutes()
+        (slew + acquisition), added 2026-11-07.
+    readout : callable, optional
+        readout(red, blue) -> minutes of detector readout the recipe adds
+        (or None if NOT SET). Default: none, as this run was planned. The
+        general Kast path passes instrument_params.readout_minutes (T1.1,
+        added 2026-11-07). A forced-first truncation is an allocation, so
+        it gets no readout added.
+    exposure : callable, optional
+        exposure(row, start, minutes) -> dict with 'red', 'blue', 'dur_s'
+        and any extra columns to keep on the row. start/minutes are None
+        for the first guess; afterwards they are the placed science span,
+        so the exposure can follow the airmass there (T1.3). Default: this
+        run's empirical estimate_exposure. When given, a placed target is
+        re-sized at its placement and re-placed if it grew, up to
+        max_rounds times (added 2026-11-07).
     """
+    def _readout(red, blue):
+        return (readout(red, blue) or 0.0) if readout else 0.0
+
+    def _exposure(row, start=None, minutes=None):
+        if exposure is None:
+            red, blue, dur_s = estimate_exposure(row['mag_r'])
+            return {'red': red, 'blue': blue, 'dur_s': dur_s}
+        return exposure(row, start, minutes)
+
+    max_rounds = 3
+
     blocks = blocks or []
     observable = observable_df.copy()
     schedule = []
@@ -178,7 +215,8 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
         row = observable[mask].iloc[0]
         observable = observable[~mask]
 
-        red, blue, dur_s = estimate_exposure(row['mag_r'])
+        e = _exposure(row)
+        red, blue, dur_s = e['red'], e['blue'], e['dur_s']
         dur_min = dur_s / 60.0
         start = max(current_time, row['entry_pst'])
         window_close = min(row['exit_pst'], end_time)
@@ -194,7 +232,7 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
                                               f"starts (start {start:%H:%M} >= "
                                               f"exit {window_close:%H:%M})"))
         else:
-            ideal_end = start + timedelta(minutes=dur_min)
+            ideal_end = advance(start, dur_min)
             end = min(ideal_end, window_close)
             got_min = (end - start).total_seconds() / 60.0
             reason = ('' if end >= ideal_end else
@@ -204,12 +242,14 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
             schedule.append(dict(row, scheduled=True, start_pst=start, end_pst=end,
                                   duration_min=got_min, red_side=red, blue_side=blue,
                                   skip_reason=reason))
-            current_time = end + timedelta(minutes=SLEW_MINUTES)
+            current_time = advance(end, slew_min)
 
     observable = observable.sort_values('exit_pst').reset_index(drop=True)
     for _, row in observable.iterrows():
-        red, blue, dur_s = estimate_exposure(row['mag_r'])
-        dur_min = dur_s / 60.0
+        e = _exposure(row)
+        red, blue, dur_s = e['red'], e['blue'], e['dur_s']
+        readout_min = _readout(red, blue)
+        dur_min = dur_s / 60.0 + readout_min
 
         raw_start = max(current_time, row['entry_pst'])
         window_close = min(row['exit_pst'], end_time)
@@ -222,6 +262,21 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
             continue
 
         start, end = fit_around_blocks(raw_start, dur_min, window_close, blocks)
+        # Re-size at the placement (airmass there) and re-place. The block is
+        # always re-fitted to the latest exposure; iteration stops once a
+        # re-size changes it by <= 0.5 min.
+        for _ in range(max_rounds if exposure is not None else 0):
+            if start is None:
+                break
+            e2 = _exposure(row, start, dur_s / 60.0)
+            settled = abs(e2['dur_s'] - dur_s) / 60.0 <= 0.5
+            e = e2
+            red, blue, dur_s = e['red'], e['blue'], e['dur_s']
+            readout_min = _readout(red, blue)
+            dur_min = dur_s / 60.0 + readout_min
+            start, end = fit_around_blocks(raw_start, dur_min, window_close, blocks)
+            if settled:
+                break
         if start is None:
             reason = blocking_reason(raw_start, dur_min, blocks)
             if reason:
@@ -236,10 +291,11 @@ def schedule_greedy(observable_df, start_time, end_time, forced_first=None, bloc
                                                   f"min left in its HA window"))
             continue
 
+        extra = {k: v for k, v in e.items() if k not in ('red', 'blue', 'dur_s')}
         schedule.append(dict(row, scheduled=True, start_pst=start, end_pst=end,
                               duration_min=dur_min, red_side=red, blue_side=blue,
-                              skip_reason=''))
-        current_time = end + timedelta(minutes=SLEW_MINUTES)
+                              readout_min=readout_min, skip_reason='', **extra))
+        current_time = advance(end, slew_min)
 
     return pd.DataFrame(schedule), current_time
 
@@ -261,7 +317,7 @@ def never_legal_diagnostic(name, ra_hours, twilight):
     entry_time = time_at_lst(lst_entry, twilight['evening_lst'].hour, twilight['evening_pst'])
     exit_time = time_at_lst(lst_exit, twilight['evening_lst'].hour, twilight['evening_pst'])
 
-    print(f"  {name}: Shane HA window (-5.0h..+3.75h) would run "
+    print(f"  {name}: Shane HA window ({HA_MIN:+.2f}h..{HA_MAX:+.2f}h) would run "
           f"{entry_time:%m-%d %H:%M} -> {exit_time:%m-%d %H:%M} {exit_time.tzname()} "
           f"(sunset {sunset:%H:%M}, sunrise {sunrise:%H:%M} {sunrise.tzname()}) -- "
           f"{'overlaps' if entry_time < sunrise and exit_time > sunset else 'does NOT overlap'} "
@@ -369,7 +425,7 @@ def run(args):
     for _, row in frb_scheduled_sorted.iterrows():
         if (row['start_pst'] - cursor).total_seconds() > 0:
             gaps.append((cursor, row['start_pst']))
-        cursor = row['end_pst'] + timedelta(minutes=SLEW_MINUTES)
+        cursor = advance(row['end_pst'], SLEW_MINUTES)
     if (twilight['morning_pst'] - cursor).total_seconds() > 0:
         gaps.append((cursor, twilight['morning_pst']))
 

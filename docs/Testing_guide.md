@@ -23,7 +23,7 @@ The test suite provides **17 synthetic FRB target datasets** covering edge cases
 
 ```bash
 # Generate test datasets (already done, but can regenerate)
-cd /home/lordrick/Projects/night-planner
+cd night-planner   # wherever you cloned it
 python tests/test_data/generate_test_frbs.py
 
 # Run all tests

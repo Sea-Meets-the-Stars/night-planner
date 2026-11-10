@@ -15,23 +15,17 @@ Created by JXP and Claude
 """
 
 import argparse
-import csv
-import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
 from night_planner.plan_store import load_plan
-
-COLUMNS = ['TNS', 'FRB_Survey', 'Resource', 'mode', 'date', 'texp',
-           'Conditions', 'success']
-
-# The plan's internal mode strings -> the log's vocabulary.
-MODE_MAP = {
-    'longslit': 'longslit',
-    'longslit (forced, no mask)': 'longslit',
-    'MOS (mask required)': 'mask',
-}
+from night_planner.observing_report import (FFFFPZ_COLUMNS as COLUMNS,
+                                            MODE_MAP, build_ffffpz_rows,
+                                            log_from_flags,
+                                            planned_exposure_seconds,
+                                            write_ffffpz_csv)
 
 
 def parse_args(argv=None):
@@ -54,66 +48,40 @@ def parse_args(argv=None):
 
 def exposure_seconds(target):
     """
-    On-target integration time in seconds.
+    On-target integration time in seconds (kept for older callers).
 
-    Prefers the real exposure string ("3 x 1060" -> 3180 s) because the
-    scheduled block can include overhead the detector never saw: a MOS
-    allocation carries a mask-alignment buffer, so using the block length
-    would overstate the integration.
+    Parameters
+    ----------
+    target : ScheduledTarget
 
     Returns
     -------
-    (seconds, note)
+    (seconds, note) -- see observing_report.planned_exposure_seconds.
     """
-    match = re.match(r'\s*(\d+)\s*[xX]\s*(\d+)', str(target.exposure_red or ''))
-    if match:
-        n_sub, sub_len = int(match.group(1)), int(match.group(2))
-        return n_sub * sub_len, ''
-    # No parseable exposure (MOS blocks are an allocation, not a recipe).
-    return int(round(target.on_target_min * 60)), 'from allocated block'
+    return planned_exposure_seconds(target)
 
 
 def build_rows(plan, args):
-    """One report row per observed target, in observing order."""
-    dropped = set(args.drop)
-    failed = set(args.failed)
-    resource = args.resource or Path(plan.output_dir).name
+    """
+    One report row per observed target, in observing order.
 
-    rows, notes = [], []
-    for target in plan.schedule:
-        if target.name in dropped:
-            continue
-        texp, note = exposure_seconds(target)
-        if note:
-            notes.append(f'{target.name}: texp {texp} s {note} '
-                         f'({target.mode})')
-        rows.append({
-            'TNS': target.name,
-            'FRB_Survey': args.survey,
-            'Resource': resource,
-            'mode': MODE_MAP.get(target.mode, target.mode),
-            'date': plan.date,
-            'texp': texp,
-            'Conditions': args.conditions,
-            'success': target.name not in failed,
-        })
+    The flags become a minimal observing log and go through
+    observing_report.build_ffffpz_rows, the same function the Observing
+    log page uses (2026-11-07).
 
-    for spec in args.extra:
-        name, _, texp = spec.partition(':')
-        rows.append({
-            'TNS': name,
-            'FRB_Survey': args.survey,
-            'Resource': resource,
-            'mode': 'longslit',
-            'date': plan.date,
-            'texp': int(texp) if texp else '',
-            'Conditions': args.conditions,
-            'success': name not in failed,
-        })
-        if not texp:
-            notes.append(f'{name}: observed but not in the plan -- texp left '
-                         f'blank, fill it in from the night log')
-    return rows, notes
+    Parameters
+    ----------
+    plan : PlanResult
+    args : argparse.Namespace from parse_args()
+
+    Returns
+    -------
+    (rows, notes)
+    """
+    log = log_from_flags(plan, args.conditions, drop=args.drop,
+                         failed=args.failed, extra=args.extra)
+    return build_ffffpz_rows(plan, log, survey=args.survey,
+                             resource=args.resource)
 
 
 def main(argv=None):
@@ -125,11 +93,7 @@ def main(argv=None):
     rows, notes = build_rows(plan, args)
     resource = args.resource or Path(plan.output_dir).name
     out = args.out or f'{args.plan_dir}/{resource}_report.csv'
-
-    with open(out, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+    write_ffffpz_csv(rows, out)
 
     print(f'Wrote {out}  ({len(rows)} targets, {plan.date}, '
           f'{args.conditions})')

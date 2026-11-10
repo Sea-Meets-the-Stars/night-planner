@@ -11,7 +11,7 @@ order, and records the specific numeric reason a target was dropped (or
 scheduled) at each stage:
 
   1. Dec cut       (Shane polar limit, Dec <= 82 deg)
-  2. HA window     (-5.0h <= HA <= +3.75h, HA = LST - RA)
+  2. HA window     (-05:40 <= HA <= +03:45, HA = LST - RA)
   3. Scheduling    (does the target's Kast exposure time fit inside its
                     HA-legal window, given the greedy earliest-window-
                     close-first order used by schedule_night())
@@ -28,10 +28,19 @@ from lick_2026b02_calculations import (
 )
 from night_planner.estimate_kast_exposures import estimate_exposure
 
-TARGETS_CSV = ('/home/lordrick/Projects/night-planner/Night_plans/'
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
+TARGETS_CSV = (f'{_PLANS}/'
                'Lick-2026B-02/Lick-2026B-02_targets.csv')
 DATE = '2026-09-14'
-OUTFILE = ('/home/lordrick/Projects/night-planner/Night_plans/'
+OUTFILE = (f'{_PLANS}/'
            'Lick-2026B-02/target_rejection_analysis.md')
 
 

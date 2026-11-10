@@ -1,7 +1,7 @@
 """
 Compute the RA range accessible at some point during the night of
 2026-09-14/15 at the Shane 3m (Lick-2026B-02), given the HA limits
--5.0h <= HA <= +3.75h (HA = LST - RA) and no RA limit otherwise.
+-05:40 <= HA <= +03:45 (HA = LST - RA) and no RA limit otherwise.
 
 Created by JXP and Claude
 

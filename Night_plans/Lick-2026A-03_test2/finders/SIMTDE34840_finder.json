@@ -1,0 +1,32 @@
+{
+  "name": "SIMTDE34840",
+  "slit_pa": 161.7558380921591,
+  "slit_mode": "candidates",
+  "parallactic_pa": 38.20484012264852,
+  "pa_vs_parallactic": 56.449002030489396,
+  "slit_length_arcmin": 2.42,
+  "slit_width_arcsec": 2.0,
+  "pa_swing": 26.86113580518888,
+  "pa_weighted_offset": 9.778952255493156,
+  "primary_ra": 330.3195253429359,
+  "primary_dec": 22.86964538158746,
+  "cass_tub": {
+    "pa": 161.7558380921591,
+    "alt_pa": 341.75583809215914,
+    "tub": 140.77757914017843,
+    "alt_tub": 297.3675791401784
+  },
+  "secondary_name": "J220117.44+225138.94",
+  "secondary_ra": 330.32268353297394,
+  "secondary_dec": 22.86081711442069,
+  "secondary_mag": 21.33212744500064,
+  "secondary_pox": 0.0503653144136438,
+  "secondary_sep_arcsec": 33.46384246903726,
+  "offset_star_ra": 330.32366518012,
+  "offset_star_dec": 22.86751465447,
+  "offset_star_mag": 17.292053,
+  "offset_star_offset": 15.729138577367776,
+  "offset_ra": -13.731877811035925,
+  "offset_dec": 7.670810404262653,
+  "png": "/home/lordrick/Projects/night-planner/Night_plans/Lick-2026A-03_test2/finders/SIMTDE34840_finder.png"
+}

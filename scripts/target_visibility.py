@@ -17,17 +17,22 @@ Created by JXP and Claude
 
 import argparse
 import sys
+from pathlib import Path
 from datetime import datetime, timedelta
 
 import pandas as pd
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
 from keck_2026oct06_calculations import (
     HST, calculate_airmass, check_keck_limits,
 )
 from night_plan_io import load_night_meta, resolve_local_dt
 
-DEFAULT_PLAN_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02'
+DEFAULT_PLAN_DIR = f'{_PLANS}/Keck-2026B-02'
 
 
 def lookup_target(plan_dir, name):

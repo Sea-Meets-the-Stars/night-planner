@@ -37,12 +37,15 @@ INSTRUMENTS = {
         'calc': 'keck_2026oct06_calculations',
         'build': 'build_keck_night_plan',
         'supports': {'targets_csv', 'output_dir', 'date', 'start', 'blocks',
-                     'forced', 'max_targets', 'assume_masks'},
+                     'forced', 'max_targets', 'assume_masks', 'config',
+                     'seeing', 'mag_band', 'airmass_rule', 'etc', 'target_sn'},
     },
     'kast': {
-        'calc': 'lick_2026b02_night2_calculations',
-        'build': None,  # not yet migrated off its own hardcoded start time
-        'supports': {'start', 'blocks'},
+        'calc': 'kast_calculations',
+        'build': None,  # no Excel builder for the general Lick path yet
+        'supports': {'targets_csv', 'output_dir', 'date', 'start', 'blocks',
+                     'forced', 'max_targets', 'no_partials', 'config',
+                     'seeing', 'mag_band', 'airmass_rule', 'etc', 'target_sn'},
     },
 }
 
@@ -110,6 +113,43 @@ def _serve(args):
     return subprocess.call(cmd, cwd=str(REPO_ROOT))
 
 
+def _report(args):
+    """
+    Write the observing report from a saved plan and its observing log.
+
+    Parameters
+    ----------
+    args : argparse.Namespace with plan_dir, survey, resource.
+
+    Returns
+    -------
+    int : exit code (1 if the directory has no plan).
+    """
+    import os
+
+    from .adapters import SITES
+    from .observing_log import open_log
+    from .observing_report import write_report
+    from .plan_store import load_plan
+
+    plan_dir = os.path.abspath(args.plan_dir)
+    plan = load_plan(plan_dir)
+    if plan is None:
+        print(f'no plan_result.json in {plan_dir}', file=sys.stderr)
+        return 1
+    plan.output_dir = plan_dir
+    log = open_log(plan, plan_dir)
+    out = write_report(plan, log, SITES.get(plan.instrument, {}).get('location'),
+                       survey=args.survey, resource=args.resource)
+    print(f"Wrote {out['markdown_path']}")
+    print(f"Wrote {out['csv_path']}")
+    for line in out['warnings']:
+        print(f'  WARNING: {line}')
+    for line in out['notes']:
+        print(f'  NOTE: {line}')
+    return 0
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
 
@@ -131,6 +171,13 @@ def main(argv=None):
                          help='Instrument name selects the telescope too -- '
                               'lris = Keck I, kast = Shane 3m (Lick).')
 
+    report = sub.add_parser('report', help='Write the observing report (.md) '
+                                           'and FFFF-PZ CSV from a plan\'s '
+                                           'observing log.')
+    report.add_argument('--plan-dir', required=True)
+    report.add_argument('--survey', default='CHIME/FRB')
+    report.add_argument('--resource', help='FFFF-PZ Resource [plan directory name].')
+
     serve = sub.add_parser('serve', help='Run the night-plan viewer (web UI).')
     serve.add_argument('--host', default='127.0.0.1')
     serve.add_argument('--port', type=int, default=8020)
@@ -140,6 +187,8 @@ def main(argv=None):
 
     if args.command == 'serve':
         return _serve(args)
+    if args.command == 'report':
+        return _report(args)
 
     module_name = INSTRUMENTS[args.instrument][args.command]
     if module_name is None:

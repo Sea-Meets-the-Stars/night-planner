@@ -26,6 +26,13 @@ bottom tracks every update.
 - **Coding:** Python; methods not classes; imports at top; docstrings with
   inputs/outputs; matplotlib/seaborn/Bokeh for plots; `"Created by JXP and Claude"`
   header on every file and docstring.
+- **Target privacy (2026-11-09):** the repo is **public**; real targets are
+  not. Plans go to `paths.plans_dir()` = `NIGHT_PLANNER_PLANS` or the
+  git-ignored `<repo>/pvt_Nighplans/` (`Night_plans/` is git-ignored too).
+  **Never write a real target name or position into a tracked file**: no logs,
+  brain, docs, tests, prompts or scripts. Use `SIM*` objects or a placeholder.
+  Check with `scripts/scan_private_targets.py`. The scrub plan is in
+  `claude_prompts/target_scrub.md`.
 
 ## Repository layout (as of 2026-07-11)
 
@@ -1212,3 +1219,774 @@ uninteresting ones -- log the reason at every skip point.
   (4) For MOS targets, the finder's `rotdest` is a longslit default; the
   mask PA wins.
 
+- **v0.42 — 2026-10-13 (UTC):** Forcing a rejected target in only ever worked
+  for a *rising* one. Both schedulers appended forced targets after the whole
+  night, so a fast-setting host -- the main reason to force anything, since
+  the scheduler drops it precisely because its full exposure won't fit the
+  window sliver left -- could never be placed: its window shut hours before
+  the schedule ended. Durable points:
+  (1) **Lick (`kast_calculations.reserve_forced()`):** forced targets are
+  placed *before* the greedy pass, inside their own HA window, and the slot
+  (padded one `SLEW_MINUTES` either side) is passed to `schedule_greedy()` as
+  a block, so the night schedules around them. Both pads are needed at Lick:
+  the greedy loop models slew as a cursor advance, not a row, so neither the
+  incoming nor the outgoing slew is otherwise accounted for across a block.
+  (2) **Placement rule: as late inside the target's own window as the
+  requested time allows.** One rule, both cases -- a setting target lands at
+  the top of the night because that is all it has, a rising one lands at the
+  end where it was going anyway -- and it reserves the least of everyone
+  else's time.
+  (3) **Keck tries append first, reservation second.** Appending disturbs
+  nothing, and the delivered 2026-10-06 plan depends on it: reserving
+  FRB20250411A's slot (even padded by only the 10-min base slew) lands five
+  minutes earlier than the append did and costs FRB20240106A. So
+  `select_targets_for_night()` appends, and recurses *once* with
+  `reserved`/`reservations` only for the targets append couldn't place,
+  clearing `skip_log` because pass 1 described a night that no longer
+  exists. Keck-2026B-02 reproduces timestamp for timestamp.
+  (4) The old Keck append deliberately let a forced target overrun its AM<2.0
+  window and morning twilight "per the explicit request"; the reservation
+  path truncates at window close instead. Keep that difference in mind when
+  comparing an appended plan with a re-run one.
+  (5) **A forced target that cannot be placed must surface as a decision.**
+  `adapters.lick_kast()` was ignoring `out['forced_failures']`, so the
+  scheduler printed "window closed" to stdout and the browser saw an
+  unchanged plan -- which reads as "it worked". Both adapters now emit a
+  `4. Forced` rejection.
+- **v0.43 — 2026-10-13 (UTC):** Finder charts now draw the PATH **secondary**
+  candidate, read from the plan's own target table (`Sec_RA`/`Sec_Dec`/...)
+  by `finder.load_secondaries()`. Durable points:
+  (1) **Colours follow `chime_ffff_pz/finder.py`:** red primary, orange
+  secondary, cyan offset star. Keep that, so our charts and the FFFF-PZ ones
+  read the same at the telescope.
+  (2) **Never size a candidate marker in points.** A PATH primary and its
+  runner-up are routinely 3" apart (FRB20260702C 2.8", FRB20260623C 2.9"),
+  which is ~7 px at a 4' field -- a 260-pt circle swallows both exactly where
+  the chart has to tell them apart. Use `SphericalCircle` at a fixed sky
+  radius (2" for candidates, 4" for the offset star).
+  (3) **Under ~12" separation, even that fails**, so the chart gets a
+  `Cutout2D` zoom inset (box = 6x the separation). Inside the inset, label
+  offsets must be vertical: the main chart's radial offsets are in points,
+  and the inset is small in figure units, so they land on its frame.
+  (4) **P(O|x) needs `:.3g`, not `:.3f`** -- these run to 1e-279.
+  (5) `backend.app._plan_targets_csv()` recovers the table a saved plan was
+  built from, via `request.argv` (`--targets-csv`, or `targets_csv` inside a
+  `--config` JSON). Any later feature needing the original table should use
+  it rather than guessing from the plan directory.
+- **v0.44 — 2026-10-13 (UTC):** Finder slit angle is now a choice, and the
+  parallactic angle's exposure dependence is documented. Durable points:
+  (1) **`slit_mode`** on `finder.generate_for_plan()` and
+  `/api/finders/generate`: `'parallactic'` (default) or `'candidates'`, the
+  latter setting the slit to `primary.position_angle(secondary)` so both PATH
+  candidates land in one exposure. Read from the plan's own target table --
+  no FFFF-PZ needed. The older `use_ffffpz` path still exists and differs in
+  using FFFF-PZ's candidate list.
+  (2) **Never let that choice be silent.** Candidates mode prints its
+  dispersion cost on the chart (subtitle + caption) and records `slit_mode`,
+  `parallactic_pa`, `pa_vs_parallactic` in the sidecar; a target with no
+  secondary falls back to parallactic and the browser names it. The cost is
+  wildly per-target: 0.4 deg for FRB20260702C, 43.6 for FRB20230805A, 59.5
+  for FRB20260623C.
+  (3) **The parallactic angle is a function of the exposure, not the
+  target.** `average_parallactic()` integrates over `science_start`..`end`,
+  5-min samples, tan(z)-weighted. For FRB20230805A from 00:10 the angle runs
+  59.8 deg (20 min) -> 51.9 (60) -> 45.2 (90) -> 38.1 (120), weighted
+  misalignment 2.3 -> 7.2 -> 11.9 -> 17.6 deg. **Past ~90 min near transit a
+  single slit setting stops being defensible; split the block.** And because
+  the angle is tied to the scheduled duration, changing an exposure means
+  regenerating the finders.
+  (4) `scripts/analyze_slit_pa.py` reports, per target, the chosen angle, the
+  swing, the weighted offset, and whether the secondary falls in the slit
+  (perpendicular distance vs half the slit width).
+- **v0.45 — 2026-10-14 (UTC):** Checked our slit angles against Lick's own
+  tools in `helpful_scripts/` (Burrous 1990 `pa.c`, `calcint.c`). Durable
+  points:
+  (1) **Our parallactic angle is exact.** 441 HA/Dec points, 0.000000 deg
+  disagreement with `pa.c`. We use four-quadrant `atan2(sin HA, tan lat cos
+  dec - sin dec cos HA)`; pa.c uses `asin` plus a quadrant patch
+  (`acos(tan lat / tan dec)` for Dec > lat). Don't "fix" ours toward theirs.
+  (2) **pa.c quotes the angle at the exposure midpoint**, we quote a
+  tan(z)-weighted average. Difference on real targets: 0.1-0.6 deg. Expect an
+  observer cross-checking with pa.c to see the midpoint number.
+  (3) **THE SHANE DOES NOT TAKE A SKY PA.** It takes a Cassegrain tub Nixie
+  readout, `readout = 0.87 x PA + 0.05` (table in `calcint.c`, ported to
+  `night_planner/lick_tub.py`). PA 108.92 -> tub **94.81**. Dialling the PA
+  puts the slit ~16 deg off. Lick finders, sidecars and starlist rows now
+  carry `#TUB = x or y`; always quote **both** settings, 180 deg apart, since
+  which is reachable depends on where the tub already sits.
+  (4) The calcint table runs 20..380 and its last 20 deg deliberately repeat
+  the first 20 -- never normalise with a plain `% 360`, or 380 reads 17.45
+  instead of 330.64.
+  (5) Keck/LRIS is unaffected: it takes `rotdest=` in sky PA. The `rotator`
+  key on the SITES entry is what distinguishes them.
+- **v0.46 — 2026-10-14 (UTC):** Synthetic target tables in `test_targs/`,
+  built by `scripts/make_test_target_tables.py` (seeded, regenerable).
+  Durable points:
+  (1) **Everything is `SIM`-prefixed and drawn from a seed.** Never put
+  realistic-looking fake targets in this repo without an unmistakable marker
+  -- a table that escapes its directory could get observed.
+  (2) **Three tables exist to be refused** (`bad_ambiguous_ra_units`,
+  `bad_burst_position_only`, `bad_odd_headers`). If a change makes them load,
+  the change is wrong: reading an RA as hours instead of degrees moves the
+  telescope by 15x. `tests/test_test_targs.py` asserts the refusals.
+  (3) Seasonal tables cluster on the RA transiting at local midnight: Oct 1h,
+  Jan 7h, Apr 13h, Jul 19h. Run one against the wrong date and nearly
+  everything should reject -- that is a test, not a bug.
+  (4) **Lick applies no airmass cut.** `target_window()` is pure hour-angle
+  against the mount limits, so a Dec -30 target (culminates at alt 22.7 deg,
+  airmass 2.6 from Lick) schedules happily where Keck would drop it at AM 2.0.
+  Worth raising with the author before a run with southern fillers.
+  (5) Fixed on the way: `load_targets()` now accepts a `Path` (it tested only
+  `isinstance(source, str)`), and `adapters.lick_kast()` no longer discards
+  `limit_reason` -- "Dec +86 > +82, above the Shane mechanical limit" reads
+  very differently from "never HA-legal tonight".
+- **v0.47 — 2026-10-14 (UTC):** Diagnosed an observer's PA discrepancy on
+  Keck-2026B-02/FRB20260418B (requested 170.8, set 195.2 by eye, both traces
+  recovered). Durable points:
+  (1) **Beware the tub coincidence.** tub(195.2) = 169.87, within 0.94 of
+  170.8 -- a near-perfect false match. But this was **Keck/LRIS, which has no
+  Cassegrain tub**. Always establish which telescope a number came from
+  before reaching for the 0.87 scaling.
+  (2) Our angle was correct: recomputing the PATH candidate-to-candidate axis
+  from the targets CSV gives 170.82 vs the requested 170.81.
+  (3) **The slit-tolerance formula settles these arguments:** both objects
+  are in the slit only while `sep * sin(delta) <= width/2`. For a pair 21.8"
+  apart that is **+/-1.3 deg at 1" slit width**. At 24.4 deg off, the
+  secondary is 9.0" off the centreline. So a reported angle differing by tens
+  of degrees *while both spectra came out* cannot be a sky PA -- it is an
+  instrument/rotator angle. Nobody's intuition gets this tolerance right.
+  (4) Open question for the observer: which field read 195.2? If it is
+  ROTPOSN, the LRIS rotator-to-sky offset (~24.4 deg here) belongs in the
+  SITES registry beside `rotator: 'cass_tub'`, and Keck charts should quote
+  it the way Lick charts now quote the tub.
+  (5) `scripts/diagnose_pa_discrepancy.py` reruns the whole analysis for any
+  plan/target/pair of angles.
+- **v0.48 — 2026-10-14 (UTC):** Corrects v0.47, which named the wrong
+  telescope. FRB20260418B was observed at **Lick**, not Keck -- it has
+  finders in both `Keck-2026B-02/finders/` and
+  `Lick-2026B-02/finder_charts/`. **A value matching in one plan is not
+  identification** when a target appears in several. Durable points:
+  (1) **The Shane tub zero point is probably NOT zero.** The slit that put
+  both candidates on it was sky PA 170.81 (catalogue-verified); the reported
+  readout was 195.2, i.e. **+24.4 deg**. If that is the zero point, every
+  `night_planner.lick_tub` number is low by a constant **21.22 Nixie**. Not
+  applied -- one data point. Get a second readout from a Lick night.
+  (2) **The coincidence that nearly fooled me twice:** tub(195.2) = 169.87,
+  within 0.94 of 170.81, which looks like a clean PA/tub swap. A +24.4 deg
+  offset and the 13% shrink cancel near PA 164 and diverge elsewhere (10 deg
+  apart at PA 240). Check a coincidence at a second angle before believing it.
+  (3) **Kast's 2" slit holds a 21.8" pair only within +/-2.63 deg.** Since
+  both traces were recovered, the by-eye alignment was right and the number
+  was in another frame. The slit-tolerance formula is the fastest way to tell
+  a units problem from a pointing problem.
+  (4) The Lick finder centres the slit *between* the two candidates
+  (`center_lick_kast_slits`), so its "Target" J-name differs from the
+  primary's. That is not an error.
+- **v0.49 — 2026-10-14 (UTC):** **Fixed a real scheduling bug in
+  `target_window()` (scripts/lick_2026b02_calculations.py).** It unwrapped the
+  morning HA to be >= the evening HA, then tested the overlap against only
+  the k=0 copy of [HA_MIN, HA_MAX]. A target 10.5h past the meridian at dusk
+  is the same target rising back into HA -5 before dawn, so **every late
+  riser was reported "never inside the Shane HA window"**. Now tests
+  k = -1, 0, +1; at most one can overlap, since the night is shorter than 24h
+  minus the window. Regression on Lick-2026B-03: the eight scheduled targets
+  keep identical slots and FRB20260407A is added at 04:29-05:34. The planner
+  had been discarding an hour at the end of such nights.
+- **v0.50 — 2026-10-14 (UTC):** Finder slit modes reworked, and a serious
+  twilight bug fixed. Durable points:
+  (1) **An existence check must consider the mode.** `generate_for_plan()`
+  skipped any target whose PNG existed, so switching parallactic ->
+  candidates silently kept the old chart while the starlist quoted the new
+  angle. Decide the effective mode first (candidates only where a secondary
+  exists), then treat a differing sidecar `slit_mode` as stale.
+  (2) **FFFF-PZ is no longer a separate option.** Candidates mode *is* the
+  FFFF-PZ path, reading Sec_RA/Sec_Dec from the plan's own target table --
+  nothing fetched, no live Resource. `_ffffpz_finders()` (the
+  `chime_ffff_pz_finder` shell-out) is deleted; recover from git if ever
+  wanted. Targets with no secondary fall back to parallactic, are named in
+  the browser and carry `fallback_reason`.
+  (3) `finder.slit_report()` + `finders/slit_report.txt` record what angle
+  every chart was drawn at. Keep writing it -- the question resurfaces days
+  later when a spectrum looks wrong.
+  (4) **`find_twilight()` could not handle summer.** It stepped 1 min with a
+  600-iteration cap from local noon, reaching only 22:00, so **every Lick
+  night from late May to early August raised "Could not find evening
+  twilight"** -- no summer plan was possible. Now one vectorised 24 h scan.
+  21 June reads 22:25-03:53; already-planned dates are unchanged.
+  (5) When a generate re-renders the page, the form must be restored from
+  remembered state or it lies about what was asked for.
+- **v0.51 — 2026-10-14 (UTC):** PATH candidates are an FFFF-PZ property,
+  recognised by format. Durable points:
+  (1) **`targets_io.detect_format()`** returns 'ffff-pz' vs 'generic' from
+  the combination only FFFF-PZ produces: burst position + DM
+  (FRB_RA/FRB_Dec/FRB_DM) *alongside* ranked candidates with probabilities
+  (Pri_POx/Sec_POx). Surfaced by `/api/targets/inspect` and shown in the
+  Inspect panel. `load_secondaries()` returns {} for a generic table even
+  when it has Sec_RA.
+  (2) **Do not use a per-row name/DM heuristic for this.** The real
+  Lick-2026B-03 pull carries a DM for only 15 of 19 rows (baseband-merged
+  ones have none), so a DM test rejects four genuine FRBs.
+  (3) **The root cause was fabricated test data.** `write_ffffpz()` gave
+  Sec_* to supernovae and DLAs, so the planner fitted slits through
+  candidates those objects cannot have. It now asserts FRB-only, which
+  immediately caught a second bad table. `allsky_mixed.csv` is generic;
+  `allsky_frb_ffffpz.csv` is the FFFF-PZ all-sky table.
+  (4) When writing synthetic data, give each format only the rows that
+  format can legitimately describe -- otherwise the fake table teaches the
+  code a false rule and the bug looks like a code bug.
+- **v0.52 — 2026-10-14 (UTC):** **Shane HA limits are -05:40 east, +03:45
+  west** (author's decision, adopting the published values; east was -5.0
+  until now). Durable points:
+  (1) Written as `-(5 + 40/60)` / `3 + 45/60` in
+  `scripts/lick_2026b02_calculations.py` so the published figures are legible
+  in the source, and pinned by a test -- a silent revert costs 40 min of
+  window on every rising target and nothing else would complain.
+  (2) Worth, on the Lick-2026B-03 table: 11 of 19 targets gain window, ten
+  the full 39.9 min, one newly observable, **387 min total**. A target
+  already up at dusk gains nothing -- the east limit never clipped it.
+  `scripts/compare_ha_limits.py` recomputes this for any table and date.
+  (3) The constant was duplicated in five scripts. Live ones updated;
+  `build_lick_2026b02_night_plan.py` and `lick_2026b02_sep15_revision.py`
+  keep their -5.0 *text* because they record delivered nights, so their
+  printed limits now differ from their imported behaviour.
+- **v0.53 — 2026-10-15 (UTC):** Swept every synthetic table across the year
+  (`scripts/sweep_test_plans.py`) and found four bugs. Durable points:
+  (1) **`datetime + timedelta` on a DST-aware datetime is wall-clock
+  arithmetic.** Across the spring-forward gap 01:30 + 90 min lands on 03:00,
+  30 minutes later in real time -- time runs *backwards*. Use
+  `night_planner.sky.advance()` (to UTC, add, back) for every scheduling
+  addition. Lick only: Pacific/Honolulu has no DST, so Keck was never
+  exposed. Always assert schedule invariants in UTC; local labels
+  legitimately jump an hour.
+  (2) A frame built from per-row dicts can be missing columns entirely when
+  no row took the branch that sets them -- "nothing observable tonight"
+  crashed on `sort_values('start_pst')`. Guarantee the schema after
+  building, not at each use.
+  (3) **Duplicate target names are scheduled twice.** `load_targets()` now
+  refuses them. Merged tables (the baseband merge into Lick-2026B-03) are
+  where this arises. All 15 existing Night_plans tables pass.
+  (4) `--start` after morning twilight produced a negative-length night and
+  a silent empty plan; now refused.
+  (5) The sweep's value is the invariant checker, not the runs: overlaps,
+  blocks outside the night, exposures outside their own HA window, targets
+  scheduled twice or missing from decisions. Keep DST dates and the
+  manual-start/block variants in `DATES`.
+- **v0.54 — 2026-10-16 (UTC):** **The Shane tub zero point is confirmed
+  correct — v0.48's suspected 24.4 deg offset was wrong.** Lick-2025B-3 frame
+  `r2046.fits` (FRB20250118B, 2025-10-24) records TUB 194.80 together with HA
+  -2:23:23 and Dec +78:14:43. Inverting calcint.c gives slit axis 43.85 deg;
+  the parallactic angle at that instant is 42.54 deg. **Agreement to 1.3
+  deg.** `night_planner/lick_tub.py` needs no offset, and the note is now in
+  its docstring with the frame cited. Durable points:
+  (1) **A Kast header carries TUB, HA, DEC, AIRMASS, SLIT_N and the
+  gratings** -- enough to reconstruct exactly how any past frame was
+  observed. `scripts/tub_from_header.py` and `scripts/finder_from_frame.py`
+  do this; reach for them before trusting an anecdote about an angle.
+  (2) **Observed drift, measured not modelled:** on this target the tub was
+  set once per block and left. It matched parallactic to ~1 deg at the start
+  of the first block; by the end of the second, at Dec +78 near transit,
+  parallactic had moved to 8.6 deg while the tub still implied 44.3 -- **35.7
+  deg off**. High-Dec targets near transit rotate fastest; that is where
+  splitting a block actually pays.
+  (3) Both tub settings 180 deg apart are legitimate and observers do use the
+  far one: here they used 194.8, the "or" value our starlist prints, not 38.2.
+- **v0.55 — 2026-10-16 (UTC):** Drew a finder on a **burst** position by
+  mistake and the author spotted it by eye. Durable points:
+  (1) **The archived Lick-2026B-01/02 candidate files
+  (`ffffpz_candidates.csv`, `unassigned_targets_ra1-4h.csv`,
+  `candidates_ra1-4h_with_path.csv`, `extras_schedule.csv`) give the FRB
+  position in generically named `dec`/`Dec_deg` columns**, beside DM and
+  P_Ux. For FRB20250118B that is 5.9" from the host. Never read these with a
+  hand-rolled `pd.read_csv`; `targets_io.load_targets()` exists precisely to
+  refuse a burst position standing in for a host.
+  (2) **Verify a coordinate is on light before drawing a slit around it.**
+  `scripts/check_target_on_source.py` does it. DAOStarFinder is the wrong
+  tool -- it filters on roundness and rejects extended hosts; use smoothed
+  local maxima instead.
+  (3) The telescope pointing recorded in a Kast header is good evidence of
+  where the host is: here it was 0.34" from a 13-sigma source while the
+  catalogue row was 5.56" away. `finder_from_frame.py` now warns when a
+  supplied position differs from the pointing by more than the slit width.
+  (4) A geometry check and a position check are different questions. The
+  slit was centred on its given coordinate to 0.0000" the whole time.
+- **v0.56 — 2026-10-16 (UTC):** Audited and documented how target priority is
+  set (`docs/priority_system.md`, prompt `claude_prompts/development/priorities.md`).
+  Durable points:
+  (1) **There is no priority field in this pipeline.** `targets_io.ALIASES`
+  recognises `name/ra/dec/mag` + `pox/tags/dm` and nothing else;
+  `make_test_target_tables.py` emits a `priority` A/B column
+  (`test_targs/spring_ra_hours.csv`) that `load_targets()` silently drops.
+  Claim that column name first when building a real system.
+  (2) Apparent priority decomposes into four layers: the FFFF-PZ tag-weighted
+  stochastic draw (the only numerical encoding of science value — and it acts
+  on *membership in the pool*, not on rank inside it); hard feasibility gates
+  (HA/Dec/mag, which reject but never rank); the greedy
+  earliest-window-close-first scheduler (pure urgency, value-blind); and hand
+  overrides (`--force`/`reserve_forced`, `FORCED_FIRST_TNS`, separate pools,
+  author statements in prose).
+  (3) **`setting_priority` is not a science rank** — it is a binary
+  evening/morning class on the superseded Lick-2026B-01 path, consumed by
+  `fix_ha_limits.py` only to pick the HA sign convention. Do not extend it.
+  (4) The clearest real two-tier priority in the repo is expressed as
+  *architecture, not data*: `lick_2026b02_extras.py` builds a separate
+  lower-priority pool (`AmbiguousHost`/`TooDusty`, POx>=0.6) via a different
+  FFFF-PZ call and writes it to its own `Extras (Gap-Fill)` sheet.
+  (5) P(O|x), tags and magnitude are all non-inputs to ordering: POx and tags
+  reach the plan as a Comments string, magnitude sets exposure time only.
+- **v0.57 — 2026-10-16 (UTC):** Read and compared the UCSC AstroScheduler
+  (`/home/lordrick/Projects/fun_side_projects/ryan_scheduler/AstroScheduler`,
+  UCSC-Transients) against our priority handling →
+  `docs/priority_comparison_astroscheduler.md`. Durable points:
+  (1) **It schedules the same telescope with the same HA limits**
+  (-5.6667/+3.75), so it is directly comparable. But its `ShaneTelescope` sets
+  `dec_min=-35.0, dec_max=72.0` against our `DEC_LIMIT = 82.0` with no southern
+  limit, and its slew is a flat 7 min against our `SLEW_MINUTES = 5`. **Both
+  Dec conventions cannot be right — ask the author.**
+  (2) **The design worth copying is the tier loop**, not the solver:
+  `_solve_internal()` partitions targets by float priority (1 = highest,
+  `0.0` = standard-star sentinel), solves tiers best-first, and re-enters
+  already-placed targets as *mandatory* (`S_active`) in every later tier. A
+  low-priority target can then never displace a high one, yet a high one can
+  still be *re-positioned* to let a lower one fit — which a one-pass greedy
+  cannot do, and which is exactly our FRB20250408A failure mode (v0.37/v0.38).
+  This wraps `schedule_greedy` rather than replacing it.
+  (3) Inside a tier: Branch and Bound minimising
+  `median_airmass + 1000*twilight_dist`, with `100000` per dropped target.
+  That penalty is ~5 orders above airmass, so the objective is
+  **lexicographic in practice** (count first, then quality) — and **priority
+  is not in the cost function at all**, only in the tier loop. Greedy warm
+  start, suffix-min pruning, 1-min chunks, hard 20000-iteration cap → good,
+  **not provably optimal**.
+  (4) Three channels outrank priority there: `manual_start_time` (pre-reserved
+  before tier 1), `schedule_before` precedence via topo sort, and
+  `previous_start_chunks` tried first so a mid-night re-solve does not churn —
+  the last has no night-planner equivalent and we re-run plans constantly.
+  (5) Priority there is **hand-authored** (`priority = X` in the target file,
+  default 3.0 in the JS parser / 1.0 in the API) with no catalog behind it, and
+  their rejections are a bare `conflicts` list with no reason. **The two repos
+  are missing opposite halves of the same system: they have a consumer with no
+  principled source, we have a source with no consumer.**
+- **v0.58 — 2026-10-19 (UTC):** Built the priority system the v0.56/v0.57 docs
+  said was missing: `priority` is now a real float column (lower = better,
+  `DEFAULT_PRIORITY = 1.0`), recognised by `targets_io.ALIASES`, carried by
+  `analyze_targets` into every schedule frame, and consumed by a tier loop.
+  Durable points:
+  (1) **The comparison doc was right about *what* to build and wrong about
+  *how*.** I had written that we should copy AstroScheduler's
+  "already-placed-is-mandatory" trick by passing tier-1 slots to a second
+  `schedule_greedy` pass as blocks. That cannot work here: `fit_around_blocks`
+  can only ever push a target *later* (`candidate_start` is monotonically
+  non-decreasing) and `schedule_greedy`'s cursor never rewinds, so one more
+  full-night pass sails past every gap it already crossed. The working form is
+  **per-gap** — compute gaps, call `schedule_greedy` once inside each,
+  restarting the cursor — which the repo already did at
+  `lick_2026b02_night2_calculations.py:366-386`. **Lesson: read the primitives
+  before trusting a design note, even one you wrote three days ago.**
+  (2) `schedule_by_priority()` short-circuits to a single `schedule_greedy`
+  call when there is one tier, so an un-prioritised table schedules *exactly*
+  as before. `tests/test_priority_tiers.py` asserts it. Keep that guarantee.
+  (3) `--max-targets` used to trim by `nsmallest(n, 'start_pst')` — by time —
+  which would silently drop a top-priority late target for an early filler.
+  Now sorts by `(priority, start_pst)`.
+  (4) `TargetDecision.priority` **must stay defaulted**: `from_dict` splats a
+  saved row into the constructor, so any new field without a default breaks
+  every `plan_result.json` already on disk.
+  (5) Priorities travel to the scheduler **as a column in a derived
+  `targets_with_priority.csv` written into the plan directory**, not as a
+  request field. That is what makes a GUI plan reproducible — verified by
+  re-running the CLI on that file and getting an identical schedule.
+  (6) `frontend/app.js` has **no persistence of any kind** and `useTemplate()`
+  clones a fresh template on every route change, so anything a pre-plan page
+  needs must be stashed in the module-level `state`. A reload still loses it
+  and there is no `dir=` to re-fetch from, so the priorities page says so
+  instead of rendering empty.
+- **v0.59 — 2026-10-19 (UTC):** Made the repo run on any machine —
+  41 hardcoded paths across 25 files, now `night_planner/paths.py`. Durable
+  points:
+  (1) **Hardcoded paths split into two kinds wanting opposite treatment.**
+  Inside the repo (root, `Night_plans/`, `scripts/`) they should be *derived*
+  from `Path(__file__)`, never configured — a setting is one more thing to get
+  wrong, and a computed path cannot be. Only genuinely external locations get
+  environment variables: `FFFF_PZ_REPO` (guesses a sibling checkout first),
+  `NIGHT_PLANNER_PLANS`, `LICK_NIGHT_PLAN_TEMPLATE` (deliberately no default —
+  guessing a read-only file's path turns "set this variable" into a confusing
+  missing-file trace).
+  (2) **This had been silently broken for months.** `make_lick_night_plan.py`
+  carried a `/home/xavier/Projects/...` default that worked for nobody on this
+  machine. That is the whole failure mode: fine for whoever wrote it, invisible
+  to them, broken for everyone else.
+  (3) `tests/test_paths.py` greps every source file for machine-specific
+  absolute paths. **Plant a violation to confirm a guard test like this
+  actually fails** — I did; a guard that passes vacuously is worse than none.
+  (4) Importing every script to smoke-test them **runs work**: several scripts
+  have no `if __name__ == '__main__'` guard (`check_deadtime_lick_2026b01.py`
+  prints an entire analysis). Expect side effects from an import sweep.
+  (5) **Establish causation before "repairing" unexpected git changes.** A
+  modified plan directory looked like my import sweep had clobbered it and I
+  nearly `git checkout`-ed it back; it was the author's own GUI session
+  (a `uvicorn backend.app` on port 8020) testing the new feature. A confident
+  repair of someone else's work is worse than the mess it tidies.
+- **v0.60 — 2026-10-19 (UTC):** `backfill_partials()` fills leftover idle time
+  with truncated exposures of targets dropped for want of time, marked
+  `PARTIAL` in `skip_reason` → `notes`. Durable points:
+  (1) **The `notes`-prefix convention is the repo's labelling mechanism.**
+  `FORCED` already drove `targetClass()`, a pill and the rescue list; adding
+  `PARTIAL` needed only a new CSS token, a legend row and a pill. Reuse it for
+  any future category rather than inventing a field.
+  (2) Two invariants a truncating scheduler must hold, both tested: a partial
+  **never moves anything already scheduled**, and **never leaves the target's
+  own HA window** just because the exposure is short.
+  (3) **Idle time has two different causes and only one is fixable this way.**
+  On `Lick-2026A-07_host_wg` (211 min idle) truncation changed *nothing*: both
+  rejected targets' HA windows did not overlap any gap — FRB20260619A's
+  16-minute window closes before science even starts, since focus + evening
+  standard eat the first 20 min. That is an **exhausted pool**, not
+  all-or-nothing rejection. Where the pool really is oversubscribed
+  (`autumn_ffffpz`) it went 85% → 88% of night used. Diagnose which cause is in
+  play before promising a fix.
+  (4) **Known cosmetic bug:** the kast adapter passes no `overheads=`, so the
+  focus/standard block at the head of the night counts as *idle*, making
+  `idle_min` read ~15 min high on every Lick plan.
+  (5) On a night where nothing is observable `schedule_greedy` returns a frame
+  with **no columns at all** — `run()`'s schema-guarantee loop exists for that.
+  Any new pass inserted before it must guard for a missing `'scheduled'`
+  column.
+- **v0.61 — 2026-10-21 (UTC):** Rewrote `docs/priority_system.md` around *"you
+  have a targets table with priority values — what happens?"*, replacing the
+  2026-10-16 version whose first line was "there is no priority field anywhere
+  in this pipeline". Durable points:
+  (1) **Docs in this repo describing an absence go stale the fastest.** v0.56
+  and v0.57 both documented the missing priority system; v0.58 built it two
+  days later and neither doc was touched. When a doc's thesis is "X does not
+  exist", it has a shelf life — check `git log` before editing one.
+  (2) The useful framing for priority is **precedence, not layers**: feasible →
+  blocks → forced → tier → urgency within tier → table order. `reserve_forced`
+  runs *before* `schedule_by_priority` and hands its slot back as a block, so
+  forcing is strictly stronger than any tier value.
+  (3) Priority values are **tier labels, not weights** — only the sort order of
+  the distinct values is used, so `1,2,3` and `1,10,100` give identical
+  schedules. Worth stating explicitly in any user-facing doc.
+  (4) `free_gaps` lives in `scripts/kast_calculations.py:241`, *not* in
+  `scripts/schedule_overrides.py` (which has `fit_around_blocks` and
+  `push_past_blocks`); and `schedule_overrides.py` is under `scripts/`, not
+  `night_planner/`.
+  (5) The Keck/LRIS path (`scripts/keck_2026oct06_calculations.py:921`) is
+  still `sort_values('window_end')` — tiering exists only in the Kast entry
+  point. Any claim that "the planner schedules by priority" needs that caveat.
+- **v0.62 — 2026-10-21 (UTC):** Shipping pass for other users: hardcoded-path
+  audit, `environment.yml`, `INSTALL.md`
+  (`claude_prompts/shipping.md`). Durable points:
+  (1) **`night_planner/paths.py` is the only place machine-specific paths may
+  live.** Repo-internal paths derive from `__file__`; external ones read
+  `FFFF_PZ_REPO`, `NIGHT_PLANNER_PLANS`, `LICK_NIGHT_PLAN_TEMPLATE`. New code
+  that needs a plan directory calls `plans_dir()` / `plan_dir(name)` — never
+  `REPO_ROOT / 'Night_plans'`, which is how `backend/app.py` had drifted into
+  writing somewhere different from the CLI.
+  (2) **A default argument relative to the CWD is a hardcoded path in
+  disguise.** `estimate_kast_exposures.py` defaulted to
+  `Night_plans/Lick-2026B-01/...`, which worked only from the repo root and
+  ignored `NIGHT_PLANNER_PLANS`. `tests/test_paths.py` never caught it because
+  the literal has no leading slash.
+  (3) `tests/test_paths.py` only scans `.py`/`.js`/`.html` *string literals*,
+  so a `cd /home/someone/...` inside a markdown fence slips past it — and those
+  get copy-pasted. `scripts/check_portability.py` covers code + config + docs,
+  exits 1 on a finding, and is now called from `test_paths.py`. It skips
+  `Logs/`, `Night_plans/`, `context/`, `claude_prompts/`: those are records of
+  one machine on one night, not code. It also has to skip *itself* in that
+  test, since it spells out the patterns it hunts.
+  (4) **The declared dependencies were five; the code imports eleven.** pandas
+  (51 files) and openpyxl (13) were both undeclared. `setup.cfg` now carries
+  them plus pytz/requests/certifi, with `[gui]`, `[finders]`, `[dev]`, `[full]`
+  extras. `astroplan` is declared and imported *nowhere* — left in place,
+  flagged for JXP.
+  (5) `environment.yml` pins python 3.12 and solves clean on conda-forge
+  (verified with `conda env create --dry-run`). Verify an env file by solving
+  it, not by reading it.
+  (6) The CLI has **`calc`, `build`, `serve`** — no `generate` — and uses
+  dashed flags (`--targets-csv`, `--output-dir`). `build` is wired for
+  `lris` only; `kast` has no Excel builder yet (`INSTRUMENTS` in
+  `night_planner/cli.py`).
+- **v0.63 — 2026-11-07 (UTC):** Sorted the 2026-11 user-testing feedback (7
+  users) into tiered goals in `claude_prompts/development/users_comments.md`.
+  Durable points:
+  (1) **Gaps users noticed that the code confirms:** no detector readout
+  model; acquisition is folded into slew; the LRIS ETC uses each target's
+  *minimum* airmass, not the scheduled one; seeing is hard-coded at 0.8″;
+  Kast has no ETC (empirical magnitude rule); table headers carry no units.
+  (2) The "20 min hit" users report is the Keck Dec +20° S→N slew rule.
+  Explain it in the interface, don't remove it.
+  (3) **Pending conflict:** X (likely JXP) now asks for a 5 min WMKO slew
+  baseline and a separate acquisition term; Lordrick asks for 5 min longslit /
+  10 min mask. This may reverse the 2026-09-30 "base slew 10 min" rule. Don't
+  change `keck_overheads.py` until Q1 in that file is answered.
+  (4) The most requested feature is a **live night mode** (mark progress,
+  replan from now, planned-vs-actual, as-realized log). It needs the plan to
+  become stateful per entry. Design that in `plan_store.py`/`plan_result.py`
+  before writing any UI.
+- **v0.64 — 2026-11-07 (UTC):** Decisions on the user-feedback goals
+  (`claude_prompts/development/users_comments.md`, Decisions table).
+  Durable points:
+  (1) **X in user comments = JXP; his comments take precedence** over other
+  testers'.
+  (2) **New Keck overhead model (decided, not yet coded):** slew base 5 min
+  (was 10), Dec < +20° → > +20° crossing 14 min (was 20), plus a separate
+  acquisition: longslit 5 min, mask 10 min. Supersedes the 2026-09-30 rule
+  above once `scripts/keck_overheads.py` is updated. Open: whether the 10 min
+  mask acquisition replaces `MOS_MASK_BUFFER_MIN` (Q7), and whether Lick gets
+  an acquisition term (Q8).
+  (3) **Priorities stay fractional.** Sunil's integer-ranks request was
+  declined so existing ranks need no renumbering. Priority is strict tiering,
+  never probabilistic; only the value order matters.
+  (4) **ETC airmass rule:** default to the worst airmass in the scheduled
+  block (conservative), user-adjustable (worst / mid / best).
+  (5) **Seeing is a manual input**; no forecast pulling for now.
+  (6) **Calibrations (arcs, flats, biases) are not scheduled.** Remove the
+  Keck arc/flat blocks (`adapters.py:176`); standards and focus stay. A
+  calibrations checklist page replaces them: Lick biases + flats + arcs per
+  configuration; LRIS flats + arcs per configuration *and per mask*.
+  (7) `t_target` gets a companion per-row `required` flag. Required targets
+  get full time or are rejected, never backfilled as partials.
+- **v0.65 — 2026-11-07 (UTC):** Wrote
+  `claude_prompts/development/user_comments_implementation.md` (renamed by
+  the author from implementation.md; 10 milestones for goals
+  T1–T4; calibrations checklist first). Code facts found while planning,
+  true as of this date:
+  (1) `select_targets_for_night` reserves a flat 30 min "for calibrations"
+  (`keck_2026oct06_calculations.py:939`), separate from the arc/flat
+  overhead blocks in `adapters._keck_overheads`. Both must go together.
+  (2) `adapters.lick_kast` emits **no overhead blocks**, so Kast's 20 min of
+  focus + evening standard (`FOCUS_MINUTES`, `STD_STAR_MINUTES`) shows as
+  idle in the viewer.
+  (3) `FinderRequest.targets` already supports rendering a subset of
+  finders; only the frontend lacks the button.
+  (4) The LRIS path has no partial backfill; `backfill_partials` is
+  Kast-only.
+  (5) `query_lris_etc` takes `ffilter` (default `sdss_r.dat`), so the
+  magnitude band is a pass-through.
+  (6) Planned home for instrument numbers other than Keck slew/acq:
+  `night_planner/instrument_params.py` (not yet created).
+- **v0.66 — 2026-11-07 (UTC):** Added goal T4.2 / Milestone 11: an
+  observer's log page (`observing_log.json` per plan) that generates
+  `observing_report_<date>.md`. Durable points:
+  (1) `scripts/make_observing_report.py` already writes the **FFFF-PZ
+  observing-log CSV** (`TNS, FRB_Survey, Resource, mode, date, texp,
+  Conditions, success`) from a saved plan + flags. The new log must feed it
+  through one shared row builder, not a parallel one. The committed
+  `Night_plans/Keck-2026B-02/Keck-2026B-02_report.csv` is the regression
+  fixture.
+  (2) Design rule: the log is the single as-realized record. Tier 5
+  automation (start/finish buttons, data watcher) writes into it with
+  `source: auto`, and never into a second file.
+  (3) The web interface palette is light (`--bg: #f6f8fb`); there is no
+  night mode yet.
+- **v0.67 — 2026-11-07 (UTC):** The observer's log and the calibrations
+  checklist are **one page** ("Observing log", spec in Milestone 1b of
+  `claude_prompts/development/user_comments_implementation.md`), per
+  Lordrick. Durable design points:
+  (1) A single `observing_log.json` per night holds `night`, `calibrations`,
+  `night_checklist`, `conditions`, `targets` and `unplanned`. One
+  `merge_log` handles plan regeneration: user-touched rows and ticked
+  calibrations are kept as `not_in_plan`, never dropped.
+  (2) Calibration items carry UT and frame numbers, not just a tick, because
+  reduction (PypeIt) needs the calibration file ranges.
+  (3) With multiple scenarios (M10) there is still one log per night.
+  Calibrations are the union across scenarios.
+  This supersedes the separate `calibrations.json` / `/api/calibrations`
+  design in v0.64–v0.66.
+- **v0.68 — 2026-11-07 (UTC):** Lordrick answered three plan questions.
+  (1) **Lick overheads:** about 3 min slew + 3 min acquisition per target
+  (6 min total, replacing the all-inclusive 5 min). This is planned as
+  `LICK_SLEW_MIN` / `LICK_ACQ_MIN` in `night_planner/instrument_params.py`.
+  Caution: the current 5 min lives in three run-specific scripts
+  (`lick_2026b02_calculations.py`, `_extras.py`, `_night2_calculations.py`)
+  that the general Kast path imports from. `adapters._attribute_kast_slews`
+  only recognises a gap of exactly `SLEW_MINUTES`, so it must change in step
+  with the scheduler.
+  (2) **Kast target S/N = 10** per sub-exposure (≥ 3 subs); first 5, raised
+  to 10 on 2026-11-08 UTC (Lordrick). It is a flag (`--target-sn`). LRIS is 10.
+  (3) **ETC plug-in:** function shape, not a class (overrides Sunil's "ETC
+  class" for now).
+  Q7 (MOS buffer) is still open; the default is to drop it.
+- **v0.69 — 2026-11-07 (UTC):** Corrections to v0.68, from Lordrick.
+  (1) **Lick overheads are 2 min slew + 3 min acquisition = 5 min per
+  target**, not 3 + 3. The total equals the old all-inclusive 5 min, so Kast
+  schedule timing is unchanged; only the labels split.
+  (2) **Q7: keep the +5 min per-mask buffer (`MOS_MASK_BUFFER_MIN`)** on top
+  of the planned 10 min mask acquisition. It is deliberate, not a double
+  count, so don't remove it. LRIS mask cost = slew + 10 acq + 60/90/120
+  block + 5 buffer.
+  All plan questions (Q1–Q8) are now answered.
+- **v0.70 — 2026-11-07 (UTC):** Instrument numbers fetched from the web
+  (full tables with links: "Data needed" in
+  `claude_prompts/development/user_comments_implementation.md`).
+  (1) **LRIS readout**
+  ([win_bin](https://www2.keck.hawaii.edu/inst/lris/win_bin.html)), elapsed
+  time per frame including erase:
+  - Red Mark IV, 2 amps (spectroscopy): 1x1 97 s, 2x2 39 s.
+  - Blue: 1x1 54 s, 1x2 36 s. **Blue 2x2 is not published.**
+
+  (2) **Kast readout**
+  ([hw_detectors](https://mthamilton.ucolick.org/techdocs/instruments/kast/hw_detectors.html)),
+  blue/red:
+  - Slow, full frame: 43/34 s.
+  - Slow, sub-region: 7/20 s.
+  - Fast, sub-region: 2/14 s.
+
+  (3) **UCO ETC Kast form:** `inst=kast`.
+  - Grisms: G2 = 600/4310, G3 = 830/3460.
+  - Grating: 600/7500 only.
+  - Dichroics: **d55, d46 only (no d57)**.
+  - Slits: 1.0, 1.5, 2.0.
+  - Same filters as LRIS: `sdss_{ugriz}.dat`, `Buser_{B,V}.dat`,
+    `Cousins_{R,I}.dat`.
+  - Output grid: 3150–8000 Å.
+
+  (4) **UCO ETC LRIS form:** dichroics D560, D460, D500, D680.
+  (5) **Getting through the ETC's certificate problem:** the server omits its
+  intermediate. Use `--cacert scripts/certs/ca_bundle_with_incommon.pem`
+  (curl) or `verify=CA_BUNDLE` (requests). Never `-k`.
+  (6) **Limits:**
+  - Keck I zenith limit is 88.9° elevation, with no stable guiding for
+    transits above ~85° ([TelLimits](https://www2.keck.hawaii.edu/inst/common/TelLimits.html)).
+  - LRIS rotator physical PA: −239 < x < 189
+    ([rotpposn](https://www2.keck.hawaii.edu/inst/lris/procs/rotpposn.html)).
+  - Shane HA is −5:40/+3:45 (the page source has a stale commented-out
+    +5:40; trust +3:45), and Dec runs −35 to +72 nominal, +82 absolute.
+
+  (7) Verify WebFetch-summarised numbers against the raw HTML. It mis-read
+  the Shane west limit.
+- **v0.71 — 2026-11-07 (UTC):** Lordrick's answers after the web fetch.
+  (1) **LRIS readout in practice: ~80 s blue, ~40 s red** (default 2x2).
+  This overrides the web blue numbers (54 s at 1x1). Per-frame cost is
+  80 s, the slower arm.
+  (2) **Kast: always slow readout.** We use full frame, 43 s blue / 34 s red
+  → 43 s per frame (sub-region unconfirmed).
+  (3) **Kast ETC dichroic: d55** (d57 isn't offered).
+  (4) **LRIS rotator:** starlists send the finder `slit_pa` as
+  `rotdest=… rotmode=pa` (sky PA, as in chime-ffff-pz). That has been
+  accurate, and Keck converts it to the physical angle. The physical range
+  is 428° wide, so no LRIS rotator check is needed.
+  (5) **Shane tub reference: `helpful_scripts/calcint.c`.** It covers every
+  PA (20–380 → readout 17.45–330.64), so no tub reject rule is needed.
+  M9 is now Keck elevation checks only.
+- **v0.72 — 2026-11-07 (UTC):** **Kast readout is 20 s per frame**
+  (Lordrick: "normally 20 s on the blue side"). This replaces the 43 s full
+  frame in v0.71. The Lick page lists 20 s for the *red* slow sub-region and
+  7 s for blue; the per-frame cost is 20 s either way.
+- **v0.73 — 2026-11-07 (UTC): Milestone 1 implemented.**
+  (1) **Calibrations are not scheduled.**
+  - No arc/flat overheads.
+  - The LRIS end-of-night reserve is
+    `keck_2026oct06_calculations.MORNING_RESERVE_MIN` (closing slew to
+    Feige 110 + 5 min standard).
+  - Calibrations live on the **Observing log** page (`#/log?dir=`).
+
+  (2) **Observing log storage.**
+  - `observing_log.json` sits in the plan directory, managed by
+    `night_planner/observing_log.py`: `open_log` = load + `merge_log` +
+    save; `set_field` validates every edit and records provenance in
+    `edits`.
+  - Routes: `GET/PATCH /api/log`, `POST /api/log/report`. CLI:
+    `night-planner report --plan-dir`.
+  - Rows and items with user input survive plan regeneration as
+    `not_in_plan`.
+
+  (3) **The report.** `night_planner/observing_report.py` writes
+  `observing_report_<date>.md` and the FFFF-PZ CSV.
+  `scripts/make_observing_report.py` goes through `build_ffffpz_rows`
+  (verified byte-identical on Keck-2026B-02).
+  (4) **Rules and checklists.** `night_planner/instrument_params.py` now
+  exists (`DEFAULT_CONFIG`, `config_label`, `CALIBRATION_RULES`,
+  `NIGHT_CHECKLIST`, `is_mask_mode`); later milestones extend it.
+  (5) **Gotcha: `plan.output_dir` is where a plan was generated, not
+  necessarily where it is being viewed.** Anything that writes beside a
+  plan must use the requested directory: `backend._plan_here` pins it;
+  the frontend uses `state.outputDir`.
+  (6) **Gotcha: never `pkill -f` a pattern that appears in the same
+  command line.** Stop servers by PID.
+- **v0.74 — 2026-11-07 (UTC): Milestones 2-10 implemented** (details in
+  `claude_prompts/development/user_comments_implementation.md` Logs).
+  Durable points:
+  (1) **Block anatomy:** start → slew → acquisition → science_start →
+  exposures → readout → end. `end - science_start = on_target_min +
+  readout_min`. The totals reconcile: on target + slew + acq + readout +
+  overheads + blocked + idle = night (`tests/test_overheads.py`).
+  (2) **One owner per number:**
+  - Keck slew/acq: `scripts/keck_overheads.py`.
+  - Everything else: `night_planner/instrument_params.py` (Lick 2+3 min,
+    `READOUT_S`, `ETC_OPTIONS`/`ETC_FILTERS`/stand-ins,
+    `KECK_ELEVATION_LIMITS`, `CALIBRATION_RULES`).
+  (3) **ETC:** `night_planner/etc.py`. Function signature `etc(mag, band,
+  airmass, seeing, config, target_sn, n_sub_min)`; registry lris / kast /
+  empirical; `load_etc('pkg.mod:func')`; cached. **The Kast default is
+  `empirical`, pending Lordrick/JXP**: at S/N 5 the ETC is 0.07× the rule
+  at mag 16-17 and 2.4× at mag 21.
+  (4) **Tests are offline by construction:** `tests/conftest.py` blocks
+  sockets and fakes `query_uco_etc` *session-wide*, because a
+  module-scoped fixture would otherwise run first. Real-ETC tests carry
+  `@pytest.mark.network` and need `--run-network`.
+  (5) **LRIS single-tier schedule pinned** by
+  `tests/snapshots/lris_single_tier.json`. Re-record it only on purpose
+  (`tests/snapshots/make_lris_snapshot.py`).
+  (6) **Keck zenith:** never cut a window at the keyhole. It's a per-target
+  block (`zenith_keyhole`); `check_keck_limits(..., ignore_zenith=True)`
+  in the window search and the best-airmass check.
+  (7) **Scenarios:** `<base>/<slug>/` plan dirs plus
+  `<base>/scenarios.json`. One `observing_log.json` at the base;
+  `backend._log_context` resolves it.
+  (8) **Palette:** check with `scripts/check_palette.py` (CIEDE2000 ≥ 12
+  under protan/deutan), never by eye.
+  (9) **FFFF-PZ `Pri_filter`** is the band of `Pri_mag`, in the form
+  'Survey:Instrument-band'; `targets_io.normalize_band` keeps the band.
+- **v0.75 — 2026-11-07 (UTC): user tutorial ("night-planner Handbook"
+  artifact, https://claude.ai/artifact/DbC4mVutCjmFyQMh6CxR5Y).**
+  (1) **Example tables live in `examples/tutorial/`, not `test_targs/`.**
+  `tests/test_test_targs.py` globs `test_targs/*.csv`, so a new table
+  there joins every table test. `scripts/make_tutorial_examples.py`
+  rebuilds the tables from `test_targs/autumn_ffffpz.csv` (all SIM
+  objects). It also writes the two worked Kast plans (2026-10-20, own
+  table and FFFF-PZ) as JSON, so the tutorial's numbers can be refreshed
+  after the time model changes.
+  (2) **`PlanResult.idle_gaps` is a method**, returning [(start, end)].
+  (3) The tutorial has a mode switch: "Your own table" vs FFFF-PZ
+  (Resource → `chime_ffff_pz_add_furesource` → `chime_ffff_pz_targets` →
+  plan → candidates slit → log/FFFF-PZ CSV → `make_pending_targets.py`).
+  If pages or flags change, update the artifact by republishing from the
+  same template (the scratchpad template does not persist; rebuild from
+  the published page).
+- **v0.76 — 2026-11-08 (UTC): Kast target S/N 5 → 10.** `TARGET_SN['kast']`
+  in `night_planner/etc.py` is now 10 (Lordrick). It matters only with
+  `--etc kast`; the empirical rule (still the Kast default) has no S/N term.
+  At S/N 10 the UCO ETC wants 3 min at r = 16, 158 min at r = 20 and caps
+  at 3 × 7200 s from r = 20.5 (r = 21 reaches only S/N ≈ 7):
+  `Night_plans/kast_exposure_model_comparison_sn10.csv`. The full test suite
+  fails offline with astropy IERS errors in the sandbox; run it with
+  `iers.conf.auto_max_age = None` (or with network) — 144 pass.
+- **v0.77 — 2026-11-09 (UTC): target privacy / scrub.** Real targets have
+  leaked into 235 tracked files and 239 history paths: `Night_plans/`,
+  `Keck-2026B-02_test1000/`, `claude_prompts/night_plans/`, run scripts, Logs,
+  this brain, README, docs and some tests. `scripts/scan_private_targets.py`
+  catalogues names and positions from the private dir, scans HEAD and every
+  commit, and writes `git filter-repo --replace-text` rules
+  (names → `TGTnnnn`, positions → `RA/DEC_REDACTED`) into
+  `pvt_Nighplans/_scrub/`. `plans_dir()` now defaults to `pvt_Nighplans`; the
+  `frb_env` conda env sets `NIGHT_PLANNER_PLANS`. Gotchas: starlists spell
+  standards in lower case (`bd284211`); `cand_gal_names` cells are
+  Python-list strings; `tests/test_data` synthetic names collide with 2 real
+  TNS names, with fake positions. History rewrite pending JXP (see D1–D4 in the
+  prompt file).
+- **v0.78 — 2026-11-10 (UTC): scrub decisions applied.** Lordrick's answers:
+  scrub names and positions (D1), move the run scripts (D2), rescue the docs
+  (D3), delete and re-create the GitHub repo (D4). **Engine vs one-off:**
+  `keck_2026oct06_calculations.py`, `lick_2026b02_calculations.py`,
+  `lick_2026b02_night2_calculations.py` and `lick_2026b01_calculations.py`
+  are imported by the CLI, adapters and tests: they are the engine despite
+  their run names, so they stay public. The other 13 run scripts now live in
+  `pvt_Nighplans/<run>/scripts/`. The removal list is
+  `claude_prompts/target_scrub_paths.txt`, shared by `filter-repo` and the
+  scan script. **Lesson:** exact-string scans miss rounded positions
+  (`278.49, 46.86`, or RA in hours). Always run `scan_private_targets.py
+  --coarse`, and `--verify` before any rewrite. Rescued docs:
+  `docs/Lick-2026B-01_{HOWTO_night_plan_creation,CORRECTIONS_SUMMARY}.md`,
+  `docs/data/kast_exposure_model_comparison*.csv`. Claude Code's safety
+  check blocks `rm` in a `bash -c` script; leave deletions to the user.

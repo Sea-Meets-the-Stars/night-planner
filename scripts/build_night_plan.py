@@ -15,6 +15,15 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord, EarthLocation
 from astropy.time import Time
 
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
 # Constants
 LICK = EarthLocation(lat=37.3414*u.deg, lon=-121.6429*u.deg, height=1283*u.m)
 # Lick calendar uses PST (UTC-8) year-round
@@ -342,8 +351,8 @@ def build_night_plan(output_path, selected_csv, date='2026-08-13'):
 
 def main():
     """Main execution."""
-    selected_csv = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-01/selected_targets_night1.csv'
-    output_path = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx'
+    selected_csv = f'{_PLANS}/Lick-2026B-01/selected_targets_night1.csv'
+    output_path = f'{_PLANS}/Lick-2026B-01/Lick_2026B-01_Night_plan.xlsx'
 
     build_night_plan(output_path, selected_csv)
 

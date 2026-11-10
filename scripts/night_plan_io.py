@@ -51,6 +51,15 @@ class NightPlanConfig:
     start_override: Optional[str] = None   # 'HH:MM' or full ISO local datetime
     blocks: list = field(default_factory=list)  # [{'start': 'HH:MM'/ISO, 'end': ..., 'reason': str}]
     notes: Optional[str] = None
+    # Instrument configuration and observing assumptions (2026-11-07, M4):
+    # config = {grism, grating, dichroic, slit, binning}; CLI flags win.
+    config: Optional[dict] = None
+    seeing: Optional[float] = None         # FWHM arcsec
+    mag_band: Optional[str] = None         # band of the mag column
+    # Milestone 5 (T1.3, T3.4).
+    airmass_rule: Optional[str] = None     # 'worst' | 'mid' | 'best'
+    etc: Optional[str] = None              # registry name or 'pkg.mod:func'
+    target_sn: Optional[float] = None      # per sub-exposure
 
     def tz(self):
         return OBSERVATORY_TZ[self.observatory]

@@ -280,7 +280,7 @@ Outputs:
 ### 3. Deadtime Checker
 
 ```bash
-python scripts/check_deadtime_lick_2026b01.py
+python $NIGHT_PLANNER_PLANS/Lick-2026B-01/scripts/check_deadtime_lick_2026b01.py  # private
 ```
 
 Analyzes timeline to identify gaps when no targets are observable.

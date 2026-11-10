@@ -12,11 +12,16 @@ Created by JXP and Claude
 """
 
 import sys
+from pathlib import Path
 
-sys.path.insert(0, '/home/lordrick/Projects/night-planner')
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
 from night_planner.plan_store import load_plan
 
-DEFAULT_DIR = '/home/lordrick/Projects/night-planner/Night_plans/Keck-2026B-02'
+DEFAULT_DIR = f'{_PLANS}/Keck-2026B-02'
 
 
 def main():

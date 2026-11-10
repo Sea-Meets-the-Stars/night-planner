@@ -47,17 +47,58 @@ chime_ffff_pz_targets Keck-2026B-02
 # 2. Schedule (ETC exposures, Keck slews, masks), then build outputs
 python scripts/keck_2026oct06_calculations.py
 python scripts/build_keck_night_plan.py
-python scripts/keck_2026oct06_rejection_analysis.py
 ```
 
-Output: `Night_plans/Keck-2026B-02/` (xlsx, starlist, per-target rejection
-report). Keck rules: 10 min base slew, 20 min from Dec < +20 to Dec > +20
+Output: the run's directory under the private plans dir
+(`$NIGHT_PLANNER_PLANS/Keck-2026B-02/`: xlsx, starlist). The per-run
+rejection report script is kept privately with that run's plan. Keck rules: 5 min base slew, 14 min from Dec < +20 to Dec > +20, then acquisition (5 min longslit, 10 min mask)
 (`scripts/keck_overheads.py`); MOS blocks 1-2 h + 5 min buffer, only for
 masks in `MOS_MASKS_AVAILABLE`.
+
+### Planning options (2026-11-07)
+
+Both instruments (`night-planner calc --instrument lris|kast ...`, or the
+Configuration card on the setup page) take:
+
+| Flag | Default | What it does |
+|---|---|---|
+| `--grism --grating --dichroic --slit --binning` | the standard setup | instrument configuration; only values the UCO/Lick ETC can model are accepted |
+| `--seeing` | LRIS 0.8", Kast 1.5" | FWHM fed to the ETC |
+| `--mag-band` | `r` | band of the `mag` column (a per-row `mag_band` / FFFF-PZ `Pri_filter` wins) |
+| `--etc` | LRIS `lris` (UCO ETC), Kast `empirical` | exposure model: `lris`, `kast`, `empirical`, or your own `package.module:function` |
+| `--target-sn` | LRIS 10, Kast 10 | median continuum S/N per sub-exposure (>= 3 sub-exposures) |
+| `--airmass-rule` | `worst` | airmass the ETC runs at over each target's scheduled block (`worst`, `mid`, `best`) |
+
+What every plan now includes:
+- **Time accounting.** Slew, acquisition, readout and on-target time are
+  separate terms, and on target + slew + acquisition + readout + overheads +
+  blocked + idle = the night. Keck: 5 min base slew, 14 min for a S→N Dec
+  +20° crossing, acquisition 5 min longslit / 10 min mask, readout 80 s per
+  frame at 2x2. Lick: 2 min slew + 3 min acquisition, readout 20 s per
+  frame. The plan page's **Assumptions** panel lists the values used.
+- **Target table columns.** `priority` (tiers, on both instruments),
+  `t_target` (your own minutes on target) and `required` (full time or
+  nothing). See [`docs/target_csv_guide.md`](docs/target_csv_guide.md).
+- **Telescope limits.** Keck I can't track above 88.9° elevation (a short
+  keyhole each target's block avoids), and blocks passing above 85° carry a
+  guiding warning.
+- **Scenarios.** Several plans for one night (e.g. seeing 0.6/0.8/1.2",
+  "lost first half"), shown as tabs with a comparison table.
+- **Observing log page.** Calibrations checklist, night checklist,
+  conditions log and per-target outcomes, then a Markdown night report plus
+  the FFFF-PZ CSV (`night-planner report --plan-dir ...`).
+
+Calibrations are no longer scheduled. They are ticked off on the Observing
+log page.
 
 ### Run Tests
 
 ```bash
+# Unit/integration tests (offline: the UCO ETC is faked, sockets blocked)
+conda run -n frb_env python -m pytest -q
+# ...plus the one test that calls the real ETC
+conda run -n frb_env python -m pytest -q --run-network
+
 # Generate 17 edge case test datasets
 python tests/test_data/generate_test_frbs.py
 
@@ -74,14 +115,15 @@ cat tests/test_data/TEST_RESULTS_SUMMARY.md
 
 ### 📖 Getting Started
 
+- **[Install Guide](INSTALL.md)** - Clone to generated night plan in five minutes
 - **[Documentation Index](docs/README.md)** - Complete documentation overview
 - **[Shane Telescope Constraints](docs/Shane_telescope_constraints.md)** - HA limits, observable RA windows
 - **[Testing Guide](docs/Testing_guide.md)** - Edge case validation, bug reports
 
 ### 📝 Examples
 
-- **[Lick-2026B-01 HOWTO](Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md)** - Complete worked example (Aug 13-14, 2026)
-- **[Corrections Summary](Night_plans/Lick-2026B-01/CORRECTIONS_SUMMARY.md)** - Critical HA limit corrections
+- **[Lick-2026B-01 HOWTO](docs/Lick-2026B-01_HOWTO_night_plan_creation.md)** - Complete worked example (Aug 13-14, 2026; target names replaced by codes)
+- **[Corrections Summary](docs/Lick-2026B-01_CORRECTIONS_SUMMARY.md)** - Critical HA limit corrections
 
 ### 🧪 Testing
 
@@ -110,9 +152,10 @@ cat tests/test_data/TEST_RESULTS_SUMMARY.md
 
 ### ✅ Deadtime Analysis
 
-Detects gaps when no targets are observable:
+Detects gaps when no targets are observable (the run-specific script is
+kept privately in `$NIGHT_PLANNER_PLANS/Lick-2026B-01/scripts/`):
 ```bash
-python scripts/check_deadtime_lick_2026b01.py
+python $NIGHT_PLANNER_PLANS/Lick-2026B-01/scripts/check_deadtime_lick_2026b01.py
 ```
 
 **Lick-2026B-01 result:** NO deadtime - targets flow continuously 20:30→04:12 PST.
@@ -138,19 +181,12 @@ night-planner/
 │   ├── README.md                 # Documentation index
 │   ├── Shane_telescope_constraints.md
 │   └── Testing_guide.md
-├── Night_plans/                   # 📅 Observing plans
-│   ├── Keck-2026B-01/            # Oct 6, 2026, earlier B-01 plan (record)
-│   ├── Keck-2026B-02/            # Oct 6, 2026, current Keck/LRIS plan
-│   └── Lick-2026B-01/            # Aug 13-14, 2026
-│       ├── HOWTO_night_plan_creation.md
-│       ├── CORRECTIONS_SUMMARY.md
-│       ├── Lick_2026B-01_Night_plan.xlsx
-│       └── [target CSVs, analysis]
+├── pvt_Nighplans/                 # 🔒 Observing plans: PRIVATE, git-ignored
+│                                  #    ($NIGHT_PLANNER_PLANS; real targets)
 ├── scripts/                       # 🔧 Calculation scripts
 │   ├── lick_2026b01_calculations.py    # Ephemeris & target selection
 │   ├── build_night_plan.py             # Excel generation
 │   ├── observable_ra_calculator.py     # RA windows by date
-│   ├── check_deadtime_lick_2026b01.py  # Timeline analysis
 │   ├── keck_2026oct06_calculations.py  # Keck/LRIS ephemeris & scheduling
 │   ├── build_keck_night_plan.py        # Keck Excel generation
 │   ├── keck_overheads.py               # Keck slew rule (all instruments)
@@ -181,11 +217,9 @@ night-planner/
 | `lick_2026b01_calculations.py` | Calculate ephemeris, apply constraints, select targets |
 | `build_night_plan.py` | Generate Excel night plan with timeline |
 | `observable_ra_calculator.py` | Show observable RAs for any date + year plot |
-| `check_deadtime_lick_2026b01.py` | Analyze timeline for gaps |
 | `keck_2026oct06_calculations.py` | Keck/LRIS ephemeris, Nasmyth-deck limits, ETC exposures, scheduling |
 | `build_keck_night_plan.py` | Keck Excel night plan |
-| `keck_overheads.py` | Keck slew times (10 min base, 20 min Dec<+20 -> Dec>+20) |
-| `keck_2026oct06_rejection_analysis.py` | Per-target accept/reject report |
+| `keck_overheads.py` | Keck slew and acquisition times (5 min base slew, 14 min Dec<+20 -> Dec>+20; acquisition 5 min longslit, 10 min mask) |
 | `lris_etc.py` | LRIS exposure times from the UCO/Lick ETC |
 | `generate_test_frbs.py` | Create 17 synthetic edge case datasets |
 | `run_all_tests.py` | Run observability on all test cases |
@@ -258,29 +292,71 @@ Verify against [Lick calendar](https://www.ucolick.org/calendar/lickcal2021-30/)
 
 **Rejected:** 6 targets at RA 9-13h (always HA > +3.75h, too far west)
 
-See [`Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md`](Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md) for complete step-by-step guide.
+See [`docs/Lick-2026B-01_HOWTO_night_plan_creation.md`](docs/Lick-2026B-01_HOWTO_night_plan_creation.md) for complete step-by-step guide.
 
 ---
 
 ## Installation
 
+Full walkthrough, including troubleshooting:
+**[INSTALL.md](INSTALL.md)**.
+
 ```bash
-# Clone repo
-cd /home/lordrick/Projects/night-planner
+git clone https://github.com/profxj/night-planner.git
+cd night-planner
 
-# Install dependencies (minimal - uses astropy)
-pip install -r requirements.txt
-
-# Or install as package
+# Conda (recommended -- the astro stack builds cleanly here)
+conda env create -f environment.yml
+conda activate night-planner
 pip install -e .
+
+# Or pip only
+pip install -e ".[gui,dev]"
 ```
 
-**Dependencies:**
-- numpy
-- pandas
-- astropy
-- matplotlib
-- openpyxl (for Excel generation)
+Check the install on a machine that has never seen this repo:
+
+```bash
+pytest
+python scripts/check_portability.py   # no machine-specific paths
+night-planner --help
+```
+
+**Dependencies:** numpy, pandas, astropy, astroplan, matplotlib, openpyxl,
+pyyaml, pytz, requests, certifi. Extras: `[gui]` for the viewer (FastAPI,
+uvicorn), `[finders]` for finder charts (astroquery, photutils), `[dev]` for
+pytest/black/flake8.
+
+### Environment variables
+
+Nothing inside the repo needs configuring: the repo root and
+`scripts/` are all worked out from the code's own location, so a fresh clone
+runs wherever you put it. Only paths *outside* the checkout need telling.
+
+| Variable | Needed for | Default |
+|----------|-----------|---------|
+| `FFFF_PZ_REPO` | The `chime-ffff-pz` checkout: standard-star library, finder charts, Observing data | A sibling directory next to this repo |
+| `NIGHT_PLANNER_PLANS` | The private plans directory — real targets, never committed | `<repo>/pvt_Nighplans` (git-ignored) |
+| `LICK_NIGHT_PLAN_TEMPLATE` | `make_lick_night_plan.py` only — the template .xlsx it copies its checklist sheet from | None; the builder asks for it |
+| `FFFF_PZ_URL` / `FFFF_PZ_USER` / `FFFF_PZ_PASS` | Talking to the FFFF-PZ server | None |
+
+If you keep the two repos side by side, nothing above needs setting:
+
+```
+Projects/
+├── night-planner/
+└── chime-ffff-pz/
+```
+
+Otherwise:
+
+```bash
+export FFFF_PZ_REPO=/path/to/chime-ffff-pz
+```
+
+Every one of these fails with a message naming the variable to set, rather
+than a missing-file error from somewhere deep in a data read. See
+[`night_planner/paths.py`](night_planner/paths.py).
 
 ---
 
@@ -325,6 +401,6 @@ BSD-3-Clause
 ## Getting Help
 
 1. Read [`docs/README.md`](docs/README.md) for documentation index
-2. Check [`Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md`](Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md) for worked example
+2. Check [`docs/Lick-2026B-01_HOWTO_night_plan_creation.md`](docs/Lick-2026B-01_HOWTO_night_plan_creation.md) for worked example
 3. Review [`tests/test_data/TEST_RESULTS_SUMMARY.md`](tests/test_data/TEST_RESULTS_SUMMARY.md) for edge cases
 4. Consult [`context/claudes_brain.md`](context/claudes_brain.md) for accumulated knowledge

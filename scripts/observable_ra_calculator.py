@@ -11,12 +11,21 @@ from astropy.coordinates import EarthLocation, get_sun, AltAz
 from astropy.time import Time
 import matplotlib.pyplot as plt
 
+import sys
+from pathlib import Path
+
+# Repo-relative, so this runs wherever the checkout lives.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from night_planner.paths import plans_dir
+
+_PLANS = plans_dir()
+
 # Lick Observatory
 LICK = EarthLocation(lat=37.3414*u.deg, lon=-121.6429*u.deg, height=1283*u.m)
 PST = timezone(timedelta(hours=-8))
 
 # Shane 3m HA limits
-HA_MIN = -5.0  # hours (east limit)
+HA_MIN = -(5 + 40 / 60)  # hours, -05:40 east limit (adopted 2026-10-14)
 HA_MAX = 3.75  # hours (west limit)
 
 def find_twilight_lst(date_str, twilight_alt=-18*u.deg):
@@ -261,7 +270,7 @@ def main():
     print("Generating year-round RA observability plot...")
     print(f"{'='*60}\n")
 
-    output_file = '/home/lordrick/Projects/night-planner/Night_plans/Lick-2026B-01/observable_ra_2026.png'
+    output_file = f'{_PLANS}/Lick-2026B-01/observable_ra_2026.png'
     plot_observable_ra_vs_month(2026, output_file)
 
 if __name__ == '__main__':

@@ -5,7 +5,11 @@ Created by JXP and Claude.
 """
 
 import sys
-sys.path.insert(0, '/home/lordrick/Projects/chime-ffff-pz')
+from pathlib import Path
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+from night_planner.paths import ffffpz_root
+sys.path.insert(0, str(ffffpz_root()))
 
 from chime_ffff_pz.utils import ffff_pz_utils
 import pandas as pd
@@ -18,8 +22,10 @@ night_date = PST.localize(datetime(2026, 8, 13, 20, 38))
 
 # Shane constraints
 DEC_MAX = 82.0  # degrees
-HA_MIN = -5.0   # hours
-HA_MAX = 3.75   # hours
+# Canonical values live in lick_2026b02_calculations; kept as
+# literals here because this script is a standalone one-off.
+HA_MIN = -(5 + 40 / 60)   # -05:40, adopted 2026-10-14
+HA_MAX = 3 + 45 / 60      # +03:45
 
 # Get evening/morning LST (from fix_ha_limits.py output)
 EVENING_LST = 17.03  # hours

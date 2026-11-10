@@ -2,10 +2,10 @@
 """Created by JXP and Claude
 
 Build a Lick Shane-3m + Kast Night-plan workbook, modeled on the
-professional night plans in
-/mnt/scratch/xavier/Observing/Observations/Lick_Kast/obs_docs/2026
+professional night plans the authors keep on observatory scratch space
 (e.g. Lick_2026A-4_Night_plan.xlsx), but with one science sheet per
-target, named exactly by its TNS.
+target, named exactly by its TNS. Point LICK_NIGHT_PLAN_TEMPLATE at one
+of those workbooks; see night_planner/paths.py.
 
 Inputs
 ------
@@ -33,6 +33,8 @@ import os
 import pandas as pd
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
+
+from .paths import lick_template, plan_dir
 
 # Timeline header, columns A -> O, exactly as in the template night plans
 TIMELINE_HEADER = [
@@ -338,7 +340,9 @@ def main():
     Command-line driver. Inputs are the argparse options below; the
     output is the Night-plan xlsx written to --output.
     """
-    base = '/home/xavier/Projects/night-planner/Night_plans/Lick-2026B-01'
+    # Was hardcoded to one author's home directory, which had been broken
+    # on every other machine since it was written.
+    base = str(plan_dir('Lick-2026B-01'))
     parser = argparse.ArgumentParser(
         description='Build a Lick Shane/Kast Night-plan workbook with one '
                     'sheet per target (Created by JXP and Claude).')
@@ -352,14 +356,19 @@ def main():
         help='Optional targets CSV with Pri_POx / FRB_tags.')
     parser.add_argument(
         '--template',
-        default=('/mnt/scratch/xavier/Observing/Observations/Lick_Kast/'
-                 'obs_docs/2026/Lick-2026A-4/Lick_2026A-4_Night_plan.xlsx'),
-        help='Template night-plan xlsx (read-only).')
+        default=lick_template(required=False),
+        help='Template night-plan xlsx (read-only). Defaults to '
+             '$LICK_NIGHT_PLAN_TEMPLATE; it lives on observatory scratch '
+             'space, so there is no portable default.')
     parser.add_argument(
         '--output',
         default=os.path.join(base, 'Lick_2026B-01_Night_plan.xlsx'),
         help='Output Night-plan xlsx path.')
     args = parser.parse_args()
+    if not args.template:
+        parser.error('no template: pass --template, or set '
+                     'LICK_NIGHT_PLAN_TEMPLATE to the night-plan .xlsx whose '
+                     'Observing Checklist sheet should be copied')
 
     out = make_night_plan(args.possible_targs, args.template, args.output,
                           targets_csv_path=args.targets_csv)
