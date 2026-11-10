@@ -251,12 +251,16 @@ ETC_REGISTRY = {'lris': lris_etc, 'kast': kast_etc,
 # Kast stays on the empirical rule by default (2026-11-07): at S/N 5 per
 # sub-exposure the UCO ETC gives ~0.07x the empirical time at mag 16-17 and
 # ~2.4x at mag 21 (scripts/compare_kast_exposure_models.py,
-# Night_plans/kast_exposure_model_comparison.csv). That would change every
+# docs/data/kast_exposure_model_comparison.csv). At S/N 10 it is 0.07x at
+# mag 16 and 1.75x at mag 20; at mag >= 20.5 it hits the 3 x 7200 s cap
+# (docs/data/kast_exposure_model_comparison_sn10.csv). That would change every
 # Kast plan, so switching is Lordrick/JXP's call. `--etc kast` uses the ETC.
 DEFAULT_ETC = {'lris': 'lris', 'kast': 'empirical'}
-# LRIS: S/N 10 per sub-exposure (the author, 2026-09-10). Kast: 5 "for now"
-# (Lordrick, 2026-11-07). Both use >= 3 sub-exposures.
-TARGET_SN = {'lris': 10.0, 'kast': 5.0}
+# LRIS: S/N 10 per sub-exposure (the author, 2026-09-10). Kast: 10 per
+# sub-exposure (Lordrick, 2026-11-07; was 5 earlier that day). Both use
+# >= 3 sub-exposures. Only `--etc kast` uses it: the empirical rule (the
+# Kast default) has no S/N dependence.
+TARGET_SN = {'lris': 10.0, 'kast': 10.0}
 N_SUB_MIN = {'lris': 3, 'kast': 3}
 
 

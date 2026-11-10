@@ -61,7 +61,7 @@ def make_kast_exposure(etc_opts=None, spectra=None):
     The exposure function the Kast schedulers call (T1.3, T3.4).
 
     Everything goes through night_planner.etc: the UCO/Lick ETC by default
-    (S/N 5 per sub-exposure, >= 3 sub-exposures, d57 sent as d55), or the
+    (S/N 10 per sub-exposure, >= 3 sub-exposures, d57 sent as d55), or the
     old empirical magnitude rule with --etc empirical.
 
     Parameters

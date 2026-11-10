@@ -197,7 +197,7 @@ def add_config_args(parser, instrument):
                                       f'[{instrument}].')
     parser.add_argument('--target-sn', type=float,
                         help='Target median continuum S/N per sub-exposure '
-                             '[LRIS 10, Kast 5].')
+                             '[LRIS 10, Kast 10].')
 
 
 def resolve_options(args, cfg, instrument):

@@ -20,11 +20,13 @@ import pytest
 
 from night_planner import observing_log as olog
 from night_planner.observing_report import build_ffffpz_rows, render_markdown
+from night_planner.paths import plan_dir
 from night_planner.plan_result import PlanResult, ScheduledTarget, SunEvents
 from night_planner.plan_store import save_plan
 
 REPO = Path(__file__).resolve().parent.parent
-KECK_PLAN_DIR = REPO / 'Night_plans' / 'Keck-2026B-02'
+# Real (private) plan: present only where NIGHT_PLANNER_PLANS/pvt_Nighplans is.
+KECK_PLAN_DIR = plan_dir('Keck-2026B-02')
 HST = ZoneInfo('Pacific/Honolulu')
 PACIFIC = ZoneInfo('America/Los_Angeles')
 

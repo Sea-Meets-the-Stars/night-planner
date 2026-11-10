@@ -10,10 +10,16 @@ failure mode is silent until someone else runs it.
 
 Paths split into two kinds, and they want opposite treatment:
 
-**Inside the repo** -- the repo root, ``Night_plans/``, ``scripts/``. These are
+**Inside the repo** -- the repo root, ``scripts/``, ``test_targs/``. These are
 *derived* from this file's own location and are never configurable. Making them
 settings would be strictly worse: one more thing to get wrong, and they cannot
 be wrong when computed.
+
+**Night plans are private.** The repo is public but the targets in a night
+plan (unpublished FRB host positions) are not, so plans never live in a
+tracked directory. They go to ``NIGHT_PLANNER_PLANS`` when set, else to the
+git-ignored ``<repo>/pvt_Nighplans/``. ``Night_plans/`` is git-ignored too, as
+a safety net for old commands that still spell it out.
 
 **Outside the repo** -- the FFFF-PZ checkout, the Lick night-plan template on
 ``/mnt/scratch``. These genuinely differ per machine, so they read from
@@ -23,7 +29,9 @@ naming the variable where it does not.
 Environment variables
 ---------------------
 ``NIGHT_PLANNER_PLANS``
-    Plan output directory. Defaults to ``<repo>/Night_plans``.
+    Private plan directory. Defaults to ``<repo>/pvt_Nighplans`` (git-ignored).
+    JXP/LK set it in the conda env:
+    ``conda env config vars set NIGHT_PLANNER_PLANS=<repo>/pvt_Nighplans``.
 ``FFFF_PZ_REPO``
     The ``chime-ffff-pz`` checkout. Defaults to a sibling of this repo, which
     is how both authors have it laid out.
@@ -41,6 +49,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = REPO_ROOT / 'scripts'
 TEST_TARGS_DIR = REPO_ROOT / 'test_targs'
+# Default home of the (private, git-ignored) night plans.
+PRIVATE_PLANS_DIR = REPO_ROOT / 'pvt_Nighplans'
 
 
 def plans_dir():
@@ -55,11 +65,11 @@ def plans_dir():
 
     Outputs
     -------
-    Path. ``<repo>/Night_plans`` unless NIGHT_PLANNER_PLANS overrides it,
-    which lets a shared checkout write plans to a per-user location.
+    Path. NIGHT_PLANNER_PLANS when set, else ``<repo>/pvt_Nighplans``. Both
+    are private: real targets must never land in a tracked directory.
     """
     override = os.getenv('NIGHT_PLANNER_PLANS')
-    return Path(override).expanduser() if override else REPO_ROOT / 'Night_plans'
+    return Path(override).expanduser() if override else PRIVATE_PLANS_DIR
 
 
 def plan_dir(name):

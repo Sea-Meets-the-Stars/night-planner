@@ -223,7 +223,8 @@ def _keck_decisions(out, results_df, selected, skips):
     """
     One TargetDecision per target in the original pulled table.
 
-    Mirrors the staging in scripts/keck_2026oct06_rejection_analysis.py:
+    Mirrors the staging in keck_2026oct06_rejection_analysis.py (a per-run
+    script, now kept privately with the Keck-2026B-02 plan):
     1. Keck selection -> 2. Sky -> 2b. Mask -> 3. Scheduling.
     """
     # Imported lazily: the instrument module is on sys.path only once

@@ -11,6 +11,8 @@ noticing.
 
 import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,7 +24,7 @@ from night_planner.paths import (
 
 # Directories whose contents are generated or vendored, not authored here.
 SKIP_DIRS = {'__pycache__', '.git', '.pytest_cache', 'Night_plans',
-             'node_modules'}
+             'pvt_Nighplans', 'node_modules'}
 
 # The portability checker necessarily spells these patterns out, so it
 # cannot be scanned by the rule it enforces.
@@ -83,18 +85,35 @@ def test_repo_root_is_this_checkout():
 
 
 def test_plans_dir_defaults_inside_the_repo_and_can_be_overridden(monkeypatch):
-    """Plans land in <repo>/Night_plans unless NIGHT_PLANNER_PLANS says otherwise.
+    """Plans land in the git-ignored <repo>/pvt_Nighplans unless
+    NIGHT_PLANNER_PLANS says otherwise.
 
     Inputs: none.
     Outputs: none (asserts on success).
     """
     monkeypatch.delenv('NIGHT_PLANNER_PLANS', raising=False)
-    assert plans_dir() == REPO_ROOT / 'Night_plans'
-    assert plan_dir('Lick-2026B-02') == REPO_ROOT / 'Night_plans' / 'Lick-2026B-02'
+    assert plans_dir() == REPO_ROOT / 'pvt_Nighplans'
+    assert plan_dir('Lick-2026B-02') == REPO_ROOT / 'pvt_Nighplans' / 'Lick-2026B-02'
 
     monkeypatch.setenv('NIGHT_PLANNER_PLANS', '/tmp/elsewhere')
     assert plans_dir() == Path('/tmp/elsewhere')
     assert plan_dir('Keck-2026B-02') == Path('/tmp/elsewhere/Keck-2026B-02')
+
+
+def test_private_plan_directories_are_git_ignored():
+    """Real targets live in plan directories; both must stay out of git.
+
+    Created by JXP and Claude
+
+    Inputs: none.
+    Outputs: none (asserts on success). Uses ``git check-ignore``, which is
+    read-only, and skips when git is unavailable (e.g. an sdist).
+    """
+    if shutil.which('git') is None or not (REPO_ROOT / '.git').exists():
+        pytest.skip('not a git checkout')
+    for name in ('pvt_Nighplans/x.csv', 'Night_plans/x.csv'):
+        res = subprocess.run(['git', 'check-ignore', '-q', name], cwd=REPO_ROOT)
+        assert res.returncode == 0, f'{name} is not git-ignored'
 
 
 def test_missing_external_checkout_names_the_variable_to_set(monkeypatch):

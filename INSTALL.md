@@ -53,7 +53,7 @@ Everything else works unset.
 
 | Variable | What it points at | Needed for | Default |
 |---|---|---|---|
-| `NIGHT_PLANNER_PLANS` | Where generated plans are written | Never — set it only to keep plans out of a shared checkout | `<repo>/Night_plans` |
+| `NIGHT_PLANNER_PLANS` | Where generated plans are written (private: real targets) | Recommended — `conda env config vars set NIGHT_PLANNER_PLANS=<repo>/pvt_Nighplans` | `<repo>/pvt_Nighplans` (git-ignored) |
 | `FFFF_PZ_REPO` | Your `chime-ffff-pz` checkout | Pulling targets and finder data from FFFF-PZ | A sibling directory beside this repo |
 | `LICK_NIGHT_PLAN_TEMPLATE` | A Lick night-plan `.xlsx` | Building the Lick workbook (it copies the template's checklist sheet) | None — the builder tells you to set it |
 | `FFFF_PZ_URL`, `FFFF_PZ_USER`, `FFFF_PZ_PASS` | FFFF-PZ server and credentials | Querying the FFFF-PZ database | None |
@@ -110,4 +110,6 @@ charts and on-source checks. `environment.yml` includes them; a plain
 `pip install -e .` does not.
 
 **Plans written somewhere unexpected.** Check `NIGHT_PLANNER_PLANS`; when
-it is unset, plans go to `<repo>/Night_plans`.
+it is unset, plans go to the git-ignored `<repo>/pvt_Nighplans`. Plans hold
+real targets and must never be committed; `Night_plans/` is git-ignored as a
+safety net.

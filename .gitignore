@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Private night plans -- real targets, never in this public repo
+# (Created by JXP and Claude; see claude_prompts/target_scrub.md).
+# NIGHT_PLANNER_PLANS points the code at the private directory.
+pvt_Nighplans/
+Night_plans/

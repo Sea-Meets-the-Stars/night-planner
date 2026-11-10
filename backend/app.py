@@ -41,8 +41,8 @@ from night_planner.targets_io import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = REPO_ROOT / 'frontend'
-# night_planner.paths owns this so a shared checkout can send plans
-# elsewhere (NIGHT_PLANNER_PLANS); the default is still <repo>/Night_plans.
+# night_planner.paths owns this: NIGHT_PLANNER_PLANS when set, else the
+# git-ignored <repo>/pvt_Nighplans. Plans hold private targets.
 PLANS_ROOT = plans_dir()
 UPLOAD_DIR = Path(tempfile.gettempdir()) / 'night-planner-uploads'
 
@@ -114,7 +114,7 @@ def _write_prioritized_targets(targets_csv, priorities, output_dir):
 def _safe_dir(output_dir):
     """
     Resolve a caller-supplied plan directory, refusing anything outside
-    Night_plans/ or the upload scratch area.
+    the private plans directory (paths.plans_dir) or the upload scratch area.
 
     Every endpoint takes the plan directory from the query string, so this
     is the one place that stops a crafted path from reading the rest of
@@ -220,7 +220,7 @@ def etc_spectrum(output_dir: str, target: str):
 
 @app.get('/api/plans')
 def list_plans():
-    """Existing plan directories under Night_plans/, newest first."""
+    """Existing plan directories under the private plans directory, newest first."""
     out = []
     for path in sorted(PLANS_ROOT.glob('*')):
         if not path.is_dir():

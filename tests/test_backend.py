@@ -16,10 +16,12 @@ pytest.importorskip('fastapi')
 from fastapi.testclient import TestClient
 
 from backend.app import app
+from night_planner.paths import plan_dir
 from night_planner.plan_result import PlanResult
 
-PLAN_DIR = str(Path(__file__).resolve().parent.parent
-               / 'Night_plans' / 'Keck-2026B-02')
+# Real (private) plan: present only where NIGHT_PLANNER_PLANS/pvt_Nighplans
+# is; the tests that need it skip elsewhere.
+PLAN_DIR = str(plan_dir('Keck-2026B-02'))
 
 client = TestClient(app)
 
@@ -164,11 +166,11 @@ def test_inspect_maps_a_foreign_spreadsheet(tmp_path):
     Outputs: none (asserts on success).
     """
     csv = tmp_path / 'mine.csv'
-    csv.write_text('object,RA,DEC,Rmag\nHOST-A,17 46 48.45,+41 14 16.9,19.99\n')
+    csv.write_text('object,RA,DEC,Rmag\nHOST-A,12 00 00.00,+30 30 00.0,19.99\n')
     data = client.post('/api/targets/inspect', params={'path': str(csv)}).json()
     assert data['mapping']['ok'] is True
     assert data['mapping']['columns']['name'] == 'object'
-    assert data['preview'][0]['ra_deg'] == pytest.approx(266.7018, abs=1e-3)
+    assert data['preview'][0]['ra_deg'] == pytest.approx(180.0, abs=1e-3)
 
 
 def test_inspect_reports_priority_and_its_default(tmp_path):

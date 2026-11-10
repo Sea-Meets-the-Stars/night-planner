@@ -49,7 +49,7 @@ LICK = EarthLocation(lat=37.3414 * u.deg, lon=-121.6429 * u.deg, height=1283 * u
 # (UTC-7) roughly March-November, PST (UTC-8) otherwise. Lick's own
 # published calendar (ucolick.org/calendar) instead labels every night
 # "PST" year-round as a fixed almanac convention (see
-# Night_plans/Lick-2026B-01/HOWTO_night_plan_creation.md, "Mistake 2") --
+# docs/Lick-2026B-01_HOWTO_night_plan_creation.md, "Mistake 2") --
 # this script shows real wall-clock time instead, so a human observer's
 # actual clock at the telescope matches what's printed here. LST/HA/
 # window-length values are identical either way; only the printed

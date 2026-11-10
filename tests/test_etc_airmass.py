@@ -155,7 +155,7 @@ def _kast(tmp_path, *extra):
 
 def test_kast_empirical_by_default_and_etc_on_request(tmp_path):
     """Kast defaults to the empirical rule (pending a decision, 2026-11-07);
-    --etc kast sizes exposures with the (faked) UCO ETC at S/N 5 with an
+    --etc kast sizes exposures with the (faked) UCO ETC at S/N 10 with an
     airmass rule.
 
     Inputs: tmp_path (pytest).
@@ -166,7 +166,7 @@ def test_kast_empirical_by_default_and_etc_on_request(tmp_path):
     sized = _kast(tmp_path / 'etc', '--etc', 'kast')
     assert sized.schedule
     assert any(t.airmass_rule for t in sized.schedule)
-    assert sized.assumptions['target S/N'].startswith('5 ')
+    assert sized.assumptions['target S/N'].startswith('10 ')
     assert any((tmp_path / 'etc' / 'etc').glob('*.json'))
 
     old = _kast(tmp_path / 'emp')

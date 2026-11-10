@@ -23,12 +23,12 @@ def test_ffffpz_columns_map_to_host_not_burst():
     Outputs: none (asserts on success).
     """
     df = pd.DataFrame({'TNS': ['FRB1'], 'FRB_RA': [1.0], 'FRB_Dec': [2.0],
-                       'Pri_RA': [278.49], 'Pri_Dec': [46.86],
+                       'Pri_RA': [150.25], 'Pri_Dec': [40.5],
                        'Pri_mag': [22.4], 'Pri_POx': [0.99],
                        'FRB_tags': ['CHIME'], 'FRB_DM': [800.0]})
     out = load_targets(df)
-    assert out.loc[0, 'ra_deg'] == 278.49
-    assert out.loc[0, 'dec_deg'] == 46.86
+    assert out.loc[0, 'ra_deg'] == 150.25
+    assert out.loc[0, 'dec_deg'] == 40.5
     assert out.loc[0, 'name'] == 'FRB1'
     assert out.loc[0, 'tags'] == 'CHIME'
 
@@ -39,23 +39,25 @@ def test_burst_position_alone_is_refused():
     Inputs: none.
     Outputs: none (asserts on success).
     """
-    df = pd.DataFrame({'TNS': ['FRB1'], 'FRB_RA': [278.4], 'FRB_Dec': [46.8],
+    df = pd.DataFrame({'TNS': ['FRB1'], 'FRB_RA': [150.0], 'FRB_Dec': [40.0],
                        'Pri_mag': [22.4]})
     with pytest.raises(TargetTableError):
         load_targets(df)
 
 
 def test_sexagesimal_coordinates():
-    """'09:13:38.17' is read as hours of RA, '+76:28:18.1' as degrees of Dec.
+    """'10:30:00.00' is read as hours of RA, '+45:15:36.0' as degrees of Dec.
+
+    Made-up position (no real target: this repo is public).
 
     Inputs: none.
     Outputs: none (asserts on success).
     """
-    df = pd.DataFrame({'Name': ['A'], 'RA': ['09:13:38.17'],
-                       'Dec': ['+76:28:18.1'], 'magnitude': [15.9]})
+    df = pd.DataFrame({'Name': ['A'], 'RA': ['10:30:00.00'],
+                       'Dec': ['+45:15:36.0'], 'magnitude': [15.9]})
     out = load_targets(df)
-    assert out.loc[0, 'ra_deg'] == pytest.approx(138.409042, abs=1e-5)
-    assert out.loc[0, 'dec_deg'] == pytest.approx(76.471694, abs=1e-5)
+    assert out.loc[0, 'ra_deg'] == pytest.approx(157.5, abs=1e-5)
+    assert out.loc[0, 'dec_deg'] == pytest.approx(45.26, abs=1e-5)
 
 
 def test_ra_in_hours_when_named_so():
@@ -64,9 +66,9 @@ def test_ra_in_hours_when_named_so():
     Inputs: none.
     Outputs: none (asserts on success).
     """
-    df = pd.DataFrame({'id': ['Y'], 'ra_hours': [18.57], 'dec': [46.86],
+    df = pd.DataFrame({'id': ['Y'], 'ra_hours': [10.5], 'dec': [40.0],
                        'mag': [22.4]})
-    assert load_targets(df).loc[0, 'ra_deg'] == pytest.approx(278.55)
+    assert load_targets(df).loc[0, 'ra_deg'] == pytest.approx(157.5)
 
 
 def test_ambiguous_numeric_ra_is_refused():

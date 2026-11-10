@@ -214,8 +214,8 @@ behaviour instead.
   convention: methods, not classes. Sunil said "ETC class"; **decided
   (Lordrick, 2026-11-07): the function shape for now.**
 - Kast gets a real ETC through the same interface (etc.ucolick.org serves Kast
-  too). **Kast target S/N = 5** per sub-exposure for now (Lordrick,
-  2026-11-07), adjustable per plan.
+  too). **Kast target S/N = 10** per sub-exposure (Lordrick,
+  2026-11-07; first set to 5 the same day), adjustable per plan.
 
 ### T3.5 Magnitude band choice
 - **Asked by:** Michele.
@@ -339,7 +339,7 @@ step is useful on its own.
 | Q6 | Who is X? | **X is JXP; his comments take precedence** | all |
 | Q7 | MOS double count? | **Keep the +5 min mask buffer** on top of the 10 min mask acquisition (Lordrick) | T1.2 |
 | Q8 | Lick acquisition term? | **Yes: 2 min slew + 3 min acquisition, 5 min total** (Lordrick; first given as 3 + 3) | T1.2 |
-| — | Kast S/N target? | **S/N = 5 for now**, changeable (Lordrick) | T3.4 |
+| — | Kast S/N target? | **S/N = 10** (was 5), changeable (Lordrick) | T3.4 |
 | — | ETC plug-in shape (Sunil) | **Function shape for now** (Lordrick) | T3.4 |
 | — | Additional | Don't show calibration times; add a calibrations checklist page (Lick: biases, flats, arcs per config; LRIS: flats, arcs per config and per mask) | T1.5, T3.7 |
 
@@ -389,7 +389,7 @@ None. Q1–Q8 are all answered (see Decisions above).
 - **2026-11-07 (UTC), Claude (Opus 5.5), follow-up:** Applied Lordrick's
   answers from the implementation plan's data table:
   - Q8: Lick gets 3 min slew + 3 min acquisition (T1.2).
-  - Kast target S/N is 5 for now (T3.4).
+  - Kast target S/N is 5 for now (T3.4). Raised to 10 later that day.
   - The ETC plug-in is a function, not a class (T3.4).
 
   These are now in the Decisions table. Q7 is still open, with its default.
@@ -411,6 +411,11 @@ None. Q1–Q8 are all answered (see Decisions above).
   (T1.1-T1.6, T2.1-T2.8, T3.1-T3.7, T4.1, T4.2); see the implementation
   plan's Logs. Open decision: the Kast default stays on the empirical rule,
   because the ETC at S/N 5 differs from it by 0.07-2.4×.
+- **2026-11-08 (UTC), Claude (Opus 5.5):** Kast target S/N raised from 5 to
+  10 per sub-exposure (Lordrick: "Let's increase the S/N to 10 for Lick").
+  It only affects `--etc kast`; the empirical default ignores S/N. At S/N 10
+  the ETC/empirical ratio is 0.07× at r = 16, 1.75× at r = 20, and r ≥ 20.5
+  hits the 3 × 7200 s cap (`Night_plans/kast_exposure_model_comparison_sn10.csv`).
 ---
 
 ## Appendix — original comments (verbatim)

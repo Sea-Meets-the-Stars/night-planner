@@ -21,7 +21,8 @@ What is deliberately ignored
 ----------------------------
 - ``night_planner/paths.py`` itself, which names these paths to explain
   why they are gone
-- ``Logs/``, ``Night_plans/``, ``claude_prompts/`` and ``context/``:
+- ``Logs/``, ``Night_plans/``, ``pvt_Nighplans/``, ``claude_prompts/`` and
+  ``context/``:
   logs, generated run products and Claude's running notes are records of
   what happened on one machine on one night, not code anyone re-runs
 - this file
@@ -51,7 +52,7 @@ SCANNED_SUFFIXES = {'.py', '.md', '.toml', '.cfg', '.txt', '.yaml', '.yml',
                     '.json', '.js', '.html', '.css', '.sh'}
 
 # Directories whose contents are run records, not code.
-SKIPPED_DIRS = {'.git', 'Logs', 'Night_plans', 'claude_prompts', 'context',
+SKIPPED_DIRS = {'.git', 'Logs', 'Night_plans', 'pvt_Nighplans', 'claude_prompts', 'context',
                 '__pycache__', '.pytest_cache', 'test_targs', 'build',
                 'dist', '.venv'}
 

@@ -26,6 +26,13 @@ bottom tracks every update.
 - **Coding:** Python; methods not classes; imports at top; docstrings with
   inputs/outputs; matplotlib/seaborn/Bokeh for plots; `"Created by JXP and Claude"`
   header on every file and docstring.
+- **Target privacy (2026-11-09):** the repo is **public**; real targets are
+  not. Plans go to `paths.plans_dir()` = `NIGHT_PLANNER_PLANS` or the
+  git-ignored `<repo>/pvt_Nighplans/` (`Night_plans/` is git-ignored too).
+  **Never write a real target name or position into a tracked file**: no logs,
+  brain, docs, tests, prompts or scripts. Use `SIM*` objects or a placeholder.
+  Check with `scripts/scan_private_targets.py`. The scrub plan is in
+  `claude_prompts/target_scrub.md`.
 
 ## Repository layout (as of 2026-07-11)
 
@@ -1795,8 +1802,8 @@ uninteresting ones -- log the reason at every skip point.
   that the general Kast path imports from. `adapters._attribute_kast_slews`
   only recognises a gap of exactly `SLEW_MINUTES`, so it must change in step
   with the scheduler.
-  (2) **Kast target S/N = 5** per sub-exposure (≥ 3 subs) for now; it will
-  change later, so it is a flag. LRIS stays at 10.
+  (2) **Kast target S/N = 10** per sub-exposure (≥ 3 subs); first 5, raised
+  to 10 on 2026-11-08 UTC (Lordrick). It is a flag (`--target-sn`). LRIS is 10.
   (3) **ETC plug-in:** function shape, not a class (overrides Sunil's "ETC
   class" for now).
   Q7 (MOS buffer) is still open; the default is to drop it.
@@ -1947,3 +1954,39 @@ uninteresting ones -- log the reason at every skip point.
   If pages or flags change, update the artifact by republishing from the
   same template (the scratchpad template does not persist; rebuild from
   the published page).
+- **v0.76 — 2026-11-08 (UTC): Kast target S/N 5 → 10.** `TARGET_SN['kast']`
+  in `night_planner/etc.py` is now 10 (Lordrick). It matters only with
+  `--etc kast`; the empirical rule (still the Kast default) has no S/N term.
+  At S/N 10 the UCO ETC wants 3 min at r = 16, 158 min at r = 20 and caps
+  at 3 × 7200 s from r = 20.5 (r = 21 reaches only S/N ≈ 7):
+  `Night_plans/kast_exposure_model_comparison_sn10.csv`. The full test suite
+  fails offline with astropy IERS errors in the sandbox; run it with
+  `iers.conf.auto_max_age = None` (or with network) — 144 pass.
+- **v0.77 — 2026-11-09 (UTC): target privacy / scrub.** Real targets have
+  leaked into 235 tracked files and 239 history paths: `Night_plans/`,
+  `Keck-2026B-02_test1000/`, `claude_prompts/night_plans/`, run scripts, Logs,
+  this brain, README, docs and some tests. `scripts/scan_private_targets.py`
+  catalogues names and positions from the private dir, scans HEAD and every
+  commit, and writes `git filter-repo --replace-text` rules
+  (names → `TGTnnnn`, positions → `RA/DEC_REDACTED`) into
+  `pvt_Nighplans/_scrub/`. `plans_dir()` now defaults to `pvt_Nighplans`; the
+  `frb_env` conda env sets `NIGHT_PLANNER_PLANS`. Gotchas: starlists spell
+  standards in lower case (`bd284211`); `cand_gal_names` cells are
+  Python-list strings; `tests/test_data` synthetic names collide with 2 real
+  TNS names, with fake positions. History rewrite pending JXP (see D1–D4 in the
+  prompt file).
+- **v0.78 — 2026-11-10 (UTC): scrub decisions applied.** Lordrick's answers:
+  scrub names and positions (D1), move the run scripts (D2), rescue the docs
+  (D3), delete and re-create the GitHub repo (D4). **Engine vs one-off:**
+  `keck_2026oct06_calculations.py`, `lick_2026b02_calculations.py`,
+  `lick_2026b02_night2_calculations.py` and `lick_2026b01_calculations.py`
+  are imported by the CLI, adapters and tests: they are the engine despite
+  their run names, so they stay public. The other 13 run scripts now live in
+  `pvt_Nighplans/<run>/scripts/`. The removal list is
+  `claude_prompts/target_scrub_paths.txt`, shared by `filter-repo` and the
+  scan script. **Lesson:** exact-string scans miss rounded positions
+  (`278.49, 46.86`, or RA in hours). Always run `scan_private_targets.py
+  --coarse`, and `--verify` before any rewrite. Rescued docs:
+  `docs/Lick-2026B-01_{HOWTO_night_plan_creation,CORRECTIONS_SUMMARY}.md`,
+  `docs/data/kast_exposure_model_comparison*.csv`. Claude Code's safety
+  check blocks `rm` in a `bash -c` script; leave deletions to the user.

@@ -4,16 +4,20 @@ Kast exposures: the empirical magnitude rule vs the UCO/Lick ETC.
 Created by JXP and Claude
 
 Milestone 5c switches Kast plans from the empirical rule
-(night_planner/estimate_kast_exposures.py) to the real ETC at S/N 5 per
-sub-exposure, >= 3 sub-exposures (Lordrick, 2026-11-07). This shows what
-that does to exposure times before it becomes the default.
+(night_planner/estimate_kast_exposures.py) to the real ETC at the Kast target
+S/N per sub-exposure, >= 3 sub-exposures. That target was 5 (Lordrick,
+2026-11-07) and is now 10 (Lordrick, same day). This shows what that does to
+exposure times before it becomes the default. Outputs so far:
+docs/data/kast_exposure_model_comparison.csv (S/N 5) and
+docs/data/kast_exposure_model_comparison_sn10.csv (S/N 10). They hold no
+targets (magnitudes only), so they live in the public docs.
 
 The ETC is called over a magnitude grid rather than per target, to keep the
 load on etc.ucolick.org modest. Setup: G2 (600/4310) / 600/7500 / d55
 (stand-in for d57) / 2.0" / 1x1, r band (AB), flat spectrum.
 
     python scripts/compare_kast_exposure_models.py \
-        --out Night_plans/kast_exposure_model_comparison.csv
+        --out docs/data/kast_exposure_model_comparison.csv
 """
 
 import argparse
